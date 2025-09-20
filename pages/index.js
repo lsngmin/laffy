@@ -24,7 +24,8 @@ export default function Home({ memes: memeList }) {
     <>
       <Head>
         <title>{t('title')}</title>
-        <meta name="description" content="Fresh memes and funny videos curated for your daily laughs." />
+        <meta name="monetag" content="e39f02316147e88555f93187d1919598"/>
+        <meta name="description" content="Fresh memes and funny videos curated for your daily laughs."/>
       </Head>
       <div className="min-h-screen bg-slate-900">
         <main className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 pb-24 pt-8 sm:px-6">
