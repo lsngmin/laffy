@@ -32,9 +32,25 @@ class MyDocument extends Document {
                 (function () {
                   if (typeof window === 'undefined') return;
                   try {
+                    var marker = 'monetagLoaded';
                     var storage = window.sessionStorage;
-                    if (storage && storage.getItem('monetagLoaded') === '1') return;
-                    if (storage) storage.setItem('monetagLoaded', '1');
+                    var hasSession = storage && storage.getItem(marker) === '1';
+                    var hasCookie = document.cookie.split('; ').some(function (entry) {
+                      return entry === marker + '=1';
+                    });
+
+                    if (hasSession || hasCookie) {
+                      return;
+                    }
+
+                    if (storage) {
+                      storage.setItem(marker, '1');
+                    }
+                    try {
+                      document.cookie = marker + '=1; path=/; SameSite=Lax';
+                    } catch (cookieError) {
+                      console.warn('Unable to persist Monetag cookie', cookieError);
+                    }
 
                     var secondary = document.createElement('script');
                     secondary.async = true;

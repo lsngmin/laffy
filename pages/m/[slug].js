@@ -60,7 +60,6 @@ export default function MemeDetail({ meme }) {
 
   const locale = i18n.language || 'en';
   const typeLabel = t(`meta.${meme.type === 'video' ? 'video' : 'thread'}`);
-  const sourceLabel = meme.source || (meme.type === 'twitter' ? 'Twitter' : 'Video');
   const mediaAspect = getOrientationClass(meme.orientation);
   const publishedDate = meme.publishedAt ? new Date(meme.publishedAt) : null;
   const relativeTime = publishedDate ? formatRelativeTime(publishedDate, locale) : null;
@@ -113,9 +112,14 @@ export default function MemeDetail({ meme }) {
       </Head>
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
+          <div className="mb-4 text-center">
+            <span className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-[0.35em] text-transparent">
+              LAFFY
+            </span>
+          </div>
           <Link
-            href="/"
-            className="inline-flex w-fit items-center gap-2 rounded-full bg-slate-900/70 px-4 py-2 text-sm font-semibold text-indigo-200 shadow-lg shadow-black/40 transition hover:text-indigo-100 active:scale-95"
+            href="/m"
+            className="inline-flex w-fit items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500/40 via-purple-500/30 to-pink-500/40 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/50 transition hover:brightness-110 active:scale-95"
           >
             <span aria-hidden="true">←</span>
             {t('backToFeed')}
@@ -133,14 +137,24 @@ export default function MemeDetail({ meme }) {
               </div>
               <p className="text-sm leading-relaxed text-slate-200/90 sm:text-base">{meme.description}</p>
               <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-slate-300/90">
-                {relativeTime && <span>{relativeTime}</span>}
-                {relativeTime && (sourceLabel || viewsDisplay) && <span className="text-slate-500">•</span>}
-                {sourceLabel && <span className="inline-flex items-center gap-1"><CompassIcon className="h-3.5 w-3.5" />{sourceLabel}</span>}
-                {sourceLabel && viewsDisplay && <span className="text-slate-500">•</span>}
+                {relativeTime && (
+                  <span className="inline-flex items-center gap-1">
+                    <SparkIcon className="h-3.5 w-3.5" />
+                    {relativeTime}
+                  </span>
+                )}
+                {relativeTime && (viewsDisplay || likesDisplay) && <span className="text-slate-500">•</span>}
                 {viewsDisplay && (
                   <span className="inline-flex items-center gap-1 text-slate-200/85">
                     <EyeIcon className="h-4 w-4" />
                     {viewsDisplay}
+                  </span>
+                )}
+                {viewsDisplay && likesDisplay && <span className="text-slate-500">•</span>}
+                {likesDisplay && (
+                  <span className="inline-flex items-center gap-1 text-rose-200">
+                    <HeartIcon className="h-3.5 w-3.5" />
+                    {likesDisplay}
                   </span>
                 )}
               </div>
@@ -166,40 +180,42 @@ export default function MemeDetail({ meme }) {
             </div>
 
             <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => toggleLike(meme.slug)}
-                  className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg shadow-black/40 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
-                    liked ? 'bg-pink-500 text-white hover:bg-pink-400' : 'bg-slate-900/80 text-slate-100 hover:bg-slate-800'
-                  }`}
-                  disabled={!likesReady}
-                  aria-pressed={liked}
-                  aria-label={liked ? t('actions.liked') : t('actions.like')}
-                >
-                  <HeartIcon filled={liked} className="h-4 w-4" />
-                  <span>{liked ? t('actions.liked') : t('actions.like')}</span>
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleLike(meme.slug)}
+                    className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg shadow-black/40 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
+                      liked ? 'bg-pink-500 text-white hover:bg-pink-400' : 'bg-slate-900/80 text-slate-100 hover:bg-slate-800'
+                    }`}
+                    disabled={!likesReady}
+                    aria-pressed={liked}
+                    aria-label={liked ? t('actions.liked') : t('actions.like')}
+                  >
+                    <HeartIcon filled={liked} className="h-4 w-4" />
+                    <span>{liked ? t('actions.liked') : t('actions.like')}</span>
+                  </button>
 
-                <button
-                  type="button"
+                  <button
+                    type="button"
                   onClick={handleToggleFavorite}
                   className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg shadow-black/40 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
                     isFavorite ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-slate-900/80 text-slate-100 hover:bg-slate-800'
                   }`}
                   aria-pressed={isFavorite}
                 >
-                  <BookmarkIcon className="h-4 w-4" />
-                  <span>{isFavorite ? t('favorites.saved') : t('favorites.save')}</span>
-                </button>
+                    <BookmarkIcon className="h-4 w-4" />
+                    <span>{isFavorite ? t('favorites.saved') : t('favorites.save')}</span>
+                  </button>
+                </div>
 
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-5 py-2.5 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+                  className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+                  aria-label={t('actions.share')}
                 >
                   <ShareIcon className="h-4 w-4" />
-                  <span>{t('actions.share')}</span>
                 </button>
               </div>
 
@@ -236,7 +252,7 @@ export default function MemeDetail({ meme }) {
                 {recommendedMemes.map((item) => (
                   <Link
                     key={`recommended-${item.slug}`}
-                    href={`/memes/${item.slug}`}
+                    href={`/m/${item.slug}`}
                     className="group flex flex-col overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/80 transition hover:-translate-y-1 hover:ring-indigo-400/60"
                   >
                     <div className={`relative w-full ${item.aspect} overflow-hidden bg-slate-950/60`}>

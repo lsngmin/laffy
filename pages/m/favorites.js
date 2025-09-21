@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import MemeCard from '../components/MemeCard';
-import AdSlot from '../components/AdSlot';
-import { useLikes } from '../hooks/useLikes';
-import { formatCount, formatDuration, formatRelativeTime, getOrientationClass } from '../lib/formatters';
-import { loadFavorites, toggleFavoriteSlug } from '../utils/storage';
-import { memes } from '../lib/memes';
-import { BookmarkIcon } from '../components/icons';
+import MemeCard from '../../components/MemeCard';
+import AdSlot from '../../components/AdSlot';
+import { useLikes } from '../../hooks/useLikes';
+import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
+import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
+import { memes } from '../../lib/memes';
+import { BookmarkIcon } from '../../components/icons';
 
 export default function Favorites({ memes: memeList }) {
   const { t, i18n } = useTranslation('common');
@@ -65,9 +65,6 @@ export default function Favorites({ memes: memeList }) {
           ...meme,
           mediaAspect,
           relativeTime,
-          durationLabel: formatDuration(meme.durationSeconds),
-          typeLabel: t(`meta.${meme.type === 'video' ? 'video' : 'thread'}`),
-          sourceLabel: meme.source || (meme.type === 'twitter' ? 'Twitter' : 'Video'),
           likesDisplay: formatCount(likesValue, locale),
           viewsDisplay: formatCount(meme.views, locale)
         };
@@ -96,8 +93,9 @@ export default function Favorites({ memes: memeList }) {
           <header className="space-y-8">
             <div className="flex items-center justify-between text-xs text-slate-300">
               <Link
-                href="/"
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3.5 py-2 font-semibold text-slate-200 shadow-md shadow-black/40 transition active:scale-95"
+                href="/m"
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3.5 py-2 font-semibold text-slate-100 shadow-md shadow-black/40 transition active:scale-95"
+                aria-label={t('favorites.backToFeed')}
               >
                 ←
                 <span>{t('favorites.backToFeed')}</span>
@@ -105,7 +103,8 @@ export default function Favorites({ memes: memeList }) {
               <button
                 type="button"
                 onClick={handleLocaleSwitch}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3.5 py-2 font-semibold text-slate-200 shadow-md shadow-black/40 transition active:scale-95"
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3.5 py-2 font-semibold text-slate-100 shadow-md shadow-black/40 transition active:scale-95"
+                aria-label="Change language"
               >
                 <span className="text-[11px] uppercase tracking-[0.3em]">{locale === 'ko' ? 'KO' : 'EN'}</span>
                 <span className="text-[11px] text-slate-500">⇄</span>
@@ -114,12 +113,9 @@ export default function Favorites({ memes: memeList }) {
 
             <div className="text-center">
               <span className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-amber-300 via-pink-300 to-indigo-300 bg-clip-text text-3xl font-black tracking-[0.3em] text-transparent sm:text-[42px]">
-                <BookmarkIcon className="h-6 w-6" />
-                SAVED
+                <BookmarkIcon className="h-5 w-5" />
+                LAFFY
               </span>
-              <p className="mt-4 text-sm leading-relaxed text-slate-200/90 sm:text-base">
-                {t('favorites.subtitle')}
-              </p>
             </div>
           </header>
 
@@ -128,7 +124,7 @@ export default function Favorites({ memes: memeList }) {
               <p className="text-base font-semibold">{t('favorites.emptyTitle')}</p>
               <p className="text-sm text-slate-400">{t('favorites.emptySubtitle')}</p>
               <Link
-                href="/"
+                href="/m"
                 className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500/70 via-purple-500/60 to-pink-500/60 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition active:scale-95"
               >
                 {t('favorites.exploreCta')}
@@ -145,7 +141,7 @@ export default function Favorites({ memes: memeList }) {
                   <MemeCard
                     key={item.key}
                     meme={meme}
-                    href={`/memes/${meme.slug}`}
+                    href={`/m/${meme.slug}`}
                     isLiked={isLiked(meme.slug)}
                     likesDisplay={meme.likesDisplay}
                     viewsDisplay={meme.viewsDisplay}

@@ -1,4 +1,28 @@
+import { useEffect, useState } from 'react';
+
+const SESSION_KEY = 'laffy:in-feed-ad-shown';
+
 export default function AdSlot() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const hasShown = window.sessionStorage.getItem(SESSION_KEY);
+      if (!hasShown) {
+        window.sessionStorage.setItem(SESSION_KEY, 'true');
+        setVisible(true);
+      }
+    } catch (error) {
+      console.warn('Unable to access session storage for ads', error);
+      setVisible(true);
+    }
+  }, []);
+
+  if (!visible) {
+    return null;
+  }
+
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500/20 via-purple-500/15 to-pink-500/20 p-4 shadow-lg shadow-black/30">
       <div className="rounded-xl bg-slate-950/60 p-6">
@@ -39,4 +63,3 @@ export default function AdSlot() {
     </div>
   );
 }
-

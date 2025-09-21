@@ -53,7 +53,7 @@ export default function MemeCard({
       event.preventDefault();
       event.stopPropagation();
       if (typeof window === 'undefined') return;
-      const targetUrl = `${window.location.origin}/memes/${meme.slug}`;
+      const targetUrl = `${window.location.origin}/m/${meme.slug}`;
       const sharePayload = {
         title: meme.title,
         url: targetUrl
@@ -96,55 +96,61 @@ export default function MemeCard({
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-lg font-semibold leading-snug text-white sm:text-xl">{meme.title}</h2>
-              <span className="rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-rose-200">
-                ♥ {likesDisplay}
-              </span>
-            </div>
+            <h2 className="text-lg font-semibold leading-snug text-white sm:text-xl">{meme.title}</h2>
             <p className="text-sm leading-relaxed text-slate-200/80 sm:text-[15px]">{meme.description}</p>
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300/90">
               {meme.relativeTime && <span>{meme.relativeTime}</span>}
-              {meme.relativeTime && (meme.sourceLabel || meme.viewsDisplay) && <span className="text-slate-500">•</span>}
-              {meme.sourceLabel && <span>{meme.sourceLabel}</span>}
-              {meme.sourceLabel && meme.viewsDisplay && <span className="text-slate-500">•</span>}
+              {meme.relativeTime && (meme.viewsDisplay || likesDisplay) && <span className="text-slate-500">•</span>}
               {meme.viewsDisplay && (
                 <span className="inline-flex items-center gap-1">
                   <EyeIcon className="h-3.5 w-3.5" />
                   {meme.viewsDisplay}
                 </span>
               )}
+              {meme.viewsDisplay && likesDisplay && <span className="text-slate-500">•</span>}
+              {likesDisplay && (
+                <span className="inline-flex items-center gap-1 text-rose-200">
+                  <HeartIcon className="h-3.5 w-3.5" />
+                  {likesDisplay}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={handleLike}
-              className={`action-button bg-slate-900/60 ${isLiked ? 'bg-rose-500/20 text-rose-300' : 'text-slate-200/80'} ${
-                likePulse ? 'bounce-once' : ''
-              }`}
-            >
-              <HeartIcon filled={isLiked} className="h-5 w-5" />
-            </button>
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleLike}
+                className={`action-button bg-slate-900/60 ${isLiked ? 'bg-rose-500/20 text-rose-300' : 'text-slate-200/80'} ${
+                  likePulse ? 'bounce-once' : ''
+                }`}
+                aria-pressed={isLiked}
+                aria-label={isLiked ? t('actions.liked') : t('actions.like')}
+              >
+                <HeartIcon filled={isLiked} className="h-4 w-4" />
+              </button>
 
-            <button
-              type="button"
-              onClick={handleFavorite}
-              className={`action-button bg-slate-900/60 ${isFavorite ? 'bg-amber-400/20 text-amber-200' : 'text-slate-200/80'} ${
-                favoritePulse ? 'bounce-once' : ''
-              }`}
-            >
-              <BookmarkIcon className="h-5 w-5" />
-            </button>
+              <button
+                type="button"
+                onClick={handleFavorite}
+                className={`action-button bg-slate-900/60 ${isFavorite ? 'bg-amber-400/20 text-amber-200' : 'text-slate-200/80'} ${
+                  favoritePulse ? 'bounce-once' : ''
+                }`}
+                aria-pressed={isFavorite}
+                aria-label={isFavorite ? t('favorites.saved') : t('favorites.save')}
+              >
+                <BookmarkIcon className="h-4 w-4" />
+              </button>
+            </div>
 
             <button
               type="button"
               onClick={handleShare}
               className="action-button bg-slate-900/60 text-slate-200/80"
+              aria-label={t('actions.share')}
             >
-              <ShareIcon className="h-5 w-5" />
-              <span className="text-sm font-semibold">{t('actions.share')}</span>
+              <ShareIcon className="h-4 w-4" />
             </button>
           </div>
         </div>
