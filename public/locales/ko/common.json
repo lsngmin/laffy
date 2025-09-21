@@ -1,8 +1,59 @@
 {
-  "title": "Laffy",
-  "subtitle": "오늘의 웃음거리를 골라 전체 밈과 영상을 감상해 보세요.",
-  "loadMore": "밈 더 보기",
-  "backToFeed": "← 목록으로 돌아가기",
+  "title": "Laffy Orbit",
+  "subtitle": "기분 전환이 필요할 때마다 고급스럽게 즐기는 짧은 밈 & 클립.",
+  "loadMore": "다음 컬렉션 보기",
+  "backToFeed": "목록으로 돌아가기",
   "watchOnTwitter": "트위터에서 보기",
-  "footerText": "Laffy와 함께 웃음이 멈추지 않아요!"
+  "footerText": "Laffy Orbit · 크리에이터와 모더레이터를 위한 차세대 밈 허브.",
+  "meta": {
+    "video": "영상",
+    "thread": "트윗 스레드",
+    "durationLabel": "재생 시간",
+    "sourceLabel": "출처",
+    "postedLabel": "작성",
+    "likesLabel": "좋아요",
+    "viewsLabel": "조회수"
+  },
+  "filters": {
+    "label": "분위기 고르기",
+    "all": "전체",
+    "video": "영상",
+    "thread": "스레드"
+  },
+  "actions": {
+    "like": "좋아요",
+    "liked": "좋아요 완료",
+    "share": "공유"
+  },
+  "tabs": {
+    "trending": "인기순",
+    "latest": "최신순",
+    "random": "랜덤순"
+  },
+  "favorites": {
+    "cta": "북마크 보관함",
+    "title": "저장한 웃음",
+    "subtitle": "북마크한 밈과 영상이 여기에 모여 있습니다.",
+    "backToFeed": "피드로 돌아가기",
+    "emptyTitle": "아직 즐겨찾기가 없어요",
+    "emptySubtitle": "마음에 드는 밈에서 북마크 버튼을 눌러 저장해 보세요.",
+    "exploreCta": "재밌는 밈 찾으러 가기",
+    "metaDescription": "다시 보고 싶은 밈과 영상을 한 번에 모아보세요.",
+    "save": "북마크 추가",
+    "saved": "저장 완료"
+  },
+  "upNext": {
+    "title": "곧 이어질 추천",
+    "shuffle": "새 구성"
+  },
+  "detail": {
+    "heroTagline": "지금 막 뜬 웃음",
+    "copyLink": "링크 복사",
+    "copied": "링크 복사 완료",
+    "shareFallback": "이 브라우저에서는 공유를 지원하지 않습니다",
+    "recommended": {
+      "title": "추천 콘텐츠",
+      "subtitle": "다음 웃음을 이어가 보세요"
+    }
+  }
 }

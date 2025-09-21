@@ -1,8 +1,59 @@
 {
-  "title": "🤣 Meme & Funny Videos",
-  "subtitle": "Pick today’s laugh and dive into the full meme or video.",
-  "loadMore": "Load more memes",
-  "backToFeed": "← Back to meme feed",
+  "title": "Laffy Orbit",
+  "subtitle": "Curated laughs and silky loops for when you need a quick mood lift.",
+  "loadMore": "Load next drop",
+  "backToFeed": "Back to feed",
   "watchOnTwitter": "View on Twitter",
-  "footerText": "Powered by Laffy — where the fun never stops!"
+  "footerText": "Laffy Orbit · crafted for curious moderators and meme scouts.",
+  "meta": {
+    "video": "Video",
+    "thread": "Thread",
+    "durationLabel": "Duration",
+    "sourceLabel": "Source",
+    "postedLabel": "Posted",
+    "likesLabel": "Likes",
+    "viewsLabel": "Views"
+  },
+  "filters": {
+    "label": "Pick a vibe",
+    "all": "All",
+    "video": "Video",
+    "thread": "Threads"
+  },
+  "actions": {
+    "like": "Cheer",
+    "liked": "Cheered",
+    "share": "Share"
+  },
+  "tabs": {
+    "trending": "인기순",
+    "latest": "최신순",
+    "random": "랜덤순"
+  },
+  "favorites": {
+    "cta": "Bookmark vault",
+    "title": "Saved laughs",
+    "subtitle": "All the memes you bookmarked stay right here.",
+    "backToFeed": "Back to feed",
+    "emptyTitle": "No favorites yet",
+    "emptySubtitle": "Tap the bookmark on any meme to save it for later.",
+    "exploreCta": "Find something funny",
+    "metaDescription": "Browse the memes and clips you saved to watch again.",
+    "save": "Add bookmark",
+    "saved": "Bookmarked"
+  },
+  "upNext": {
+    "title": "Next in Orbit",
+    "shuffle": "Refresh mix"
+  },
+  "detail": {
+    "heroTagline": "Fresh from the feed",
+    "copyLink": "Copy link",
+    "copied": "Link copied",
+    "shareFallback": "Sharing unavailable in this browser",
+    "recommended": {
+      "title": "Recommended Content",
+      "subtitle": "Keep the smiles rolling with these picks"
+    }
+  }
 }

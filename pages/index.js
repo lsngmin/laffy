@@ -1,84 +1,194 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import MemeCard from '../components/MemeCard';
 import AdSlot from '../components/AdSlot';
+import { useLikes } from '../hooks/useLikes';
+import { formatCount, formatDuration, formatRelativeTime, getOrientationClass } from '../lib/formatters';
+import { loadFavorites, toggleFavoriteSlug } from '../utils/storage';
 import { memes } from '../lib/memes';
+import { BookmarkIcon } from '../components/icons';
+
+const TABS = ['trending', 'latest', 'random'];
 
 export default function Home({ memes: memeList }) {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const locale = i18n.language || 'en';
+  const router = useRouter();
+  const { isLiked, toggleLike, ready: likesReady } = useLikes();
+  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const [favorites, setFavorites] = useState([]);
 
-  const feedCards = useMemo(() => {
-    return memeList.flatMap((meme, index) => {
-      const items = [{ kind: 'meme', key: `meme-${meme.slug}`, meme }];
-      const shouldInsertAd = (index + 1) % 2 === 0 && index !== memeList.length - 1;
-      if (shouldInsertAd) {
-        items.push({ kind: 'ad', key: `ad-${index}` });
-      }
-      return items;
+  useEffect(() => {
+    setFavorites(loadFavorites());
+  }, []);
+
+  const handleToggleLike = useCallback(
+    (slug) => {
+      if (!likesReady) return;
+      toggleLike(slug);
+    },
+    [likesReady, toggleLike]
+  );
+
+  const handleToggleFavorite = useCallback((slug) => {
+    const next = toggleFavoriteSlug(slug);
+    setFavorites(next);
+  }, []);
+
+  const favoritesSet = useMemo(() => new Set(favorites), [favorites]);
+
+  const handleLocaleSwitch = useCallback(() => {
+    const nextLocale = locale === 'ko' ? 'en' : 'ko';
+    router.push(router.pathname, router.asPath, { locale: nextLocale });
+  }, [locale, router]);
+
+  const decoratedMemes = useMemo(() => {
+    return memeList.map((meme) => {
+      const mediaAspect = getOrientationClass(meme.orientation);
+      const publishedDate = meme.publishedAt ? new Date(meme.publishedAt) : null;
+      const relativeTime = publishedDate ? formatRelativeTime(publishedDate, locale) : null;
+      const liked = isLiked(meme.slug);
+      const likesValue = meme.likes + (liked ? 1 : 0);
+      return {
+        ...meme,
+        mediaAspect,
+        durationLabel: formatDuration(meme.durationSeconds),
+        publishedDate,
+        relativeTime,
+        typeLabel: t(`meta.${meme.type === 'video' ? 'video' : 'thread'}`),
+        sourceLabel: meme.source || (meme.type === 'twitter' ? 'Twitter' : 'Video'),
+        likesValue,
+        likesDisplay: formatCount(likesValue, locale),
+        viewsDisplay: formatCount(meme.views, locale)
+      };
     });
-  }, [memeList]);
+  }, [i18n.language, isLiked, locale, memeList, t]);
+
+  const filteredMemes = useMemo(() => {
+    const list = [...decoratedMemes];
+    switch (activeTab) {
+      case 'latest':
+        return list
+          .slice()
+          .sort((a, b) => (b.publishedDate?.getTime() || 0) - (a.publishedDate?.getTime() || 0));
+      case 'random':
+        return list
+          .slice()
+          .sort(() => Math.random() - 0.5);
+      case 'trending':
+      default:
+        return list
+          .slice()
+          .sort((a, b) => (b.likesValue || 0) - (a.likesValue || 0));
+    }
+  }, [activeTab, decoratedMemes]);
+
+  const feedItems = useMemo(() => {
+    const timeline = [];
+    filteredMemes.forEach((meme, index) => {
+      timeline.push({ type: 'meme', key: `meme-${meme.slug}`, meme });
+      if ((index + 1) % 3 === 0) {
+        timeline.push({ type: 'ad', key: `ad-${index}` });
+      }
+    });
+    return timeline;
+  }, [filteredMemes]);
 
   return (
     <>
       <Head>
         <title>{t('title')}</title>
-        <meta name="monetag" content="e39f02316147e88555f93187d1919598"/>
-        <meta name="description" content="Fresh memes and funny videos curated for your daily laughs."/>
+        <meta
+          name="description"
+          content="Scroll quick laughs, viral clips, and shareable memes in one comfy mobile feed."
+        />
       </Head>
-      <div className="min-h-screen bg-slate-900">
-        <main className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 pb-24 pt-8 sm:px-6">
-          <header className="space-y-3 text-center">
-            <p className="text-sm uppercase tracking-[0.35em] text-indigo-300">Daily LOLs</p>
-            <h1 className="text-3xl font-black sm:text-4xl">{t('title')}</h1>
-            <p className="text-sm text-slate-300">{t('subtitle')}</p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+        <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-8 px-4 pb-16 pt-10 sm:px-6">
+          <header className="space-y-8">
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <Link
+                href="/favorites"
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3.5 py-2 font-semibold text-slate-200 shadow-md shadow-black/40 transition active:scale-95"
+              >
+                <BookmarkIcon className="h-4 w-4" />
+                <span>{t('favorites.cta')}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={handleLocaleSwitch}
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3.5 py-2 font-semibold text-slate-200 shadow-md shadow-black/40 transition active:scale-95"
+              >
+                <span className="text-[11px] uppercase tracking-[0.3em]">{locale === 'ko' ? 'KO' : 'EN'}</span>
+                <span className="text-[11px] text-slate-500">⇄</span>
+              </button>
+            </div>
+
+            <div className="text-center">
+              <span className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-4xl font-black tracking-[0.4em] text-transparent sm:text-[44px]">
+                LAFFY
+              </span>
+              <p className="mt-4 text-sm leading-relaxed text-slate-200/90 sm:text-base">{t('subtitle')}</p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 text-center">
+              {TABS.map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative overflow-hidden rounded-full px-4 pb-2 pt-2 text-sm font-semibold transition-all duration-300 active:scale-95 ${
+                      isActive ? 'text-white' : 'text-slate-300'
+                    }`}
+                  >
+                    <span className={`relative z-10 ${isActive ? 'bg-gradient-to-r from-indigo-200 via-purple-100 to-pink-100 bg-clip-text text-transparent' : ''}`}>
+                      {t(`tabs.${tab}`)}
+                    </span>
+                    <span
+                      className={`pointer-events-none absolute inset-0 rounded-full border border-transparent bg-gradient-to-r from-indigo-500/20 via-purple-500/15 to-pink-500/20 transition-opacity duration-300 ${
+                        isActive ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+                    <span
+                      className={`pointer-events-none absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 transition-transform duration-300 ${
+                        isActive ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
           </header>
 
-          <section className="mt-8 flex-1 space-y-6">
-            {feedCards.map((entry) => {
-              if (entry.kind === 'ad') {
-                return <AdSlot key={entry.key} />;
+          <section className="flex flex-col gap-6">
+            {feedItems.map((item) => {
+              if (item.type === 'ad') {
+                return <AdSlot key={item.key} />;
               }
 
-              const { meme } = entry;
+              const { meme } = item;
               return (
-                <Link
-                  key={entry.key}
+                <MemeCard
+                  key={item.key}
+                  meme={meme}
                   href={`/memes/${meme.slug}`}
-                  className="group block"
-                >
-                  <article className="rounded-3xl bg-slate-800/80 p-2 shadow-xl shadow-slate-900/40 ring-1 ring-slate-700/60 transition hover:-translate-y-1 hover:ring-indigo-400/60">
-                    <div className="overflow-hidden rounded-2xl">
-                      <img
-                        src={meme.thumbnail}
-                        alt={meme.title}
-                        className="aspect-[9/16] w-full object-cover transition group-hover:scale-[1.02]"
-                        loading="lazy"
-                      />
-                    </div>
-                    <h2 className="mt-4 px-2 text-lg font-semibold text-white sm:text-xl">
-                      {meme.title}
-                    </h2>
-                  </article>
-                </Link>
+                  isLiked={isLiked(meme.slug)}
+                  likesDisplay={meme.likesDisplay}
+                  viewsDisplay={meme.viewsDisplay}
+                  isFavorite={favoritesSet.has(meme.slug)}
+                  onToggleLike={handleToggleLike}
+                  onToggleFavorite={handleToggleFavorite}
+                />
               );
             })}
           </section>
-
-          <div className="mt-10">
-            <button
-              type="button"
-              className="w-full rounded-full bg-indigo-500 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:bg-indigo-400"
-            >
-              {t('loadMore')}
-            </button>
-          </div>
         </main>
-
-        <footer className="pb-10 text-center text-xs text-slate-400">
-          {t('footerText')}
-        </footer>
       </div>
     </>
   );
@@ -88,8 +198,8 @@ export async function getStaticProps({ locale }) {
   return {
     props: {
       memes,
-      ...(await serverSideTranslations(locale, ['common'])),
+      ...(await serverSideTranslations(locale, ['common']))
     },
-    revalidate: 60,
+    revalidate: 60
   };
 }
