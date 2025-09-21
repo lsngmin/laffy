@@ -5,7 +5,6 @@ import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import MemeCard from '../../components/MemeCard';
-import AdSlot from '../../components/AdSlot';
 import { useLikes } from '../../hooks/useLikes';
 import { formatCount, formatDuration, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
@@ -86,17 +85,6 @@ export default function Home({ memes: memeList }) {
     }
   }, [activeTab, decoratedMemes]);
 
-  const feedItems = useMemo(() => {
-    const timeline = [];
-    filteredMemes.forEach((meme, index) => {
-      timeline.push({ type: 'meme', key: `meme-${meme.slug}`, meme });
-      if ((index + 1) % 3 === 0) {
-        timeline.push({ type: 'ad', key: `ad-${index}` });
-      }
-    });
-    return timeline;
-  }, [filteredMemes]);
-
   return (
     <>
       <Head>
@@ -166,26 +154,19 @@ export default function Home({ memes: memeList }) {
           </header>
 
           <section className="flex flex-col gap-6">
-            {feedItems.map((item) => {
-              if (item.type === 'ad') {
-                return <AdSlot key={item.key} />;
-              }
-
-              const { meme } = item;
-              return (
-                <MemeCard
-                  key={item.key}
-                  meme={meme}
-                  href={`/m/${meme.slug}`}
-                  isLiked={isLiked(meme.slug)}
-                  likesDisplay={meme.likesDisplay}
-                  viewsDisplay={meme.viewsDisplay}
-                  isFavorite={favoritesSet.has(meme.slug)}
-                  onToggleLike={handleToggleLike}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              );
-            })}
+            {filteredMemes.map((meme) => (
+              <MemeCard
+                key={meme.slug}
+                meme={meme}
+                href={`/m/${meme.slug}`}
+                isLiked={isLiked(meme.slug)}
+                likesDisplay={meme.likesDisplay}
+                viewsDisplay={meme.viewsDisplay}
+                isFavorite={favoritesSet.has(meme.slug)}
+                onToggleLike={handleToggleLike}
+                onToggleFavorite={handleToggleFavorite}
+              />
+            ))}
           </section>
         </main>
       </div>

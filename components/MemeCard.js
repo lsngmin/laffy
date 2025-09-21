@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'next-i18next';
-import { BookmarkIcon, EyeIcon, HeartIcon, ShareIcon } from './icons';
+import { BookmarkIcon, HeartIcon, ShareIcon } from './icons';
 
 export default function MemeCard({
   meme,
@@ -90,8 +90,11 @@ export default function MemeCard({
                 {meme.durationLabel}
               </div>
             )}
-            <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-slate-900/75 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-[0_6px_16px_rgba(148,163,184,0.35)]">
-              {meme.typeLabel}
+            <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-white/20 bg-gradient-to-r from-indigo-500/70 via-purple-500/50 to-pink-500/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-[0_8px_20px_rgba(99,102,241,0.45)]">
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                {t('meta.viewsLabel')}
+                <span className="text-xs font-bold text-white/90">{meme.viewsDisplay}</span>
+              </span>
             </div>
           </div>
 
@@ -100,14 +103,7 @@ export default function MemeCard({
             <p className="text-sm leading-relaxed text-slate-200/80 sm:text-[15px]">{meme.description}</p>
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300/90">
               {meme.relativeTime && <span>{meme.relativeTime}</span>}
-              {meme.relativeTime && (meme.viewsDisplay || likesDisplay) && <span className="text-slate-500">•</span>}
-              {meme.viewsDisplay && (
-                <span className="inline-flex items-center gap-1">
-                  <EyeIcon className="h-3.5 w-3.5" />
-                  {meme.viewsDisplay}
-                </span>
-              )}
-              {meme.viewsDisplay && likesDisplay && <span className="text-slate-500">•</span>}
+              {meme.relativeTime && likesDisplay && <span className="text-slate-500">•</span>}
               {likesDisplay && (
                 <span className="inline-flex items-center gap-1 text-rose-200">
                   <HeartIcon className="h-3.5 w-3.5" />

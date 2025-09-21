@@ -1,12 +1,12 @@
-export default function Landing() {
-  return null;
-}
+import { useRouter } from 'next/router';
+import { useEffect } from 'react';
 
-export function getServerSideProps() {
-  return {
-    redirect: {
-      destination: '/m',
-      permanent: false,
-    },
-  };
+export default function Landing() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/m');
+  }, [router]);
+
+  return null;
 }

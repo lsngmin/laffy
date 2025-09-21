@@ -70,17 +70,6 @@ export default function Favorites({ memes: memeList }) {
       });
   }, [favorites, i18n.language, isLiked, locale, memeMap, t]);
 
-  const feedItems = useMemo(() => {
-    const timeline = [];
-    decoratedFavorites.forEach((meme, index) => {
-      timeline.push({ type: 'meme', key: `fav-${meme.slug}`, meme });
-      if ((index + 1) % 3 === 0) {
-        timeline.push({ type: 'ad', key: `fav-ad-${index}` });
-      }
-    });
-    return timeline;
-  }, [decoratedFavorites]);
-
   return (
     <>
       <Head>
@@ -131,25 +120,19 @@ export default function Favorites({ memes: memeList }) {
             </div>
           ) : (
             <section className="flex flex-col gap-6">
-              {feedItems.map((item) => {
-                if (item.type === 'ad') {
-                  return <AdSlot key={item.key} />;
-                }
-                const { meme } = item;
-                return (
-                  <MemeCard
-                    key={item.key}
-                    meme={meme}
-                    href={`/m/${meme.slug}`}
-                    isLiked={isLiked(meme.slug)}
-                    likesDisplay={meme.likesDisplay}
-                    viewsDisplay={meme.viewsDisplay}
-                    isFavorite={favoritesSet.has(meme.slug)}
-                    onToggleLike={handleToggleLike}
-                    onToggleFavorite={handleToggleFavorite}
-                  />
-                );
-              })}
+              {decoratedFavorites.map((meme) => (
+                <MemeCard
+                  key={meme.slug}
+                  meme={meme}
+                  href={`/m/${meme.slug}`}
+                  isLiked={isLiked(meme.slug)}
+                  likesDisplay={meme.likesDisplay}
+                  viewsDisplay={meme.viewsDisplay}
+                  isFavorite={favoritesSet.has(meme.slug)}
+                  onToggleLike={handleToggleLike}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              ))}
             </section>
           )}
         </main>

@@ -1,14 +1,14 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import AdSlot from '../../components/AdSlot';
 import { useLikes } from '../../hooks/useLikes';
 import { memes, getMemeBySlug } from '../../lib/memes';
 import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
-import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
 import { BookmarkIcon, CompassIcon, EyeIcon, HeartIcon, ShareIcon, SparkIcon } from '../../components/icons';
+import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
 
 function TwitterEmbed({ url }) {
   const containerRef = useRef(null);
@@ -51,6 +51,7 @@ function TwitterEmbed({ url }) {
 
 export default function MemeDetail({ meme }) {
   const { t, i18n } = useTranslation('common');
+  const router = useRouter();
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -59,7 +60,6 @@ export default function MemeDetail({ meme }) {
   }
 
   const locale = i18n.language || 'en';
-  const typeLabel = t(`meta.${meme.type === 'video' ? 'video' : 'thread'}`);
   const mediaAspect = getOrientationClass(meme.orientation);
   const publishedDate = meme.publishedAt ? new Date(meme.publishedAt) : null;
   const relativeTime = publishedDate ? formatRelativeTime(publishedDate, locale) : null;
@@ -78,15 +78,6 @@ export default function MemeDetail({ meme }) {
       });
   }, [locale, meme.slug]);
 
-  useEffect(() => {
-    setIsFavorite(loadFavorites().includes(meme.slug));
-  }, [meme.slug]);
-
-  const handleToggleFavorite = useCallback(() => {
-    const updated = toggleFavoriteSlug(meme.slug);
-    setIsFavorite(updated.includes(meme.slug));
-  }, [meme.slug]);
-
   const handleShare = useCallback(async () => {
     if (typeof window === 'undefined') return;
     const payload = { title: meme.title, url: window.location.href };
@@ -104,6 +95,20 @@ export default function MemeDetail({ meme }) {
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   }, [meme.title]);
 
+  const handleLocaleSwitch = useCallback(() => {
+    const nextLocale = locale === 'ko' ? 'en' : 'ko';
+    router.push(router.pathname, router.asPath, { locale: nextLocale });
+  }, [locale, router]);
+
+  useEffect(() => {
+    setIsFavorite(loadFavorites().includes(meme.slug));
+  }, [meme.slug]);
+
+  const handleToggleFavorite = useCallback(() => {
+    const updated = toggleFavoriteSlug(meme.slug);
+    setIsFavorite(updated.includes(meme.slug));
+  }, [meme.slug]);
+
   return (
     <>
       <Head>
@@ -112,14 +117,34 @@ export default function MemeDetail({ meme }) {
       </Head>
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
-          <div className="mb-4 text-center">
+          <div className="flex items-center justify-between text-xs text-slate-300">
+            <Link
+              href="/m/favorites"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3.5 py-2 font-semibold text-slate-100 shadow-md shadow-black/40 transition active:scale-95"
+              aria-label={t('favorites.cta')}
+            >
+              <BookmarkIcon className="h-4 w-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={handleLocaleSwitch}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3.5 py-2 font-semibold text-slate-100 shadow-md shadow-black/40 transition active:scale-95"
+              aria-label="Change language"
+            >
+              <span className="text-[11px] uppercase tracking-[0.3em]">{locale === 'ko' ? 'KO' : 'EN'}</span>
+              <span className="text-[11px] text-slate-500">⇄</span>
+            </button>
+          </div>
+
+          <div className="mt-6 text-center">
             <span className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-2xl font-black tracking-[0.35em] text-transparent">
               LAFFY
             </span>
           </div>
+
           <Link
             href="/m"
-            className="inline-flex w-fit items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500/40 via-purple-500/30 to-pink-500/40 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/50 transition hover:brightness-110 active:scale-95"
+            className="mt-6 inline-flex w-fit items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500/40 via-purple-500/30 to-pink-500/40 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/50 transition hover:brightness-110 active:scale-95"
           >
             <span aria-hidden="true">←</span>
             {t('backToFeed')}
@@ -127,35 +152,17 @@ export default function MemeDetail({ meme }) {
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
             <header className="space-y-4">
-              <span className="inline-flex w-fit items-center gap-2 rounded-full bg-indigo-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-indigo-200">
-                {t('detail.heroTagline')}
-              </span>
-              <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">{meme.title}</h1>
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-200">
-                <HeartIcon filled className="h-4 w-4" />
-                <span>{likesDisplay}</span>
-              </div>
+              <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.title}</h1>
               <p className="text-sm leading-relaxed text-slate-200/90 sm:text-base">{meme.description}</p>
-              <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-slate-300/90">
+              <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-slate-300/90">
                 {relativeTime && (
-                  <span className="inline-flex items-center gap-1">
-                    <SparkIcon className="h-3.5 w-3.5" />
-                    {relativeTime}
-                  </span>
+                  <span>{`${t('meta.postedLabel')}: ${relativeTime}`}</span>
                 )}
-                {relativeTime && (viewsDisplay || likesDisplay) && <span className="text-slate-500">•</span>}
                 {viewsDisplay && (
-                  <span className="inline-flex items-center gap-1 text-slate-200/85">
-                    <EyeIcon className="h-4 w-4" />
-                    {viewsDisplay}
-                  </span>
+                  <span>{`${t('meta.viewsLabel')}: ${viewsDisplay}`}</span>
                 )}
-                {viewsDisplay && likesDisplay && <span className="text-slate-500">•</span>}
                 {likesDisplay && (
-                  <span className="inline-flex items-center gap-1 text-rose-200">
-                    <HeartIcon className="h-3.5 w-3.5" />
-                    {likesDisplay}
-                  </span>
+                  <span>{`${t('meta.likesLabel')}: ${likesDisplay}`}</span>
                 )}
               </div>
             </header>
@@ -180,32 +187,33 @@ export default function MemeDetail({ meme }) {
             </div>
 
             <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => toggleLike(meme.slug)}
-                    className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg shadow-black/40 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
-                      liked ? 'bg-pink-500 text-white hover:bg-pink-400' : 'bg-slate-900/80 text-slate-100 hover:bg-slate-800'
+                    className={`inline-flex items-center justify-center rounded-full bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
+                      liked ? 'ring-1 ring-pink-400/60' : ''
                     }`}
                     disabled={!likesReady}
                     aria-pressed={liked}
                     aria-label={liked ? t('actions.liked') : t('actions.like')}
                   >
                     <HeartIcon filled={liked} className="h-4 w-4" />
-                    <span>{liked ? t('actions.liked') : t('actions.like')}</span>
+                    <span className="sr-only">{liked ? t('actions.liked') : t('actions.like')}</span>
                   </button>
 
                   <button
                     type="button"
-                  onClick={handleToggleFavorite}
-                  className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg shadow-black/40 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
-                    isFavorite ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-slate-900/80 text-slate-100 hover:bg-slate-800'
-                  }`}
-                  aria-pressed={isFavorite}
-                >
+                    onClick={handleToggleFavorite}
+                    className={`inline-flex items-center justify-center rounded-full bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
+                      isFavorite ? 'ring-1 ring-amber-300/70' : ''
+                    }`}
+                    aria-pressed={isFavorite}
+                    aria-label={isFavorite ? t('favorites.saved') : t('favorites.save')}
+                  >
                     <BookmarkIcon className="h-4 w-4" />
-                    <span>{isFavorite ? t('favorites.saved') : t('favorites.save')}</span>
+                    <span className="sr-only">{isFavorite ? t('favorites.saved') : t('favorites.save')}</span>
                   </button>
                 </div>
 
@@ -219,8 +227,8 @@ export default function MemeDetail({ meme }) {
                 </button>
               </div>
 
-              <div className="flex flex-wrap gap-2 text-xs text-slate-300">
-                {meme.type === 'twitter' && (
+              {meme.type === 'twitter' && (
+                <div className="flex flex-wrap gap-2 text-xs text-slate-300">
                   <a
                     href={meme.url}
                     target="_blank"
@@ -230,12 +238,8 @@ export default function MemeDetail({ meme }) {
                     {t('watchOnTwitter')}
                     <ShareIcon className="h-3.5 w-3.5" />
                   </a>
-                )}
-                <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-4 py-2 text-xs font-semibold text-slate-200 shadow-lg shadow-black/40">
-                  <SparkIcon className="h-3.5 w-3.5" />
-                  {typeLabel}
                 </div>
-              </div>
+              )}
             </div>
           </article>
 
@@ -295,9 +299,6 @@ export default function MemeDetail({ meme }) {
             </section>
           )}
 
-          <div className="mt-10">
-            <AdSlot />
-          </div>
         </main>
       </div>
     </>
