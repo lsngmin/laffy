@@ -7,14 +7,27 @@ export default function AdSlot() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
     try {
-      const hasShown = window.sessionStorage.getItem(SESSION_KEY);
-      if (!hasShown) {
-        window.sessionStorage.setItem(SESSION_KEY, 'true');
-        setVisible(true);
+      if (window.__inFeedAdShown) {
+        return;
       }
+
+      const storage = window.sessionStorage;
+      const alreadyShown = storage && storage.getItem(SESSION_KEY) === '1';
+
+      if (alreadyShown) {
+        window.__inFeedAdShown = true;
+        return;
+      }
+
+      if (storage) {
+        storage.setItem(SESSION_KEY, '1');
+      }
+      window.__inFeedAdShown = true;
+      setVisible(true);
     } catch (error) {
-      console.warn('Unable to access session storage for ads', error);
+      console.warn('AdSlot visibility check failed', error);
       setVisible(true);
     }
   }, []);

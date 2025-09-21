@@ -5,7 +5,6 @@ import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import MemeCard from '../../components/MemeCard';
-import AdSlot from '../../components/AdSlot';
 import { useLikes } from '../../hooks/useLikes';
 import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
