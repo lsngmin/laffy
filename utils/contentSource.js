@@ -1,8 +1,8 @@
+import { list } from '@vercel/blob';
+
 export async function listBlobContent() {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return [];
   try {
-    const { loadBlob } = await import('./dynamicBlob');
-    const { list } = await loadBlob();
     const { blobs } = await list({ prefix: 'content/' });
     const metas = blobs.filter((b) => b.pathname.endsWith('.json'));
     const items = await Promise.all(
@@ -40,4 +40,3 @@ function normalize(meta) {
     views: Number(meta.views) || 0
   };
 }
-

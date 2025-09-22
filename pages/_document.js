@@ -22,7 +22,7 @@ class MyDocument extends Document {
               `
             }}
           />
-          <meta name="monetag" content="e39f02316147e88555f93187d1919598" />
+          {/** Ads disabled: monetag meta removed */}
         </Head>
         <body>
           <Main />

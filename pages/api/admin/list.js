@@ -1,11 +1,10 @@
 import { assertAdmin } from './_auth';
+import { list } from '@vercel/blob';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
   if (!assertAdmin(req, res)) return;
   try {
-    const { loadBlob } = await import('../../../utils/dynamicBlob');
-    const { list } = await loadBlob();
     const { blobs } = await list({ prefix: 'content/' });
     // Return only json meta files
     const items = blobs

@@ -1,4 +1,5 @@
 import { assertAdmin } from './_auth';
+import { put } from '@vercel/blob';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -6,8 +7,6 @@ export default async function handler(req, res) {
   try {
     const { slug, title, description, url, durationSeconds = 0, orientation = 'landscape' } = req.body || {};
     if (!slug || !title || !url) return res.status(400).json({ error: 'Missing fields' });
-    const { loadBlob } = await import('../../../utils/dynamicBlob');
-    const { put } = await loadBlob();
     const meta = {
       slug,
       type: 'video',
