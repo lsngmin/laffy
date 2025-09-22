@@ -1,12 +1,12 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
+import ClientBlobUploader from '../components/ClientBlobUploader';
 
 export default function Admin() {
   const router = useRouter();
   const token = typeof router.query.token === 'string' ? router.query.token : '';
 
-  const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [orientation, setOrientation] = useState('landscape');
@@ -32,37 +32,29 @@ export default function Admin() {
     refresh();
   }, [qs]);
 
-  async function onUpload(e) {
-    e.preventDefault();
-    if (!file || !title || !hasToken) return;
-    const urlRes = await fetch(`/api/admin/upload-url${qs}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ contentType: file.type || 'video/mp4' })
-    });
-    if (!urlRes.ok) {
-      const err = await urlRes.json().catch(() => ({}));
-      alert(`Failed to request upload URL: ${err.error || urlRes.status} ${err.detail || ''}`);
-      return;
-    }
-    const { url, pathname } = await urlRes.json();
-    const putRes = await fetch(url, { method: 'PUT', body: file });
-    if (!putRes.ok) { alert('Upload failed'); return; }
-    const slug = (title || file.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const uploaded = await putRes.json();
-    await fetch(`/api/admin/register${qs}`, {
+  async function registerMeta(blob) {
+    const slug = (title || blob.pathname || 'untitled')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const res = await fetch(`/api/admin/register${qs}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         slug,
         title,
         description,
-        url: uploaded.url || uploaded.downloadUrl || uploaded.pathname || pathname,
+        url: blob.url,
         durationSeconds: Number(duration) || 0,
         orientation
       })
     });
-    setFile(null); setTitle(''); setDescription(''); setDuration('0');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`메타 저장 실패: ${err.error || res.status}`);
+      return;
+    }
+    setTitle(''); setDescription(''); setDuration('0');
     refresh();
   }
 
@@ -95,12 +87,8 @@ export default function Admin() {
             </div>
           )}
 
-          <form onSubmit={onUpload} className="space-y-4 rounded-2xl bg-slate-900/80 p-5 ring-1 ring-slate-800/70">
+          <div className="space-y-4 rounded-2xl bg-slate-900/80 p-5 ring-1 ring-slate-800/70">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">Video File</label>
-                <input disabled={!hasToken} type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-40" />
-              </div>
               <div>
                 <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">Title</label>
                 <input disabled={!hasToken} type="text" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-40" />
@@ -122,8 +110,16 @@ export default function Admin() {
                 <input disabled={!hasToken} type="text" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-40" />
               </div>
             </div>
-            <button disabled={!hasToken} className="rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-5 py-2 text-sm font-semibold shadow-lg disabled:opacity-50">Upload</button>
-          </form>
+            <div className="pt-2">
+              <label className="mb-2 block text-xs uppercase tracking-widest text-slate-400">Upload</label>
+              <ClientBlobUploader
+                handleUploadUrl={`/api/blob/upload${qs}`}
+                accept="image/jpeg,image/png,image/webp,video/mp4"
+                maxSizeMB={200}
+                onUploaded={(blob) => registerMeta(blob)}
+              />
+            </div>
+          </div>
 
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Uploaded</h2>
