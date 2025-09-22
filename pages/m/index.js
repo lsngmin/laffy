@@ -8,7 +8,8 @@ import MemeCard from '../../components/MemeCard';
 import { useLikes } from '../../hooks/useLikes';
 import { formatCount, formatDuration, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
-import { memes } from '../../lib/memes';
+import { memes as localMemes } from '../../lib/memes';
+import { listBlobContent } from '../../utils/contentSource';
 import { BookmarkIcon } from '../../components/icons';
 
 const TABS = ['trending', 'latest', 'random'];
@@ -175,9 +176,12 @@ export default function Home({ memes: memeList }) {
 }
 
 export async function getStaticProps({ locale }) {
+  const blob = await listBlobContent();
+  const useBlob = Array.isArray(blob) && blob.length > 0;
+  const merged = useBlob ? blob : localMemes;
   return {
     props: {
-      memes,
+      memes: merged,
       ...(await serverSideTranslations(locale, ['common']))
     },
     revalidate: 60

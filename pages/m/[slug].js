@@ -63,9 +63,10 @@ export default function MemeDetail({ meme }) {
   const mediaAspect = getOrientationClass(meme.orientation);
   const publishedDate = meme.publishedAt ? new Date(meme.publishedAt) : null;
   const relativeTime = publishedDate ? formatRelativeTime(publishedDate, locale) : null;
-  const liked = isLiked(meme.slug);
-  const likesDisplay = formatCount(meme.likes + (liked ? 1 : 0), locale);
-  const viewsDisplay = formatCount(meme.views, locale);
+  const [liked, setLiked] = useState(isLiked(meme.slug));
+  const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
+  const likesDisplay = formatCount((serverCounts.likes ?? meme.likes) + (liked ? 1 : 0), locale);
+  const viewsDisplay = formatCount(serverCounts.views ?? meme.views, locale);
 
   const recommendedMemes = useMemo(() => {
     return memes
@@ -77,6 +78,17 @@ export default function MemeDetail({ meme }) {
         return { ...item, aspect, relativeTime };
       });
   }, [locale, meme.slug]);
+
+  useEffect(() => {
+    // record a view and fetch current metrics
+    fetch('/api/metrics/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: meme.slug }) })
+      .then(() => fetch(`/api/metrics/get?slug=${encodeURIComponent(meme.slug)}`))
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) setServerCounts({ views: data.views, likes: data.likes });
+      })
+      .catch(() => undefined);
+  }, [meme.slug]);
 
   const handleShare = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -108,6 +120,19 @@ export default function MemeDetail({ meme }) {
     const updated = toggleFavoriteSlug(meme.slug);
     setIsFavorite(updated.includes(meme.slug));
   }, [meme.slug]);
+
+  const handleToggleLike = useCallback(() => {
+    const next = !liked;
+    setLiked(next);
+    // local like storage
+    try { toggleLike(meme.slug); } catch {}
+    // server delta
+    const delta = next ? 1 : -1;
+    fetch('/api/metrics/like', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: meme.slug, delta }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setServerCounts((s) => ({ ...s, likes: data.likes })); })
+      .catch(() => undefined);
+  }, [liked, meme.slug, toggleLike]);
 
   return (
     <>
@@ -191,7 +216,7 @@ export default function MemeDetail({ meme }) {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => toggleLike(meme.slug)}
+                    onClick={handleToggleLike}
                     className={`inline-flex items-center justify-center rounded-full bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
                       liked ? 'ring-1 ring-pink-400/60' : ''
                     }`}
