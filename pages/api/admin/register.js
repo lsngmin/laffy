@@ -34,3 +34,7 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Failed to register meta' });
   }
 }
+
+export const config = {
+  runtime: 'nodejs'
+};
