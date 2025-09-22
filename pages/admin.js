@@ -40,7 +40,11 @@ export default function Admin() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ contentType: file.type || 'video/mp4' })
     });
-    if (!urlRes.ok) { alert('Failed to request upload URL'); return; }
+    if (!urlRes.ok) {
+      const err = await urlRes.json().catch(() => ({}));
+      alert(`Failed to request upload URL: ${err.error || urlRes.status} ${err.detail || ''}`);
+      return;
+    }
     const { url, pathname } = await urlRes.json();
     const putRes = await fetch(url, { method: 'PUT', body: file });
     if (!putRes.ok) { alert('Upload failed'); return; }
@@ -140,4 +144,3 @@ export default function Admin() {
     </>
   );
 }
-

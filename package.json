@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "@upstash/redis": "^1.35.4",
+    "@vercel/blob": "^2.0.0",
     "i18next": "^23.10.1",
     "next": "^14.2.5",
     "next-i18next": "^15.2.0",
