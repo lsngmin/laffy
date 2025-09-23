@@ -1,9 +1,11 @@
 import { list } from '@vercel/blob';
+import { getBlobReadToken } from './blobTokens';
 
 export async function listBlobContent() {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return [];
+  const token = getBlobReadToken();
+  if (!token) return [];
   try {
-    const { blobs } = await list({ prefix: 'content/' });
+    const { blobs } = await list({ prefix: 'content/', token });
     const metas = blobs.filter((b) => b.pathname.endsWith('.json'));
     const items = await Promise.all(
       metas.map(async (b) => {
