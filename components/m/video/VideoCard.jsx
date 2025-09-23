@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 
 export default function VideoCard({
@@ -7,12 +7,19 @@ export default function VideoCard({
                                       title,
                                       aspect,
                                       disablePlay = false,
+                                      mediaType = "video",
                                   }) {
     const vRef = useRef(null);
     const [overlay, setOverlay] = useState(true);
 
+    const isImage = mediaType === "image";
+
+    useEffect(() => {
+        setOverlay(true);
+    }, [mediaType, src]);
+
     const play = async () => {
-        if (disablePlay) return; // true면 무시
+        if (disablePlay || isImage) return; // true면 무시
         try {
             await vRef.current?.play();
             setOverlay(false);
@@ -21,8 +28,10 @@ export default function VideoCard({
         }
     };
 
-    const resolvedPoster =
-        typeof poster === "string" && poster.trim().length > 0 ? poster : null;
+    const cleanedPoster = typeof poster === "string" && poster.trim().length > 0 ? poster : null;
+    const cleanedSrc = typeof src === "string" && src.trim().length > 0 ? src : null;
+    const resolvedPoster = cleanedPoster || (isImage ? cleanedSrc : null);
+    const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
     return (
         <div
@@ -31,7 +40,20 @@ export default function VideoCard({
                 aspect
             )}
         >
-            {disablePlay ? (
+            {isImage ? (
+                imageSource ? (
+                    <img
+                        src={imageSource}
+                        alt={title || "Uploaded media"}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-sm font-semibold text-slate-100">
+                        이미지 미리보기를 불러오지 못했어요
+                    </div>
+                )
+            ) : disablePlay ? (
                 // 썸네일 + 비디오 느낌 (재생 안 됨)
                 <video
                     className="h-full w-full object-cover pointer-events-none"
@@ -58,24 +80,39 @@ export default function VideoCard({
             {/* 오버레이 아이콘 */}
             {overlay && (
                 <div
-                    onClick={disablePlay ? undefined : play}
+                    onClick={disablePlay || isImage ? undefined : play}
                     className={clsx(
                         "absolute inset-0 grid place-items-center transition",
-                        disablePlay
+                        disablePlay || isImage
                             ? "cursor-default bg-black/20"
                             : "hover:bg-black/10 cursor-pointer"
                     )}
                 >
                     <div className="flex flex-col items-center gap-2 pointer-events-none">
                         <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-sm grid place-items-center">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-12 w-12 text-white drop-shadow-lg"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
+                            {isImage ? (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-12 w-12 text-white drop-shadow-lg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                >
+                                    <rect x="4" y="5" width="16" height="14" rx="2" ry="2" />
+                                    <path d="M8.5 11.5l3 3 2.5-2.5 3.5 3.5" />
+                                    <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+                                </svg>
+                            ) : (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-12 w-12 text-white drop-shadow-lg"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                            )}
                         </div>
                         {title && (
                             <span className="text-white/90 text-sm font-semibold">

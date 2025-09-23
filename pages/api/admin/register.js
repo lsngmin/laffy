@@ -5,18 +5,49 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!assertAdmin(req, res)) return;
   try {
-    const { slug, title, description, url, durationSeconds = 0, orientation = 'landscape' } = req.body || {};
-    if (!slug || !title || !url) return res.status(400).json({ error: 'Missing fields' });
-    const meta = {
+    const {
       slug,
-      type: 'video',
-      src: url,
-      poster: null,
       title,
       description,
-      thumbnail: null,
+      url,
+      durationSeconds = 0,
+      orientation = 'landscape',
+      type: rawType,
+      poster: rawPoster,
+      thumbnail: rawThumbnail
+    } = req.body || {};
+    if (!slug || !title || !url) return res.status(400).json({ error: 'Missing fields' });
+
+    const lowerUrl = typeof url === 'string' ? url.toLowerCase() : '';
+    const imageExtPattern = /(\.jpe?g|\.png|\.webp)$/;
+    const hasImageExtension = imageExtPattern.test(lowerUrl);
+    const normalizedType = rawType === 'image' || hasImageExtension ? 'image' : 'video';
+    const poster = typeof rawPoster === 'string' && rawPoster.trim().length > 0 ? rawPoster : null;
+    const thumbnail = typeof rawThumbnail === 'string' && rawThumbnail.trim().length > 0 ? rawThumbnail : null;
+
+    const resolvedPoster =
+      normalizedType === 'image'
+        ? poster || url
+        : poster;
+
+    const resolvedThumbnail =
+      normalizedType === 'image'
+        ? thumbnail || resolvedPoster || url
+        : thumbnail || resolvedPoster || null;
+
+    const resolvedDuration =
+      normalizedType === 'image' ? 0 : Number(durationSeconds) || 0;
+
+    const meta = {
+      slug,
+      type: normalizedType,
+      src: url,
+      poster: resolvedPoster,
+      title,
+      description,
+      thumbnail: resolvedThumbnail,
       orientation,
-      durationSeconds: Number(durationSeconds) || 0,
+      durationSeconds: resolvedDuration,
       source: 'Blob',
       publishedAt: new Date().toISOString(),
       likes: 0,

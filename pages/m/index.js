@@ -52,13 +52,19 @@ export default function Home({ memes: memeList }) {
       const relativeTime = publishedDate ? formatRelativeTime(publishedDate, locale) : null;
       const liked = isLiked(meme.slug);
       const likesValue = meme.likes + (liked ? 1 : 0);
+      const typeKey =
+        meme.type === 'image'
+          ? 'image'
+          : meme.type === 'video'
+            ? 'video'
+            : 'thread';
       return {
         ...meme,
         mediaAspect,
-        durationLabel: formatDuration(meme.durationSeconds),
+        durationLabel: typeKey === 'video' ? formatDuration(meme.durationSeconds) : null,
         publishedDate,
         relativeTime,
-        typeLabel: t(`meta.${meme.type === 'video' ? 'video' : 'thread'}`),
+        typeLabel: t(`meta.${typeKey}`),
         likesValue,
         likesDisplay: formatCount(likesValue, locale),
         viewsDisplay: formatCount(meme.views, locale)

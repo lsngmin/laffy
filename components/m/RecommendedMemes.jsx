@@ -49,7 +49,11 @@ export default function RecommendedMemes({t, locale, allMemes, meme }) {
                             )}
                             <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100">
                 <CompassIcon className="h-3.5 w-3.5" />
-                                {item.type === "video" ? t("meta.video") : t("meta.thread")}
+                                {item.type === "image"
+                                    ? t("meta.image")
+                                    : item.type === "video"
+                                      ? t("meta.video")
+                                      : t("meta.thread")}
               </span>
                         </div>
                         <div className="flex flex-1 flex-col gap-3 p-4">
