@@ -1,5 +1,6 @@
-import IconActionButton from "./IconActionButton";
-import { HeartIcon } from "../components/icons";
+import {HeartIcon} from "../icons";
+import IconActionButton from "./base/IconActionButton";
+
 
 export function LikeButton({ liked, onToggle, disabled, t }) {
     return (

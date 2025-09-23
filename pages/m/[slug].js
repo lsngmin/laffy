@@ -1,15 +1,13 @@
-import Head from 'next/head';
-import Link from 'next/link';
+
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useLikes } from '../../hooks/useLikes';
 import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
-import { BookmarkIcon, CompassIcon, EyeIcon, HeartIcon, ShareIcon, SparkIcon } from '../../components/icons';
+import { BookmarkIcon } from '../../components/icons';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
 import { getAllContent, getContentBySlug } from '../../utils/contentSource';
-import clsx from 'clsx';
 import VideoCard from "../../components/m/video/VideoCard";
 import {LikeButton} from "../../components/button/LikeButton";
 import {ShareButton} from "../../components/button/ShareButton";

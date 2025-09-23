@@ -1,5 +1,6 @@
-import IconActionButton from "./IconActionButton";
-import { ShareIcon } from "../components/icons";
+import IconActionButton from "./base/IconActionButton";
+import {ShareIcon} from "../icons";
+
 
 export function ShareButton({ onShare, t }) {
     return (

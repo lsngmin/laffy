@@ -1,8 +1,8 @@
-import BaseActionButton from "./BaseActionButton";
+import IconActionButton from "./base/IconActionButton";
 
 export default function LocaleSwitchButton({ locale, onSwitch }) {
     return (
-        <BaseActionButton
+        <IconActionButton
             onClick={onSwitch}
             ariaLabel="Change language"
         >
@@ -10,6 +10,6 @@ export default function LocaleSwitchButton({ locale, onSwitch }) {
         {locale === "ko" ? "KO" : "EN"}
       </span>
             <span className="text-[11px] text-slate-500">⇄</span>
-        </BaseActionButton>
+        </IconActionButton>
     );
 }
