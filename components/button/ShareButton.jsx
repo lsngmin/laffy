@@ -1,8 +1,7 @@
-import IconActionButton from "./base/IconActionButton";
-import {ShareIcon} from "../icons";
+import IconActionButton from "@/components/button/base/IconActionButton";
+import {ShareIcon} from "@/components/icons";
 
-
-export function ShareButton({ t }) {
+export default function ShareButton({ t }) {
     const handleShare = async () => {
         if (typeof window === 'undefined') return;
         const payload = { title: meme.title, url: window.location.href };

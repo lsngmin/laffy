@@ -1,7 +1,7 @@
 import IconActionButton from "./base/IconActionButton";
 import {BookmarkIcon} from "../icons";
 
-export function BookmarkButton({ isFavorite, onToggle, t }) {
+export default function BookmarkButton({ isFavorite, onToggle, t }) {
     return (
         <IconActionButton
             onClick={onToggle}

@@ -1,8 +1,8 @@
 import {HeartIcon} from "../icons";
-import IconActionButton from "./base/IconActionButton";
+import IconActionButton from "@/components/button/base/IconActionButton";
 
 
-export function LikeButton({ liked, onToggle, disabled, t }) {
+export default function LikeButton({ liked, onToggle, disabled, t }) {
     return (
         <IconActionButton
             onClick={onToggle}

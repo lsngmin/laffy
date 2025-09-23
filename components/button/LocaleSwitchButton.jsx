@@ -1,6 +1,6 @@
 import {useRouter} from "next/router";
+import IconActionButton from "@/components/button/base/IconActionButton";
 
-import IconActionButton from "./base/IconActionButton";
 
 export default function LocaleSwitchButton({ locale, onSwitch }) {
     const router = useRouter();
