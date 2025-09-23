@@ -19,14 +19,16 @@ export async function getStaticPaths({ locales }) {
 export async function getStaticProps({ params, locale }) {
   const { meme, items } = await getContentBySlug(params.slug);
   if (!meme) return { notFound: true };
+
   if ((meme.type || '').toLowerCase() === 'image') {
     return {
       redirect: {
         destination: `/x/${params.slug}`,
-        permanent: false
-      }
+        permanent: false,
+      },
     };
   }
+
   return {
     props: {
       meme,

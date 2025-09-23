@@ -90,14 +90,29 @@ export default function VideoCard({
                 >
                     <div className="flex flex-col items-center gap-2 pointer-events-none">
                         <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-sm grid place-items-center">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-12 w-12 text-white drop-shadow-lg"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
+                            {isImage ? (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-12 w-12 text-white drop-shadow-lg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                >
+                                    <rect x="4" y="5" width="16" height="14" rx="2" ry="2" />
+                                    <path d="M8.5 11.5l3 3 2.5-2.5 3.5 3.5" />
+                                    <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+                                </svg>
+                            ) : (
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-12 w-12 text-white drop-shadow-lg"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                            )}
                         </div>
                         {title && (
                             <span className="text-white/90 text-sm font-semibold">
