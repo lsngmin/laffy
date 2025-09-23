@@ -16,6 +16,7 @@ export default function MemeCard({
   const { t } = useTranslation('common');
   const [likePulse, setLikePulse] = useState(false);
   const [favoritePulse, setFavoritePulse] = useState(false);
+  const hasThumbnail = Boolean(meme.thumbnail);
   useEffect(() => {
     if (!likePulse) return undefined;
     const timer = setTimeout(() => setLikePulse(false), 320);
@@ -78,13 +79,21 @@ export default function MemeCard({
     <Link href={href} className="group relative block">
       <article className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500/25 via-purple-500/20 to-pink-500/25 p-[1px] shadow-[0_30px_60px_-35px_rgba(79,70,229,0.65)] transition-transform duration-500 active:scale-[0.99] sm:p-[1.5px]">
         <div className="relative flex h-full flex-col gap-4 rounded-[1.05rem] bg-slate-950/75 p-4 sm:p-5">
-          <div className={`relative overflow-hidden rounded-xl ${meme.mediaAspect || 'aspect-video'} bg-slate-900/40 shadow-[0_18px_26px_-24px_rgba(148,163,184,0.65)]`}> 
-            <img
-              src={meme.thumbnail}
-              alt={meme.title}
-              className="h-full w-full object-cover transition-transform duration-500 group-active:scale-[1.02]"
-              loading="lazy"
-            />
+          <div className={`relative overflow-hidden rounded-xl ${meme.mediaAspect || 'aspect-video'} bg-slate-900/40 shadow-[0_18px_26px_-24px_rgba(148,163,184,0.65)]`}>
+            {hasThumbnail ? (
+              <img
+                src={meme.thumbnail}
+                alt={meme.title}
+                className="h-full w-full object-cover transition-transform duration-500 group-active:scale-[1.02]"
+                loading="lazy"
+              />
+            ) : (
+              <div
+                className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_65%)] text-sm font-semibold text-slate-100"
+              >
+                미리보기가 준비되지 않았어요
+              </div>
+            )}
             {meme.durationLabel && meme.type !== 'twitter' && (
               <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-slate-900/75 px-2 py-0.5 text-[11px] font-mono uppercase tracking-wide text-white">
                 {meme.durationLabel}
