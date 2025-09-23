@@ -11,6 +11,7 @@ import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
 import { getAllContent, getContentBySlug } from '../../utils/contentSource';
 import clsx from 'clsx';
 import VideoCard from "../../components/m/video/VideoCard";
+import {LikeButton} from "../../components/button/LikeButton";
 
 function TwitterEmbed({ url }) {
   const containerRef = useRef(null);
@@ -215,32 +216,17 @@ export default function MemeDetail({ meme, allMemes }) {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={handleToggleLike}
-                        className={clsx(
-                            'inline-flex items-center justify-center rounded-full bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400',
-                            liked && 'ring-1 ring-pink-400/60'
-                        )}
+                    <LikeButton
+                        liked={liked}
+                        onToggle={handleToggleLike}
                         disabled={!likesReady}
-                        aria-pressed={liked}
-                        aria-label={liked ? t('actions.liked') : t('actions.like')}
-                    >
-                      <HeartIcon filled={liked} className="h-4 w-4" />
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleToggleFavorite}
-                        className={clsx(
-                            'inline-flex items-center justify-center rounded-full bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-black/40 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400',
-                            isFavorite && 'ring-1 ring-amber-300/70'
-                        )}
-                        aria-pressed={isFavorite}
-                        aria-label={isFavorite ? t('favorites.saved') : t('favorites.save')}
-                    >
-                      <BookmarkIcon className="h-4 w-4" />
-                    </button>
+                        t={t}
+                    />
+                    <BookmarkIcon
+                        isFavorite={isFavorite}
+                        onToggle={handleToggleFavorite}
+                        t={t}
+                    />
                   </div>
 
                   <button
