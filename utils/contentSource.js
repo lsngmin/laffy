@@ -1,9 +1,15 @@
 import { list } from '@vercel/blob';
 import { getBlobReadToken } from './blobTokens';
+import localMemes from './localMemes';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 export async function listBlobContent() {
   const token = getBlobReadToken();
-  if (!token) return [];
+  if (!token) {
+    return isProduction ? { items: [], source: 'blob' } : getLocalFallback();
+  }
+
   try {
     const { blobs } = await list({ prefix: 'content/', token });
     const metas = blobs.filter((b) => b.pathname.endsWith('.json'));
@@ -19,21 +25,32 @@ export async function listBlobContent() {
         }
       })
     );
-    return items.filter(Boolean);
-  } catch (e) {
-    return [];
+    return { items: items.filter(Boolean), source: 'blob' };
+  } catch (error) {
+    if (!isProduction) {
+      console.warn('[contentSource] Failed to load blob content, using local fallback', error);
+      return getLocalFallback();
+    }
+    return { items: [], source: 'blob' };
   }
 }
 
 export async function getAllContent() {
-  const blobContent = await listBlobContent();
-  return { items: sortByPublishedAt(blobContent), source: 'blob' };
+  const { items, source } = await listBlobContent();
+  return { items: sortByPublishedAt(items), source };
 }
 
 export async function getContentBySlug(slug) {
   const { items, source } = await getAllContent();
   const meme = items.find((item) => item.slug === slug) || null;
   return { meme, items, source };
+}
+
+function getLocalFallback() {
+  return {
+    items: localMemes.map((item) => ({ ...item })),
+    source: 'local'
+  };
 }
 
 function normalize(meta) {

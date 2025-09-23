@@ -111,7 +111,7 @@ export default function MemeDetail({ meme, allMemes }) {
                         src={meme.src}
                         title={meme.title}
                         aspect={mediaAspect}
-                        disablePlay={false}   // ← true면 썸네일+재생아이콘만
+                        disablePlay={true}   // ← true면 썸네일+재생아이콘만
                     />
               </div>
 
