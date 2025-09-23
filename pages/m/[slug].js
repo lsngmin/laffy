@@ -21,6 +21,7 @@ export default function MemeDetail({ meme, allMemes }) {
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
+  const [recordedSlug, setRecordedSlug] = useState(null);
 
   if (!meme) return null;
 
@@ -35,24 +36,59 @@ export default function MemeDetail({ meme, allMemes }) {
 
   useEffect(() => {
     setIsFavorite(loadFavorites().includes(meme.slug));
+    setServerCounts({ views: null, likes: null });
+  }, [meme.slug]);
 
-    (async () => {
+  useEffect(() => {
+    if (!meme?.slug) return;
+    if (recordedSlug === meme.slug) return;
+
+    setRecordedSlug(meme.slug);
+    let cancelled = false;
+
+    const applyCounts = (data) => {
+      if (cancelled || !data) return;
+      const nextViews = Number(data.views);
+      const nextLikes = Number(data.likes);
+      setServerCounts((prev) => ({
+        views: Number.isFinite(nextViews) ? nextViews : prev.views,
+        likes: Number.isFinite(nextLikes) ? Math.max(0, nextLikes) : prev.likes,
+      }));
+    };
+
+    const recordAndLoad = async () => {
       try {
-        await fetch('/api/metrics/view', {
+        const res = await fetch('/api/metrics/view', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ slug: meme.slug }),
         });
-        const res = await fetch(`/api/metrics/get?slug=${encodeURIComponent(meme.slug)}`);
         if (res.ok) {
           const data = await res.json();
-          setServerCounts({ views: data.views, likes: data.likes });
+          applyCounts(data);
+          return;
         }
       } catch {
         // 무시
       }
-    })();
-  }, [meme.slug]);
+
+      try {
+        const res = await fetch(`/api/metrics/get?slug=${encodeURIComponent(meme.slug)}`);
+        if (res.ok) {
+          const data = await res.json();
+          applyCounts(data);
+        }
+      } catch {
+        // 무시
+      }
+    };
+
+    recordAndLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [meme?.slug, recordedSlug]);
 
   const handleToggleFavorite = () => {
     const updated = toggleFavoriteSlug(meme.slug);
@@ -131,7 +167,7 @@ export default function MemeDetail({ meme, allMemes }) {
                     />
                   </div>
 
-                  <ShareButton t={t} />
+                  <ShareButton t={t} title={meme.title} slug={meme.slug} />
 
                 </div>
               </div>
