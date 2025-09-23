@@ -196,10 +196,7 @@ export default function MemeDetail({ meme, allMemes }) {
               </header>
 
               {/* 미디어 */}
-              <div className={clsx(
-                  'overflow-hidden rounded-3xl ring-1 ring-slate-800/70 shadow-[0_25px_60px_-35px_rgba(30,41,59,0.8)]',
-                  mediaAspect
-              )}>
+              <div>
                 {meme.type === 'video' ? (
                     <VideoCard
                         poster={meme.poster}
@@ -209,11 +206,10 @@ export default function MemeDetail({ meme, allMemes }) {
                         disablePlay={true}   // ← true면 썸네일+재생아이콘만
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-slate-950/60 p-4">
-                      <TwitterEmbed url={meme.url} />
-                    </div>
+                    <TwitterEmbed url={meme.url} />
                 )}
               </div>
+
 
               {/* 액션 버튼 */}
               <div className="flex flex-col gap-4">
