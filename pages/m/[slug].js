@@ -1,59 +1,22 @@
-
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { useLikes } from '../../hooks/useLikes';
-import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
-import { BookmarkIcon } from '../../components/icons';
-import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
-import { getAllContent, getContentBySlug } from '../../utils/contentSource';
+
+import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/components/button";
+import { BookmarkLink, BackToFeedLink } from "@/components/link";
+
+import { useLikes } from '@/hooks/useLikes';
+import { formatCount, formatRelativeTime, getOrientationClass } from '@/lib/formatters';
+import { loadFavorites, toggleFavoriteSlug } from '@/utils/storage';
+import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import VideoCard from "../../components/m/video/VideoCard";
-import {LikeButton} from "../../components/button/LikeButton";
-import {ShareButton} from "../../components/button/ShareButton";
+
 import TitleNameHead from "../../components/m/TitleNameHead";
-import BookmarkLink from "../../components/link/BookmarkLink";
-import LocaleSwitchButton from "../../components/button/LocaleSwitchButton";
 import LogoText from "../../components/LogoText";
-import BackToFeedLink from "../../components/link/BackToFeedLink";
-
-function TwitterEmbed({ url }) {
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    if (!url) return;
-    const onLoad = () => window.twttr?.widgets?.load(containerRef.current);
-
-    let script = document.querySelector('script[src="https://platform.twitter.com/widgets.js"]');
-    if (!script) {
-      script = document.createElement('script');
-      script.src = 'https://platform.twitter.com/widgets.js';
-      script.async = true;
-      script.defer = true;
-      script.addEventListener('load', onLoad);
-      document.body.appendChild(script);
-    } else if (script.getAttribute('data-loaded') === 'true') {
-      onLoad();
-    } else {
-      script.addEventListener('load', onLoad);
-    }
-    script.setAttribute('data-loaded', 'true');
-
-    return () => script.removeEventListener('load', onLoad);
-  }, [url]);
-
-  return (
-      <div ref={containerRef} className="twitter-embed w-full">
-        <blockquote className="twitter-tweet" data-theme="dark">
-          <a href={url}>Twitter meme</a>
-        </blockquote>
-      </div>
-  );
-}
+import RecommendedMemes from "@/components/m/RecommendedMemes";
 
 export default function MemeDetail({ meme, allMemes }) {
   const { t, i18n } = useTranslation('common');
-  const router = useRouter();
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
 
   const [isFavorite, setIsFavorite] = useState(false);
@@ -69,15 +32,6 @@ export default function MemeDetail({ meme, allMemes }) {
 
   const likesDisplay = formatCount((serverCounts.likes ?? meme.likes) + (liked ? 1 : 0), locale);
   const viewsDisplay = formatCount(serverCounts.views ?? meme.views, locale);
-
-  const recommendedMemes = allMemes
-      ?.filter((item) => item.slug !== meme.slug)
-      .slice(0, 3)
-      .map((item) => ({
-        ...item,
-        aspect: getOrientationClass(item.orientation),
-        relativeTime: item.publishedAt ? formatRelativeTime(new Date(item.publishedAt), locale) : null,
-      })) ?? [];
 
   useEffect(() => {
     setIsFavorite(loadFavorites().includes(meme.slug));
@@ -99,28 +53,6 @@ export default function MemeDetail({ meme, allMemes }) {
       }
     })();
   }, [meme.slug]);
-
-  const handleShare = async () => {
-    if (typeof window === 'undefined') return;
-    const payload = { title: meme.title, url: window.location.href };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(payload);
-        return;
-      } catch (err) {
-        if (err?.name === 'AbortError') return;
-      }
-    }
-    const text = encodeURIComponent(meme.title);
-    const shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${text}`;
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleLocaleSwitch = () => {
-    const nextLocale = locale === 'ko' ? 'en' : 'ko';
-    router.push(router.pathname, router.asPath, { locale: nextLocale });
-  };
 
   const handleToggleFavorite = () => {
     const updated = toggleFavoriteSlug(meme.slug);
@@ -153,7 +85,7 @@ export default function MemeDetail({ meme, allMemes }) {
           <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
             <div className="flex items-center justify-between text-xs text-slate-300">
               <BookmarkLink label={t("favorites.cta")} />
-              <LocaleSwitchButton locale={locale} onSwitch={handleLocaleSwitch} />
+              <LocaleSwitchButton locale={locale} />
             </div>
 
             <div className="mt-6 text-center">
@@ -192,80 +124,20 @@ export default function MemeDetail({ meme, allMemes }) {
                         disabled={!likesReady}
                         t={t}
                     />
-                    <BookmarkIcon
+                    <BookmarkButton
                         isFavorite={isFavorite}
                         onToggle={handleToggleFavorite}
                         t={t}
                     />
                   </div>
 
-                  <ShareButton onShare={handleShare} t={t} />
+                  <ShareButton t={t} />
 
                 </div>
               </div>
             </article>
 
-            {/*{recommendedMemes.length > 0 && (*/}
-            {/*    <section className="mt-10 space-y-4 rounded-3xl bg-slate-900/70 p-5 ring-1 ring-slate-800/80 sm:p-7">*/}
-            {/*      <div className="space-y-2">*/}
-            {/*        <h2 className="text-xl font-semibold text-white sm:text-2xl">*/}
-            {/*          {t('detail.recommended.title')}*/}
-            {/*        </h2>*/}
-            {/*        <p className="text-sm text-slate-300">{t('detail.recommended.subtitle')}</p>*/}
-            {/*      </div>*/}
-
-            {/*      <div className="grid gap-4 sm:grid-cols-2">*/}
-            {/*        {recommendedMemes.map((item) => (*/}
-            {/*            <Link*/}
-            {/*                key={`recommended-${item.slug}`}*/}
-            {/*                href={`/m/${item.slug}`}*/}
-            {/*                className="group flex flex-col overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/80 transition hover:-translate-y-1 hover:ring-indigo-400/60"*/}
-            {/*            >*/}
-            {/*              <div className={`relative w-full ${item.aspect} overflow-hidden bg-slate-950/60`}>*/}
-            {/*                {item.thumbnail ? (*/}
-            {/*                    <img*/}
-            {/*                        src={item.thumbnail}*/}
-            {/*                        alt={item.title}*/}
-            {/*                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"*/}
-            {/*                        loading="lazy"*/}
-            {/*                    />*/}
-            {/*                ) : (*/}
-            {/*                    <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-xs font-semibold text-slate-100">*/}
-            {/*                      미리보기 이미지 없음*/}
-            {/*                    </div>*/}
-            {/*                )}*/}
-            {/*                <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100">*/}
-            {/*            <CompassIcon className="h-3.5 w-3.5" />*/}
-            {/*                  {item.type === 'video' ? t('meta.video') : t('meta.thread')}*/}
-            {/*          </span>*/}
-            {/*              </div>*/}
-            {/*              <div className="flex flex-1 flex-col gap-3 p-4">*/}
-            {/*                <h3 className="text-base font-semibold leading-snug text-white line-clamp-2">*/}
-            {/*                  {item.title}*/}
-            {/*                </h3>*/}
-            {/*                <p className="text-sm leading-relaxed text-slate-300 line-clamp-2">{item.description}</p>*/}
-            {/*                <div className="mt-auto flex flex-wrap items-center gap-3 text-xs text-slate-400">*/}
-            {/*            <span className="inline-flex items-center gap-1 text-rose-200">*/}
-            {/*              <HeartIcon className="h-3.5 w-3.5" />*/}
-            {/*              {formatCount(item.likes, locale)}*/}
-            {/*            </span>*/}
-            {/*                  <span className="inline-flex items-center gap-1">*/}
-            {/*              <EyeIcon className="h-3.5 w-3.5" />*/}
-            {/*                    {formatCount(item.views, locale)}*/}
-            {/*            </span>*/}
-            {/*                  {item.relativeTime && (*/}
-            {/*                      <span className="inline-flex items-center gap-1">*/}
-            {/*                <SparkIcon className="h-3.5 w-3.5" />*/}
-            {/*                        {item.relativeTime}*/}
-            {/*              </span>*/}
-            {/*                  )}*/}
-            {/*                </div>*/}
-            {/*              </div>*/}
-            {/*            </Link>*/}
-            {/*        ))}*/}
-            {/*      </div>*/}
-            {/*    </section>*/}
-            {/*)}*/}
+            <RecommendedMemes t={t} locale={locale} allMemes={allMemes} meme={meme} />
           </main>
         </div>
       </>
