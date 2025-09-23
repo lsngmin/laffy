@@ -32,11 +32,29 @@ export default function Admin() {
     refresh();
   }, [qs]);
 
-  async function registerMeta(blob) {
-    const slug = (title || blob.pathname || 'untitled')
+  async function generateSlug(blob) {
+    const raw = `${blob?.pathname || ''}-${blob?.url || ''}-${Date.now()}-${Math.random()}`;
+    const cryptoObj = globalThis.crypto;
+
+    if (cryptoObj?.subtle && typeof TextEncoder !== 'undefined') {
+      const encoder = new TextEncoder();
+      const digest = await cryptoObj.subtle.digest('SHA-256', encoder.encode(raw));
+      const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+      return hex.slice(0, 16);
+    }
+
+    if (typeof cryptoObj?.randomUUID === 'function') {
+      return cryptoObj.randomUUID().replace(/-/g, '').slice(0, 16);
+    }
+
+    return raw
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 16) || `slug-${Date.now()}`;
+  }
+
+  async function registerMeta(blob) {
+    const slug = await generateSlug(blob);
     const res = await fetch(`/api/admin/register${qs}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

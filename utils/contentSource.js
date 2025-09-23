@@ -35,14 +35,17 @@ export async function getContentBySlug(slug) {
 }
 
 function normalize(meta) {
+  const normalizedPoster = meta.poster || meta.thumbnail || null;
+  const normalizedThumbnail = meta.thumbnail || normalizedPoster || '';
+
   return {
     slug: meta.slug,
     type: meta.type || 'video',
     src: meta.src || meta.url,
-    poster: meta.poster || null,
+    poster: normalizedPoster,
     title: meta.title || '',
     description: meta.description || '',
-    thumbnail: meta.thumbnail || meta.poster || '',
+    thumbnail: normalizedThumbnail,
     orientation: meta.orientation || 'landscape',
     durationSeconds: Number(meta.durationSeconds) || 0,
     source: meta.source || 'Blob',
