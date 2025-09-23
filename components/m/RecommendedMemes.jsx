@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CompassIcon, HeartIcon, EyeIcon, SparkIcon } from "../icons";
-import {formatCount, formatRelativeTime, getOrientationClass} from "@/lib/formatters";
+import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
+import { getDetailHref } from "@/lib/paths";
 
 export default function RecommendedMemes({t, locale, allMemes, meme }) {
     const recommendedMemes = allMemes
@@ -29,7 +30,7 @@ export default function RecommendedMemes({t, locale, allMemes, meme }) {
                 {recommendedMemes.map((item) => (
                     <Link
                         key={`recommended-${item.slug}`}
-                        href={`/m/${item.slug}`}
+                        href={getDetailHref(item)}
                         className="group flex flex-col overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/80 transition hover:-translate-y-1 hover:ring-indigo-400/60"
                     >
                         <div

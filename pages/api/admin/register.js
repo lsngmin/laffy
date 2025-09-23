@@ -53,7 +53,8 @@ export default async function handler(req, res) {
       likes: 0,
       views: 0
     };
-    const key = `content/${slug}.json`;
+    const folder = normalizedType === 'image' ? 'images' : 'videos';
+    const key = `content/${folder}/${slug}.json`;
     await put(key, JSON.stringify(meta), {
       token: process.env.BLOB_READ_WRITE_TOKEN,
       access: 'public',

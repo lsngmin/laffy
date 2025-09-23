@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'next-i18next';
 import { BookmarkIcon, HeartIcon, ShareIcon } from './icons';
+import { getDetailHref } from '../lib/paths';
 
 export default function MemeCard({
   meme,
@@ -54,7 +55,8 @@ export default function MemeCard({
       event.preventDefault();
       event.stopPropagation();
       if (typeof window === 'undefined') return;
-      const targetUrl = `${window.location.origin}/m/${meme.slug}`;
+      const detailPath = getDetailHref(meme);
+      const targetUrl = `${window.location.origin}${detailPath}`;
       const sharePayload = {
         title: meme.title,
         url: targetUrl
