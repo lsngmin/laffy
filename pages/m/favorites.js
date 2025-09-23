@@ -7,6 +7,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import MemeCard from '../../components/MemeCard';
 import { useLikes } from '../../hooks/useLikes';
 import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
+import { getDetailHref } from '../../lib/paths';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
 import { getAllContent } from '../../utils/contentSource';
 import { BookmarkIcon } from '../../components/icons';
@@ -124,7 +125,7 @@ export default function Favorites({ memes: memeList }) {
                 <MemeCard
                   key={meme.slug}
                   meme={meme}
-                  href={`/m/${meme.slug}`}
+                  href={getDetailHref(meme)}
                   isLiked={isLiked(meme.slug)}
                   likesDisplay={meme.likesDisplay}
                   viewsDisplay={meme.viewsDisplay}

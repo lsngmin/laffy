@@ -55,6 +55,15 @@ export default function Admin() {
 
   async function registerMeta(blob) {
     const slug = await generateSlug(blob);
+    const contentType = typeof blob?.contentType === 'string' ? blob.contentType : '';
+    const pathname = typeof blob?.pathname === 'string' ? blob.pathname : '';
+    const lowerPathname = pathname.toLowerCase();
+    const lowerUrl = typeof blob?.url === 'string' ? blob.url.toLowerCase() : '';
+    const imageExtPattern = /(\.jpe?g|\.png|\.webp)$/;
+    const hasImageExtension = imageExtPattern.test(lowerPathname) || imageExtPattern.test(lowerUrl);
+    const isImage = contentType.startsWith('image/') || hasImageExtension;
+    const normalizedType = isImage ? 'image' : 'video';
+
     const res = await fetch(`/api/admin/register${qs}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -63,8 +72,11 @@ export default function Admin() {
         title,
         description,
         url: blob.url,
-        durationSeconds: Number(duration) || 0,
-        orientation
+        durationSeconds: isImage ? 0 : Number(duration) || 0,
+        orientation,
+        type: normalizedType,
+        poster: isImage ? blob.url : null,
+        thumbnail: isImage ? blob.url : null
       })
     });
     if (!res.ok) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CompassIcon, HeartIcon, EyeIcon, SparkIcon } from "../icons";
-import {formatCount, formatRelativeTime, getOrientationClass} from "@/lib/formatters";
+import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
+import { getDetailHref } from "@/lib/paths";
 
 export default function RecommendedMemes({t, locale, allMemes, meme }) {
     const recommendedMemes = allMemes
@@ -29,7 +30,7 @@ export default function RecommendedMemes({t, locale, allMemes, meme }) {
                 {recommendedMemes.map((item) => (
                     <Link
                         key={`recommended-${item.slug}`}
-                        href={`/m/${item.slug}`}
+                        href={getDetailHref(item)}
                         className="group flex flex-col overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/80 transition hover:-translate-y-1 hover:ring-indigo-400/60"
                     >
                         <div
@@ -49,7 +50,11 @@ export default function RecommendedMemes({t, locale, allMemes, meme }) {
                             )}
                             <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100">
                 <CompassIcon className="h-3.5 w-3.5" />
-                                {item.type === "video" ? t("meta.video") : t("meta.thread")}
+                                {item.type === "image"
+                                    ? t("meta.image")
+                                    : item.type === "video"
+                                      ? t("meta.video")
+                                      : t("meta.thread")}
               </span>
                         </div>
                         <div className="flex flex-1 flex-col gap-3 p-4">

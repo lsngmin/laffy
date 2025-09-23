@@ -29,7 +29,12 @@ export default function ClientBlobUploader({
     try {
       setStatus('uploading');
 
-      const blob = await upload(file.name, file, {
+      const isImage = file.type.startsWith('image/');
+      const targetFolder = isImage ? 'images' : 'videos';
+      const sanitizedName = file.name.replace(/\s+/g, '-');
+      const targetPath = `${targetFolder}/${sanitizedName}`;
+
+      const blob = await upload(targetPath, file, {
         access: 'public',
         handleUploadUrl,
         contentType: file.type,
