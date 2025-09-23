@@ -1,6 +1,8 @@
 import clsx from 'clsx';
 
 export default function VideoCard({ poster, src, title, aspect, disablePlay = false }) {
+    const resolvedPoster = typeof poster === 'string' && poster.trim().length > 0 ? poster : null;
+
     return (
         <div
             className={clsx(
@@ -11,12 +13,19 @@ export default function VideoCard({ poster, src, title, aspect, disablePlay = fa
             {disablePlay ? (
                 // 단순 썸네일 카드
                 <div className="relative">
-                    <img
-                        src={poster}
-                        alt={title}
-                        className="h-full w-full object-cover select-none pointer-events-none"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center">
+                    {resolvedPoster ? (
+                        <img
+                            src={resolvedPoster}
+                            alt={title}
+                            className="h-full w-full select-none object-cover pointer-events-none"
+                            loading="lazy"
+                        />
+                    ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-slate-900/80 text-sm text-slate-200">
+                            미리보기가 준비되지 않았어요
+                        </div>
+                    )}
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             className="h-16 w-16 text-white/80 drop-shadow-lg"
@@ -34,7 +43,7 @@ export default function VideoCard({ poster, src, title, aspect, disablePlay = fa
                     controls
                     preload="metadata"
                     playsInline
-                    poster={poster}
+                    poster={resolvedPoster || undefined}
                 >
                     <source src={src} type="video/mp4" />
                 </video>
