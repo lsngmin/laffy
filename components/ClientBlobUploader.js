@@ -8,7 +8,7 @@ export default function ClientBlobUploader({
   onUploaded,
 }) {
   const inputRef = useRef(null);
-  const [status, setStatus] = useState('idle'); // idle | uploading | done | error
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [uploadedUrl, setUploadedUrl] = useState('');
 
@@ -18,7 +18,6 @@ export default function ClientBlobUploader({
     const file = inputRef.current?.files?.[0];
     if (!file) return setError('파일을 선택해 주세요.');
 
-    // 간단 검증
     const allowList = accept.split(',');
     if (allowList.length && !allowList.includes(file.type)) {
       return setError(`허용되지 않은 형식입니다: ${file.type}`);
@@ -71,4 +70,3 @@ export default function ClientBlobUploader({
     </form>
   );
 }
-
