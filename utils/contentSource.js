@@ -23,6 +23,17 @@ export async function listBlobContent() {
   }
 }
 
+export async function getAllContent() {
+  const blobContent = await listBlobContent();
+  return { items: sortByPublishedAt(blobContent), source: 'blob' };
+}
+
+export async function getContentBySlug(slug) {
+  const { items, source } = await getAllContent();
+  const meme = items.find((item) => item.slug === slug) || null;
+  return { meme, items, source };
+}
+
 function normalize(meta) {
   return {
     slug: meta.slug,
@@ -39,4 +50,10 @@ function normalize(meta) {
     likes: Number(meta.likes) || 0,
     views: Number(meta.views) || 0
   };
+}
+
+function sortByPublishedAt(items) {
+  return items
+    .slice()
+    .sort((a, b) => (new Date(b.publishedAt).getTime() || 0) - (new Date(a.publishedAt).getTime() || 0));
 }

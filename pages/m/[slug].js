@@ -5,10 +5,10 @@ import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useLikes } from '../../hooks/useLikes';
-import { memes, getMemeBySlug } from '../../lib/memes';
 import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
 import { BookmarkIcon, CompassIcon, EyeIcon, HeartIcon, ShareIcon, SparkIcon } from '../../components/icons';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
+import { getAllContent, getContentBySlug } from '../../utils/contentSource';
 
 function TwitterEmbed({ url }) {
   const containerRef = useRef(null);
@@ -49,7 +49,7 @@ function TwitterEmbed({ url }) {
   );
 }
 
-export default function MemeDetail({ meme }) {
+export default function MemeDetail({ meme, allMemes }) {
   const { t, i18n } = useTranslation('common');
   const router = useRouter();
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -69,7 +69,8 @@ export default function MemeDetail({ meme }) {
   const viewsDisplay = formatCount(serverCounts.views ?? meme.views, locale);
 
   const recommendedMemes = useMemo(() => {
-    return memes
+    if (!Array.isArray(allMemes)) return [];
+    return allMemes
       .filter((item) => item.slug !== meme.slug)
       .slice(0, 3)
       .map((item) => {
@@ -77,7 +78,7 @@ export default function MemeDetail({ meme }) {
         const relativeTime = item.publishedAt ? formatRelativeTime(new Date(item.publishedAt), locale) : null;
         return { ...item, aspect, relativeTime };
       });
-  }, [locale, meme.slug]);
+  }, [allMemes, locale, meme.slug]);
 
   useEffect(() => {
     // record a view and fetch current metrics
@@ -331,7 +332,8 @@ export default function MemeDetail({ meme }) {
 }
 
 export async function getStaticPaths({ locales }) {
-  const paths = memes.flatMap((meme) =>
+  const { items } = await getAllContent();
+  const paths = items.flatMap((meme) =>
     locales.map((locale) => ({
       params: { slug: meme.slug },
       locale,
@@ -340,12 +342,12 @@ export async function getStaticPaths({ locales }) {
 
   return {
     paths,
-    fallback: false,
+    fallback: 'blocking',
   };
 }
 
 export async function getStaticProps({ params, locale }) {
-  const meme = getMemeBySlug(params.slug);
+  const { meme, items } = await getContentBySlug(params.slug);
 
   if (!meme) {
     return {
@@ -356,6 +358,7 @@ export async function getStaticProps({ params, locale }) {
   return {
     props: {
       meme,
+      allMemes: items,
       ...(await serverSideTranslations(locale, ['common'])),
     },
     revalidate: 60,

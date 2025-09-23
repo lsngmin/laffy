@@ -8,7 +8,7 @@ import MemeCard from '../../components/MemeCard';
 import { useLikes } from '../../hooks/useLikes';
 import { formatCount, formatRelativeTime, getOrientationClass } from '../../lib/formatters';
 import { loadFavorites, toggleFavoriteSlug } from '../../utils/storage';
-import { memes } from '../../lib/memes';
+import { getAllContent } from '../../utils/contentSource';
 import { BookmarkIcon } from '../../components/icons';
 
 export default function Favorites({ memes: memeList }) {
@@ -142,9 +142,10 @@ export default function Favorites({ memes: memeList }) {
 }
 
 export async function getStaticProps({ locale }) {
+  const { items } = await getAllContent();
   return {
     props: {
-      memes,
+      memes: items,
       ...(await serverSideTranslations(locale, ['common']))
     },
     revalidate: 60
