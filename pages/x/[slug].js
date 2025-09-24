@@ -42,9 +42,29 @@ export async function getStaticProps({ params, locale }) {
   if ((meme.type || '').toLowerCase() !== 'image') {
     return { notFound: true };
   }
+  // SEO data
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+  const origin = siteUrl || '';
+  const toAbs = (u) => { if (!u) return ''; try { return u.startsWith('http') ? u : (origin ? origin + u : u); } catch { return u; } };
+  const canonicalUrl = origin ? `${origin}/x/${params.slug}` : '';
+  const thumb = toAbs(meme.poster || meme.thumbnail || '');
+  const uploadDate = meme.publishedAt || new Date().toISOString();
+  const locales = ['ko', 'en'];
+  const hreflangs = locales.map((lng) => ({ hrefLang: lng, href: `${origin}/x/${params.slug}?locale=${lng}` }));
+  hreflangs.push({ hrefLang: 'x-default', href: `${origin}/x/${params.slug}` });
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ImageObject',
+    name: meme.title,
+    description: meme.description,
+    contentUrl: thumb || undefined,
+    uploadDate,
+  };
   return {
     props: {
-      meme,
+      meme: { ...meme, __seo: { canonicalUrl, hreflangs, jsonLd } },
       allMemes: items,
       ...(await serverSideTranslations(locale, ['common'])),
     },

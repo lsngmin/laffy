@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Head from "next/head";
 import { useTranslation } from "next-i18next";
 
 import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/components/button";
@@ -84,7 +85,23 @@ export default function MemeDetailPage({
 
   return (
     <>
+      {/* Basic title/description */}
       <TitleNameHead title={meme.title} description={meme.description} />
+      {/* SEO: canonical, hreflang, JSON-LD (injected by pages via props if present) */}
+      {meme.__seo && (
+        <Head>
+          {meme.__seo.canonicalUrl && (
+            <link rel="canonical" href={meme.__seo.canonicalUrl} />
+          )}
+          {Array.isArray(meme.__seo.hreflangs) &&
+            meme.__seo.hreflangs.map((alt) => (
+              <link key={alt.hrefLang} rel="alternate" hrefLang={alt.hrefLang} href={alt.href} />
+            ))}
+          {meme.__seo.jsonLd && (
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(meme.__seo.jsonLd) }} />
+          )}
+        </Head>
+      )}
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
