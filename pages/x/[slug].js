@@ -2,6 +2,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
 import dynamic from 'next/dynamic';
+import QuadAdGrid from '@/components/ads/QuadAdGrid';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
@@ -12,13 +13,14 @@ export default function ImageDetail(props) {
       {...props}
       disableVideo
       hideBackToFeed
-      backSlot={<div className="mt-6 flex justify-center"><BannerTop /></div>}
+      backSlot={null}
       showRecommended={false}
       recommendSlot={
         <div className="mt-10 flex justify-center">
           <BannerRect width={300} height={250} />
         </div>
       }
+      belowVideoSlot={<QuadAdGrid />}
       onPreviewClick={() => {
         try { window.open('https://otieu.com/4/9924601', '_blank', 'noopener'); } catch {}
       }}

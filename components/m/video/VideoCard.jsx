@@ -95,9 +95,7 @@ export default function VideoCard({
                 <div
                     className={clsx(
                         "absolute inset-0 grid place-items-center transition",
-                        overlayInteractive
-                            ? "hover:bg-black/10"
-                            : "bg-black/20"
+                        overlayInteractive ? "bg-black/10" : "bg-black/20"
                     )}
                 >
                     <button
@@ -106,26 +104,28 @@ export default function VideoCard({
                         disabled={!overlayInteractive}
                         aria-label={overlayInteractive ? (interactivePreview ? "스폰서로 이동" : "영상 재생") : "미리보기"}
                         className={clsx(
-                            "flex flex-col items-center gap-2 rounded-full px-6 py-6 text-white transition",
-                            overlayInteractive
-                                ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                                : "cursor-default opacity-80"
+                            "group relative inline-flex select-none items-center justify-center rounded-full p-4 text-white transition-transform duration-200",
+                            overlayInteractive ? "cursor-pointer active:scale-95" : "cursor-default opacity-80"
                         )}
                         style={{ background: "none", border: "none" }}
                     >
-                        <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-sm grid place-items-center">
+                        {/* Outer glow ring */}
+                        <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/40 via-white/10 to-transparent blur-md opacity-60" />
+                        {/* 3D base button */}
+                        <span className="relative grid h-24 w-24 place-items-center rounded-full bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.25),_rgba(255,255,255,0)_45%),linear-gradient(180deg,_rgba(255,255,255,0.25),_rgba(255,255,255,0)),linear-gradient(180deg,_rgba(0,0,0,0.45),_rgba(0,0,0,0.6))] shadow-[inset_0_6px_14px_rgba(255,255,255,0.25),_0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-sm transition duration-300 group-hover:brightness-110">
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
-                                className="h-12 w-12 text-white drop-shadow-lg"
+                                className="h-12 w-12 drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)]"
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
                             >
                                 <path d="M8 5v14l11-7z" />
                             </svg>
-                        </div>
+                        </span>
+                        {/* Label below button */}
                         {title && (
-                            <span className="text-white/90 text-sm font-semibold text-center">
-                                {title}
+                            <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-xs font-semibold shadow-md">
+                                {interactivePreview ? 'SPONSORED' : 'TAP TO PLAY'}
                             </span>
                         )}
                     </button>

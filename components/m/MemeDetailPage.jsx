@@ -21,6 +21,7 @@ export default function MemeDetailPage({
   showRecommended = true,
   recommendSlot = null,
   onPreviewClick,
+  belowVideoSlot = null,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -174,6 +175,7 @@ export default function MemeDetailPage({
                   </a>
                 </div>
               )}
+              {belowVideoSlot}
             </div>
 
             <div className="flex flex-col gap-4">
