@@ -125,7 +125,7 @@ export default function VideoCard({
                         {/* Label below button */}
                         {title && (
                             <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-xs font-semibold shadow-md">
-                                {interactivePreview ? 'SPONSORED' : 'TAP TO PLAY'}
+                                {title}
                             </span>
                         )}
                     </button>
