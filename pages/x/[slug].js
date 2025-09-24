@@ -3,6 +3,7 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
 import dynamic from 'next/dynamic';
 import QuadAdGrid from '@/components/ads/QuadAdGrid';
+import * as g from '@/lib/gtag';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
@@ -22,6 +23,15 @@ export default function ImageDetail(props) {
       }
       belowVideoSlot={<QuadAdGrid />}
       onPreviewClick={() => {
+        try {
+          g.event('video_overlay_click', {
+            route: 'x',
+            action_type: 'sponsored',
+            slug: props?.meme?.slug || '',
+            title: props?.meme?.title || '',
+            placement: 'overlay',
+          });
+        } catch {}
         try { window.open('https://otieu.com/4/9924601', '_blank', 'noopener'); } catch {}
       }}
     />
