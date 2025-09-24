@@ -6,21 +6,66 @@ import QuadAdGrid from '@/components/ads/QuadAdGrid';
 const MonetagInvoke = dynamic(() => import('@/components/ads/MonetagInvokeContainer'), { ssr: false });
 import * as g from '@/lib/gtag';
 import { vaTrack } from '@/lib/va';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
 
 export default function ImageDetail(props) {
-  // Vercel Analytics dwell/scroll events
+  const engagedRef = useRef(false);
+  const clickedRef = useRef(false);
+
+  // Vercel Analytics: visit / dwell / first scroll / any click / custom bounce
   useEffect(() => {
     const slug = props?.meme?.slug || '';
     const title = props?.meme?.title || '';
+
+    // Visit
+    try {
+      vaTrack('x_visit', {
+        slug,
+        title,
+        referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
+      });
+    } catch {}
+
+    // Dwell timers (3s, 10s)
     const t3 = setTimeout(() => vaTrack('x_stay_3s', { slug, title }), 3000);
     const t10 = setTimeout(() => vaTrack('x_stay_10s', { slug, title }), 10000);
-    const onScroll = () => { vaTrack('x_scroll', { slug, title }); window.removeEventListener('scroll', onScroll); };
+
+    // Custom bounce timer (7s) — if no engagement by then
+    const bounceTimer = setTimeout(() => {
+      if (!engagedRef.current) {
+        vaTrack('x_bounce', { slug, title, reason: 'no_engagement_within_7s' });
+      }
+    }, 7000);
+
+    // First scroll = engagement
+    const onScroll = () => {
+      vaTrack('x_scroll', { slug, title });
+      engagedRef.current = true;
+      window.removeEventListener('scroll', onScroll);
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { clearTimeout(t3); clearTimeout(t10); window.removeEventListener('scroll', onScroll); };
+
+    // First click anywhere = engagement (popunder 친화)
+    const onAnyClick = () => {
+      if (!clickedRef.current) {
+        clickedRef.current = true;
+        vaTrack('x_any_click', { slug, title });
+      }
+      engagedRef.current = true;
+      document.removeEventListener('click', onAnyClick, true);
+    };
+    document.addEventListener('click', onAnyClick, true);
+
+    return () => {
+      clearTimeout(t3);
+      clearTimeout(t10);
+      clearTimeout(bounceTimer);
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('click', onAnyClick, true);
+    };
   }, [props?.meme?.slug, props?.meme?.title]);
 
   return (
@@ -47,6 +92,7 @@ export default function ImageDetail(props) {
       onPreviewClick={() => {
         const slug = props?.meme?.slug || '';
         const title = props?.meme?.title || '';
+        engagedRef.current = true;
         vaTrack('x_overlay_click', { slug, title });
         try {
           g.event('video_overlay_click', {
@@ -62,6 +108,7 @@ export default function ImageDetail(props) {
       onCtaClick={() => {
         const slug = props?.meme?.slug || '';
         const title = props?.meme?.title || '';
+        engagedRef.current = true;
         vaTrack('x_cta_click_unable_to_play', { slug, title });
       }}
     />
