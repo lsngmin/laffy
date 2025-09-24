@@ -6,7 +6,7 @@ import QuadAdGrid from '@/components/ads/QuadAdGrid';
 const MonetagInvoke = dynamic(() => import('@/components/ads/MonetagInvokeContainer'), { ssr: false });
 import * as g from '@/lib/gtag';
 import { vaTrack } from '@/lib/va';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useLayoutEffect } from 'react';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
@@ -24,12 +24,12 @@ export default function ImageDetail(props) {
     } catch {}
   };
 
-  // Vercel Analytics: visit / dwell / first scroll / any click / custom bounce
-  useEffect(() => {
-    const slug = props?.meme?.slug || '';
-    const title = props?.meme?.title || '';
+  // Robust sender for x_visit (earliest possible + sessionStorage guard)
+  const sendVisitIfNeeded = (slug, title) => {
+    const key = typeof window !== 'undefined' ? `x_visit_sent:${window.location.pathname}` : '';
+    const already = key && typeof window !== 'undefined' && window.sessionStorage?.getItem(key) === '1';
+    if (already) return;
 
-    // Visit (once per slug render)
     const href = typeof window !== 'undefined' ? window.location.href : '';
     const sp = href ? new URL(href).searchParams : null;
     const utm = sp
@@ -47,9 +47,28 @@ export default function ImageDetail(props) {
       referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
       ...utm,
     });
+    try { if (key) window.sessionStorage?.setItem(key, '1'); } catch {}
+  };
+
+  // Send visit as early as possible
+  useLayoutEffect(() => {
+    const slug = props?.meme?.slug || '';
+    const title = props?.meme?.title || '';
+    sendVisitIfNeeded(slug, title);
+  }, [props?.meme?.slug, props?.meme?.title]);
+
+  // Vercel Analytics: dwell / first scroll / any click / custom bounce
+  useEffect(() => {
+    const slug = props?.meme?.slug || '';
+    const title = props?.meme?.title || '';
+
+    // Ensure visit got sent (fallback)
+    sendVisitIfNeeded(slug, title);
 
     // Dwell timers (3s, 10s)
     const t3 = setTimeout(() => {
+      // Safety: if visit wasn't sent yet, send it now
+      sendVisitIfNeeded(slug, title);
       trackOnce('x_stay_3s', { slug, title });
       // 3초 체류만으로도 참여 인정(정상 이탈 분리)
       engagedRef.current = true;
