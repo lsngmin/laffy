@@ -3,7 +3,7 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
 
 export default function ImageDetail(props) {
-  return <MemeDetailPage {...props} />;
+  return <MemeDetailPage {...props} disableVideo />;
 }
 
 export async function getStaticPaths({ locales }) {
@@ -20,12 +20,7 @@ export async function getStaticProps({ params, locale }) {
   const { meme, items } = await getContentBySlug(params.slug);
   if (!meme) return { notFound: true };
   if ((meme.type || '').toLowerCase() !== 'image') {
-    return {
-      redirect: {
-        destination: `/m/${params.slug}`,
-        permanent: false
-      }
-    };
+    return { notFound: true };
   }
   return {
     props: {

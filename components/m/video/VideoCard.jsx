@@ -15,8 +15,8 @@ export default function VideoCard({
     const isImage = mediaType === "image";
 
     useEffect(() => {
-        setOverlay(true);
-    }, [mediaType, src]);
+        setOverlay(!isImage);
+    }, [isImage, mediaType, src, disablePlay]);
 
     const play = async () => {
         if (disablePlay || isImage) return; // true면 무시

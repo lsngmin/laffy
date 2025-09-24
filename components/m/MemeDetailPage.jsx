@@ -11,7 +11,7 @@ import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import RecommendedMemes from "@/components/m/RecommendedMemes";
 
-export default function MemeDetailPage({ meme, allMemes }) {
+export default function MemeDetailPage({ meme, allMemes, disableVideo = false }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
 
@@ -108,7 +108,7 @@ export default function MemeDetailPage({ meme, allMemes }) {
                 title={meme.title}
                 aspect={mediaAspect}
                 mediaType={meme.type}
-                disablePlay={true}
+                disablePlay={disableVideo}
               />
             </div>
 
