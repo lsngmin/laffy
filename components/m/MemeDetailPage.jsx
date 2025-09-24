@@ -23,6 +23,7 @@ export default function MemeDetailPage({
   recommendSlot = null,
   onPreviewClick,
   belowVideoSlot = null,
+  afterArticleSlot = null,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -201,6 +202,8 @@ export default function MemeDetailPage({
               </div>
             </div>
           </article>
+
+          {afterArticleSlot}
 
           {showRecommended ? (
             <RecommendedMemes t={t} locale={locale} allMemes={allMemes} meme={meme} />

@@ -3,6 +3,8 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
 import dynamic from 'next/dynamic';
 import QuadAdGrid from '@/components/ads/QuadAdGrid';
+import dynamic from 'next/dynamic';
+const MonetagInvoke = dynamic(() => import('@/components/ads/MonetagInvokeContainer'), { ssr: false });
 import * as g from '@/lib/gtag';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
@@ -21,7 +23,15 @@ export default function ImageDetail(props) {
           <BannerRect width={300} height={250} />
         </div>
       }
-      belowVideoSlot={<QuadAdGrid />}
+      belowVideoSlot={null}
+      afterArticleSlot={
+        <div className="mt-6 flex w-full justify-center">
+          <MonetagInvoke
+            containerId="container-423e3c0edc8f597be9c7991231d2dd57"
+            src="//relishsubsequentlytank.com/423e3c0edc8f597be9c7991231d2dd57/invoke.js"
+          />
+        </div>
+      }
       onPreviewClick={() => {
         try {
           g.event('video_overlay_click', {
