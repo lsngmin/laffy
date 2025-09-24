@@ -1,9 +1,26 @@
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
+import dynamic from 'next/dynamic';
+
+const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
+const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
 
 export default function ImageDetail(props) {
-  return <MemeDetailPage {...props} disableVideo />;
+  return (
+    <MemeDetailPage
+      {...props}
+      disableVideo
+      hideBackToFeed
+      backSlot={<div className="mt-6 flex justify-center"><BannerTop /></div>}
+      showRecommended={false}
+      recommendSlot={
+        <div className="mt-10 flex justify-center">
+          <BannerRect width={300} height={250} />
+        </div>
+      }
+    />
+  );
 }
 
 export async function getStaticPaths({ locales }) {

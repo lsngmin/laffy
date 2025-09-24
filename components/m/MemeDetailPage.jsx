@@ -11,7 +11,15 @@ import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import RecommendedMemes from "@/components/m/RecommendedMemes";
 
-export default function MemeDetailPage({ meme, allMemes, disableVideo = false }) {
+export default function MemeDetailPage({
+  meme,
+  allMemes,
+  disableVideo = false,
+  hideBackToFeed = false,
+  backSlot = null,
+  showRecommended = true,
+  recommendSlot = null,
+}) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
 
@@ -88,7 +96,9 @@ export default function MemeDetailPage({ meme, allMemes, disableVideo = false })
             <LogoText />
           </div>
 
-          <BackToFeedLink href="/m" label={t("backToFeed")} />
+          {hideBackToFeed ? (backSlot ?? null) : (
+            <BackToFeedLink href="/m" label={t("backToFeed")} />
+          )}
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
             <header className="space-y-4">
@@ -134,7 +144,11 @@ export default function MemeDetailPage({ meme, allMemes, disableVideo = false })
             </div>
           </article>
 
-          <RecommendedMemes t={t} locale={locale} allMemes={allMemes} meme={meme} />
+          {showRecommended ? (
+            <RecommendedMemes t={t} locale={locale} allMemes={allMemes} meme={meme} />
+          ) : (
+            recommendSlot ?? null
+          )}
         </main>
       </div>
     </>
