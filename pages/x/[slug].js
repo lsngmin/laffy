@@ -64,7 +64,7 @@ export async function getStaticProps({ params, locale }) {
   };
   return {
     props: {
-      meme: { ...meme, __seo: { canonicalUrl, hreflangs, jsonLd } },
+      meme: { ...meme, __seo: { canonicalUrl, hreflangs, jsonLd, metaImage: thumb } },
       allMemes: items,
       ...(await serverSideTranslations(locale, ['common'])),
     },

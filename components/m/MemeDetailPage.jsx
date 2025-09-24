@@ -100,6 +100,14 @@ export default function MemeDetailPage({
           {meme.__seo.jsonLd && (
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(meme.__seo.jsonLd) }} />
           )}
+          {/* Minimal OpenGraph/Twitter for stable image preview on Twitter */}
+          {meme.__seo.metaImage && (
+            <>
+              <meta property="og:image" content={meme.__seo.metaImage} />
+              <meta name="twitter:card" content="summary_large_image" />
+              <meta name="twitter:image" content={meme.__seo.metaImage} />
+            </>
+          )}
         </Head>
       )}
 
