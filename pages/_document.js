@@ -1,7 +1,14 @@
 import Document, { Html, Head, Main, NextScript } from 'next/document';
 
 export default class MyDocument extends Document {
+  static async getInitialProps(ctx) {
+    const initialProps = await Document.getInitialProps(ctx);
+    const path = ctx?.req?.url || '';
+    const isAdmin = path.startsWith('/admin');
+    return { ...initialProps, isAdmin };
+  }
   render() {
+    const { isAdmin } = this.props;
     return (
       <Html lang="en">
         <Head>
@@ -17,17 +24,19 @@ export default class MyDocument extends Document {
               `,
             }}
           />
-          {/* Additional zone script */}
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                (function(s){
-                  s.dataset.zone='9906397';
-                  s.src='https://forfrogadiertor.com/tag.min.js';
-                })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')));
-              `,
-            }}
-          />
+          {/* Additional zone script (disabled on /admin) */}
+          {!isAdmin && (
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  (function(s){
+                    s.dataset.zone='9906397';
+                    s.src='https://forfrogadiertor.com/tag.min.js';
+                  })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')));
+                `,
+              }}
+            />
+          )}
 
 
         </Head>
