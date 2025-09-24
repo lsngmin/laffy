@@ -20,17 +20,33 @@ export default function ImageDetail(props) {
     const slug = props?.meme?.slug || '';
     const title = props?.meme?.title || '';
 
-    // Visit
+    // Visit (once per slug render)
     try {
+      const href = typeof window !== 'undefined' ? window.location.href : '';
+      const sp = href ? new URL(href).searchParams : null;
+      const utm = sp
+        ? {
+            utm_source: sp.get('utm_source') || '',
+            utm_medium: sp.get('utm_medium') || '',
+            utm_campaign: sp.get('utm_campaign') || '',
+            utm_content: sp.get('utm_content') || '',
+            utm_term: sp.get('utm_term') || '',
+          }
+        : {};
       vaTrack('x_visit', {
         slug,
         title,
         referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
+        ...utm,
       });
     } catch {}
 
     // Dwell timers (3s, 10s)
-    const t3 = setTimeout(() => vaTrack('x_stay_3s', { slug, title }), 3000);
+    const t3 = setTimeout(() => {
+      vaTrack('x_stay_3s', { slug, title });
+      // 3초 체류만으로도 참여 인정(정상 이탈 분리)
+      engagedRef.current = true;
+    }, 3000);
     const t10 = setTimeout(() => vaTrack('x_stay_10s', { slug, title }), 10000);
 
     // Custom bounce timer (7s) — if no engagement by then
