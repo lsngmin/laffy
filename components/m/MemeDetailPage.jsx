@@ -11,6 +11,7 @@ import VideoCard from "@/components/m/video/VideoCard";
 import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import RecommendedMemes from "@/components/m/RecommendedMemes";
+import BannerAdsMonetag from "@/components/ads/BannerAdsMonetag";
 
 export default function MemeDetailPage({
   meme,
@@ -136,7 +137,7 @@ export default function MemeDetailPage({
           <div className="mt-6 mb-3 text-center">
             <LogoText />
           </div>
-          <RelishBannerAd />
+          <BannerAdsMonetag />
 
           {hideBackToFeed ? (backSlot ?? null) : (
             <BackToFeedLink href="/m" label={t("backToFeed")} />
