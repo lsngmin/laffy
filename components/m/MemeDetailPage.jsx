@@ -39,6 +39,16 @@ export default function MemeDetailPage({
   const likesDisplay = formatCount((serverCounts.likes ?? meme.likes) + (liked ? 1 : 0), locale);
   const viewsDisplay = formatCount(serverCounts.views ?? meme.views, locale);
 
+  // Safe meta values for social preview (length/whitespace)
+  const safeTitle = String(meme?.title || 'Laffy')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 70);
+  const safeDesc = String(meme?.description || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 200);
+
   useEffect(() => {
     setIsFavorite(loadFavorites().includes(meme.slug));
 
@@ -100,12 +110,16 @@ export default function MemeDetailPage({
           {meme.__seo.jsonLd && (
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(meme.__seo.jsonLd) }} />
           )}
-          {/* Minimal OpenGraph/Twitter for stable image preview on Twitter */}
+          {/* Minimal OpenGraph/Twitter for stable image preview on Twitter */
           {meme.__seo.metaImage && (
             <>
               <meta property="og:image" content={meme.__seo.metaImage} />
+              <meta property="og:title" content={safeTitle} />
+              {safeDesc && <meta property="og:description" content={safeDesc} />}
               <meta name="twitter:card" content="summary_large_image" />
               <meta name="twitter:image" content={meme.__seo.metaImage} />
+              <meta name="twitter:title" content={safeTitle} />
+              {safeDesc && <meta name="twitter:description" content={safeDesc} />}
             </>
           )}
         </Head>
