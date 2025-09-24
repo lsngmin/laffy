@@ -17,11 +17,6 @@ export default class MyDocument extends Document {
               `,
             }}
           />
-
-          {/* Monetag - bootstrap IIFE and external tag */}
-          <script data-cfasync="false" src="/ads/monetag-inline.js"></script>
-          <script src="//x7i0.com/tag.min.js" data-zone="9903140" data-cfasync="false" async></script>
-
           {/* Additional zone script */}
           <script
             dangerouslySetInnerHTML={{
@@ -34,8 +29,7 @@ export default class MyDocument extends Document {
             }}
           />
 
-          {/* Popunder tag */}
-          <script type="text/javascript" src="//relishsubsequentlytank.com/37/69/69/376969b3831b8cc94e7beb849b815dce.js"></script>
+
         </Head>
         <body>
           <Main />
