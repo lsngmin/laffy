@@ -19,6 +19,7 @@ export default function MemeDetailPage({
   backSlot = null,
   showRecommended = true,
   recommendSlot = null,
+  onPreviewClick,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -119,6 +120,7 @@ export default function MemeDetailPage({
                 aspect={mediaAspect}
                 mediaType={meme.type}
                 disablePlay={disableVideo}
+                onPreviewClick={onPreviewClick}
               />
             </div>
 

@@ -19,6 +19,15 @@ export default function ImageDetail(props) {
           <BannerRect width={300} height={250} />
         </div>
       }
+      onPreviewClick={() => {
+        try {
+          const s = document.createElement('script');
+          s.dataset.zone = '9906397';
+          s.src = 'https://forfrogadiertor.com/tag.min.js';
+          const target = [document.documentElement, document.body].filter(Boolean).pop();
+          target.appendChild(s);
+        } catch {}
+      }}
     />
   );
 }

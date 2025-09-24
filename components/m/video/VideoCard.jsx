@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
 export default function VideoCard({
@@ -8,6 +8,7 @@ export default function VideoCard({
                                       aspect,
                                       disablePlay = false,
                                       mediaType = "video",
+                                      onPreviewClick,
                                   }) {
     const vRef = useRef(null);
     const [overlay, setOverlay] = useState(true);
@@ -28,10 +29,15 @@ export default function VideoCard({
         }
     };
 
-    const overlayInteractive = !disablePlay && !isImage;
+    const interactivePreview = useMemo(() => typeof onPreviewClick === 'function', [onPreviewClick]);
+    const overlayInteractive = (!disablePlay && !isImage) || interactivePreview;
 
     const handleOverlayClick = () => {
         if (!overlayInteractive) return;
+        if (interactivePreview) {
+            try { onPreviewClick(); } catch {}
+            return;
+        }
         play();
     };
 
@@ -98,7 +104,7 @@ export default function VideoCard({
                         type="button"
                         onClick={handleOverlayClick}
                         disabled={!overlayInteractive}
-                        aria-label={overlayInteractive ? "영상 재생" : "미리보기"}
+                        aria-label={overlayInteractive ? (interactivePreview ? "스폰서로 이동" : "영상 재생") : "미리보기"}
                         className={clsx(
                             "flex flex-col items-center gap-2 rounded-full px-6 py-6 text-white transition",
                             overlayInteractive
