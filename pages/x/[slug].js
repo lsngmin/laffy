@@ -14,6 +14,15 @@ const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame')
 export default function ImageDetail(props) {
   const engagedRef = useRef(false);
   const clickedRef = useRef(false);
+  const sentRef = useRef({});
+
+  const trackOnce = (name, payload) => {
+    try {
+      if (sentRef.current[name]) return;
+      sentRef.current[name] = true;
+      vaTrack(name, payload);
+    } catch {}
+  };
 
   // Vercel Analytics: visit / dwell / first scroll / any click / custom bounce
   useEffect(() => {
@@ -21,44 +30,40 @@ export default function ImageDetail(props) {
     const title = props?.meme?.title || '';
 
     // Visit (once per slug render)
-    try {
-      const href = typeof window !== 'undefined' ? window.location.href : '';
-      const sp = href ? new URL(href).searchParams : null;
-      const utm = sp
-        ? {
-            utm_source: sp.get('utm_source') || '',
-            utm_medium: sp.get('utm_medium') || '',
-            utm_campaign: sp.get('utm_campaign') || '',
-            utm_content: sp.get('utm_content') || '',
-            utm_term: sp.get('utm_term') || '',
-          }
-        : {};
-      vaTrack('x_visit', {
-        slug,
-        title,
-        referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
-        ...utm,
-      });
-    } catch {}
+    const href = typeof window !== 'undefined' ? window.location.href : '';
+    const sp = href ? new URL(href).searchParams : null;
+    const utm = sp
+      ? {
+          utm_source: sp.get('utm_source') || '',
+          utm_medium: sp.get('utm_medium') || '',
+          utm_campaign: sp.get('utm_campaign') || '',
+          utm_content: sp.get('utm_content') || '',
+          utm_term: sp.get('utm_term') || '',
+        }
+      : {};
+    trackOnce('x_visit', {
+      slug,
+      title,
+      referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
+      ...utm,
+    });
 
     // Dwell timers (3s, 10s)
     const t3 = setTimeout(() => {
-      vaTrack('x_stay_3s', { slug, title });
+      trackOnce('x_stay_3s', { slug, title });
       // 3초 체류만으로도 참여 인정(정상 이탈 분리)
       engagedRef.current = true;
     }, 3000);
-    const t10 = setTimeout(() => vaTrack('x_stay_10s', { slug, title }), 10000);
+    const t10 = setTimeout(() => trackOnce('x_stay_10s', { slug, title }), 10000);
 
     // Custom bounce timer (7s) — if no engagement by then
     const bounceTimer = setTimeout(() => {
-      if (!engagedRef.current) {
-        vaTrack('x_bounce', { slug, title, reason: 'no_engagement_within_7s' });
-      }
+      if (!engagedRef.current) trackOnce('x_bounce', { slug, title, reason: 'no_engagement_within_7s' });
     }, 7000);
 
     // First scroll = engagement
     const onScroll = () => {
-      vaTrack('x_scroll', { slug, title });
+      trackOnce('x_scroll', { slug, title });
       engagedRef.current = true;
       window.removeEventListener('scroll', onScroll);
     };
@@ -68,7 +73,7 @@ export default function ImageDetail(props) {
     const onAnyClick = () => {
       if (!clickedRef.current) {
         clickedRef.current = true;
-        vaTrack('x_any_click', { slug, title });
+        trackOnce('x_any_click', { slug, title });
       }
       engagedRef.current = true;
       document.removeEventListener('click', onAnyClick, true);

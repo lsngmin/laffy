@@ -5,7 +5,7 @@ export default function Landing() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/m');
+    router.replace('/x');
   }, [router]);
 
   return null;
