@@ -133,9 +133,10 @@ export default function MemeDetailPage({
             <LocaleSwitchButton locale={locale} />
           </div>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 mb-3 text-center">
             <LogoText />
           </div>
+          <RelishBannerAd />
 
           {hideBackToFeed ? (backSlot ?? null) : (
             <BackToFeedLink href="/m" label={t("backToFeed")} />
