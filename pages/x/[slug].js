@@ -42,10 +42,16 @@ export async function getStaticProps({ params, locale }) {
   if ((meme.type || '').toLowerCase() !== 'image') {
     return { notFound: true };
   }
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+  const canonicalUrl = siteUrl ? `${siteUrl}/x/${params.slug}` : '';
+
   return {
     props: {
       meme,
       allMemes: items,
+      canonicalUrl,
       ...(await serverSideTranslations(locale, ['common'])),
     },
     revalidate: 60,

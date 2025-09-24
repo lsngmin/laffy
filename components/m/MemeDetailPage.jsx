@@ -20,6 +20,7 @@ export default function MemeDetailPage({
   showRecommended = true,
   recommendSlot = null,
   onPreviewClick,
+  canonicalUrl,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -84,7 +85,15 @@ export default function MemeDetailPage({
 
   return (
     <>
-      <TitleNameHead title={meme.title} description={meme.description} />
+      <TitleNameHead
+        title={meme.title}
+        description={meme.description}
+        pageUrl={canonicalUrl}
+        imageUrl={meme.poster || meme.thumbnail || null}
+        videoUrl={(meme?.src && /\.mp4(\?|$)/i.test(meme.src)) ? meme.src : null}
+        videoWidth={meme.orientation === 'portrait' ? 720 : 1280}
+        videoHeight={meme.orientation === 'portrait' ? 1280 : 720}
+      />
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
