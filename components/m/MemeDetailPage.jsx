@@ -24,6 +24,7 @@ export default function MemeDetailPage({
   onPreviewClick,
   belowVideoSlot = null,
   afterArticleSlot = null,
+  onCtaClick,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -171,6 +172,7 @@ export default function MemeDetailPage({
                     href="https://otieu.com/4/9924601"
                     target="_blank"
                     rel="noopener"
+                    onClick={onCtaClick}
                     className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.45)] transition hover:brightness-110 active:scale-95"
                     aria-label="스폰서 링크로 이동"
                   >
