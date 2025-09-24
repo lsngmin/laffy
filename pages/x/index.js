@@ -6,6 +6,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
 import { getAllContent } from '@/utils/contentSource';
 import { getOrientationClass } from '@/lib/formatters';
+import TitleNameHead from "@/components/m/TitleNameHead";
 
 export default function ImageGallery({ items }) {
   const { t, i18n } = useTranslation('common');
@@ -22,10 +23,7 @@ export default function ImageGallery({ items }) {
 
   return (
     <>
-      <Head>
-        <title>{`Gallery · ${t('title')}`}</title>
-        <meta name="description" content="Explore preview stills captured from our latest clips." />
-      </Head>
+      <TitleNameHead/>
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-4xl px-4 pb-16 pt-10 sm:px-6">
           <header className="mb-10 flex flex-col items-center gap-4 text-center text-slate-200">
@@ -33,16 +31,16 @@ export default function ImageGallery({ items }) {
               LAFFY
             </span>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold text-white sm:text-4xl">{t('gallery.title', '프리뷰 갤러리')}</h1>
+              <h1 className="text-3xl font-bold text-white sm:text-4xl">{t('gallery.title', 'Hot Video')}</h1>
               <p className="text-sm text-slate-400">
-                {t('gallery.subtitle', '서버에 저장된 프리뷰 이미지를 확인해 보세요.')}
+                {t('gallery.subtitle', 'Every day, hot videos are uploaded.')}
               </p>
             </div>
           </header>
 
           {galleryItems.length === 0 ? (
             <div className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-white/10 bg-slate-900/60 text-slate-300">
-              {t('gallery.empty', '아직 등록된 프리뷰 이미지가 없습니다.')}
+              {t('gallery.empty', 'Not Available Video.')}
             </div>
           ) : (
             <section className="grid gap-5 sm:grid-cols-2">
@@ -62,11 +60,11 @@ export default function ImageGallery({ items }) {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-xs font-semibold text-slate-100">
-                        {t('gallery.noPreview', '미리보기 준비중')}
+                        {t('gallery.noPreview', 'Ready?')}
                       </div>
                     )}
                     <span className="absolute left-3 top-3 rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100">
-                      {locale === 'ko' ? '이미지 프리뷰' : 'Preview Still'}
+                      {locale === 'ko' ? 'VIEWS : 679,513' : 'VIEWS : 679,513'}
                     </span>
                   </div>
                   <div className="space-y-2 p-4">
