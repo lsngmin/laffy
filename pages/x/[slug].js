@@ -3,7 +3,6 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
 import dynamic from 'next/dynamic';
 import QuadAdGrid from '@/components/ads/QuadAdGrid';
-import LeaderboardAd from '@/components/ads/LeaderboardAd';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
@@ -15,7 +14,6 @@ export default function ImageDetail(props) {
       disableVideo
       hideBackToFeed
       backSlot={null}
-      aboveVideoSlot={<LeaderboardAd />}
       showRecommended={false}
       recommendSlot={
         <div className="mt-10 flex justify-center">
