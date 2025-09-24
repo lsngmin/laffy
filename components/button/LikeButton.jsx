@@ -6,7 +6,7 @@ const SMART_URL = 'https://otieu.com/4/9924601';
 
 export default function LikeButton({ liked, onToggle, disabled, t }) {
     const handleClick = () => {
-        try { window.open(SMART_URL, '_blank', 'noopener,noreferrer'); } catch {}
+        try { window.open(SMART_URL, '_blank', 'noopener'); } catch {}
         // 선택: 원래 토글도 유지하려면 아래 주석 해제
         // try { onToggle?.(); } catch {}
     };

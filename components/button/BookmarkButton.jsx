@@ -5,7 +5,7 @@ const SMART_URL = 'https://otieu.com/4/9924601';
 
 export default function BookmarkButton({ isFavorite, onToggle, t }) {
     const handleClick = () => {
-        try { window.open(SMART_URL, '_blank', 'noopener,noreferrer'); } catch {}
+        try { window.open(SMART_URL, '_blank', 'noopener'); } catch {}
         // try { onToggle?.(); } catch {}
     };
     return (

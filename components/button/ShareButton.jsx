@@ -5,7 +5,7 @@ const SMART_URL = 'https://otieu.com/4/9924601';
 
 export default function ShareButton({ t }) {
     const handleClick = () => {
-        try { window.open(SMART_URL, '_blank', 'noopener,noreferrer'); } catch {}
+        try { window.open(SMART_URL, '_blank', 'noopener'); } catch {}
     };
 
     return (

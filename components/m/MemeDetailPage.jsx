@@ -20,7 +20,6 @@ export default function MemeDetailPage({
   showRecommended = true,
   recommendSlot = null,
   onPreviewClick,
-  canonicalUrl,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -85,15 +84,7 @@ export default function MemeDetailPage({
 
   return (
     <>
-      <TitleNameHead
-        title={meme.title}
-        description={meme.description}
-        pageUrl={canonicalUrl}
-        imageUrl={meme.poster || meme.thumbnail || null}
-        videoUrl={(meme?.src && /\.mp4(\?|$)/i.test(meme.src)) ? meme.src : null}
-        videoWidth={meme.orientation === 'portrait' ? 720 : 1280}
-        videoHeight={meme.orientation === 'portrait' ? 1280 : 720}
-      />
+      <TitleNameHead title={meme.title} description={meme.description} />
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
@@ -136,7 +127,7 @@ export default function MemeDetailPage({
                   <a
                     href="https://otieu.com/4/9924601"
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.45)] transition hover:brightness-110 active:scale-95"
                     aria-label="스폰서 링크로 이동"
                   >
