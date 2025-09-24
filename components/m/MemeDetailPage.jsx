@@ -18,7 +18,6 @@ export default function MemeDetailPage({
   disableVideo = false,
   hideBackToFeed = false,
   backSlot = null,
-  aboveVideoSlot = null,
   showRecommended = true,
   recommendSlot = null,
   onPreviewClick,
@@ -154,7 +153,6 @@ export default function MemeDetailPage({
             </header>
 
             <div>
-              {aboveVideoSlot}
               <VideoCard
                 poster={meme.poster}
                 src={meme.src}
