@@ -15,17 +15,24 @@ export default function VideoCard({
     const isImage = mediaType === "image";
 
     useEffect(() => {
-        setOverlay(!isImage);
-    }, [isImage, mediaType, src, disablePlay]);
+        setOverlay(true);
+    }, [mediaType, src, disablePlay]);
 
     const play = async () => {
-        if (disablePlay || isImage) return; // true면 무시
+        if (disablePlay || isImage) return;
         try {
             await vRef.current?.play();
             setOverlay(false);
         } catch {
             setOverlay(false);
         }
+    };
+
+    const overlayInteractive = !disablePlay && !isImage;
+
+    const handleOverlayClick = () => {
+        if (!overlayInteractive) return;
+        play();
     };
 
     const cleanedPoster = typeof poster === "string" && poster.trim().length > 0 ? poster : null;
@@ -80,15 +87,26 @@ export default function VideoCard({
             {/* 오버레이 아이콘 */}
             {overlay && (
                 <div
-                    onClick={disablePlay || isImage ? undefined : play}
                     className={clsx(
                         "absolute inset-0 grid place-items-center transition",
-                        disablePlay || isImage
-                            ? "cursor-default bg-black/20"
-                            : "hover:bg-black/10 cursor-pointer"
+                        overlayInteractive
+                            ? "hover:bg-black/10"
+                            : "bg-black/20"
                     )}
                 >
-                    <div className="flex flex-col items-center gap-2 pointer-events-none">
+                    <button
+                        type="button"
+                        onClick={handleOverlayClick}
+                        disabled={!overlayInteractive}
+                        aria-label={overlayInteractive ? "영상 재생" : "미리보기"}
+                        className={clsx(
+                            "flex flex-col items-center gap-2 rounded-full px-6 py-6 text-white transition",
+                            overlayInteractive
+                                ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                                : "cursor-default opacity-80"
+                        )}
+                        style={{ background: "none", border: "none" }}
+                    >
                         <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-sm grid place-items-center">
                             {isImage ? (
                                 <svg
@@ -115,11 +133,11 @@ export default function VideoCard({
                             )}
                         </div>
                         {title && (
-                            <span className="text-white/90 text-sm font-semibold">
-                {title}
-              </span>
+                            <span className="text-white/90 text-sm font-semibold text-center">
+                                {title}
+                            </span>
                         )}
-                    </div>
+                    </button>
                 </div>
             )}
         </div>
