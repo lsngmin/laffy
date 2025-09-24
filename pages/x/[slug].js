@@ -3,7 +3,6 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import MemeDetailPage from '@/components/m/MemeDetailPage';
 import dynamic from 'next/dynamic';
 import QuadAdGrid from '@/components/ads/QuadAdGrid';
-import dynamic from 'next/dynamic';
 const MonetagInvoke = dynamic(() => import('@/components/ads/MonetagInvokeContainer'), { ssr: false });
 import * as g from '@/lib/gtag';
 
