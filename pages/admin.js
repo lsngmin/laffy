@@ -192,13 +192,26 @@ export default function Admin() {
                     )}
                   </div>
                   <div className="space-y-2 p-3 text-sm">
-                    <div className="truncate font-semibold text-slate-100">{it.title || it.slug}</div>
+                    <div className="truncate font-semibold text-slate-100">{it.slug}</div>
                     <div className="truncate text-[12px] text-slate-400">{it.pathname}</div>
                     <div className="flex items-center gap-2 pt-1">
                       {it.routePath && (
-                        <a href={it.routePath} target="_blank" rel="noreferrer" className="rounded-full bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-500">Open Route</a>
+                        <>
+                          <a href={it.routePath} target="_blank" rel="noreferrer" className="rounded-full bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-500">Open Route</a>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(it.routePath);
+                              } catch (e) {
+                                console.error('Copy failed', e);
+                              }
+                            }}
+                            className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
+                          >
+                            Copy
+                          </button>
+                        </>
                       )}
-                      <a href={it.url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700">Meta</a>
                       <button disabled={!hasToken} onClick={() => onDelete(it)} className="ml-auto rounded-full bg-rose-600 px-3 py-1 hover:bg-rose-500 disabled:opacity-50">Delete</button>
                     </div>
                   </div>
