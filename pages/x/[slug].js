@@ -219,10 +219,7 @@ export async function getStaticProps({ params, locale }) {
     return { notFound: true };
   }
 
-  const normalizedMeme = { ...meme, title: meme.description || meme.title };
-  if ('description' in normalizedMeme) {
-    delete normalizedMeme.description;
-  }
+  const normalizedMeme = { ...meme };
 
   // SEO data
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
