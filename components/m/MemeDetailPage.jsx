@@ -167,13 +167,13 @@ export default function MemeDetailPage({
                 onPreviewClick={onPreviewClick}
               />
               {disableVideo && (
-                <div className="mt-4 flex w-full justify-center">
+                <div className="mt-8 flex w-full justify-center">
                   <a
                     href="https://otieu.com/4/9924601"
                     target="_blank"
                     rel="noopener"
                     onClick={onCtaClick}
-                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.45)] transition hover:brightness-110 active:scale-95"
+                    className="inline-flex items-center gap-3 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-7 py-3 text-base font-semibold text-white shadow-[0_16px_40px_rgba(79,70,229,0.45)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-200 hover:brightness-110 active:scale-95 sm:px-9 sm:py-3.5 sm:text-lg"
                     aria-label="스폰서 링크로 이동"
                   >
                     ▶ 재생이 안되면 여기를 클릭
