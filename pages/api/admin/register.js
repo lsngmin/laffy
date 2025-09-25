@@ -10,70 +10,151 @@ export default async function handler(req, res) {
       title,
       description,
       url,
-      durationSeconds = 0,
-      orientation = 'landscape',
+      durationSeconds,
+      orientation,
       type: rawType,
       poster: rawPoster,
       thumbnail: rawThumbnail,
       likes,
       views,
       publishedAt,
+      metaUrl,
     } = req.body || {};
-    if (!slug || !title || !url) return res.status(400).json({ error: 'Missing fields' });
 
-    const lowerUrl = typeof url === 'string' ? url.toLowerCase() : '';
+    const existingMeta = await (async () => {
+      if (!metaUrl) return null;
+      try {
+        const resMeta = await fetch(metaUrl);
+        if (!resMeta.ok) return null;
+        return await resMeta.json();
+      } catch (error) {
+        console.error('Failed to fetch existing meta', error);
+        return null;
+      }
+    })();
+
+    const resolvedSlug = (slug || existingMeta?.slug || '').trim();
+    if (!resolvedSlug) return res.status(400).json({ error: 'Missing slug' });
+
+    const trimmedTitle = typeof title === 'string' && title.trim().length > 0
+      ? title.trim()
+      : existingMeta?.title || '';
+    if (!trimmedTitle) return res.status(400).json({ error: 'Missing title' });
+
+    const trimmedDescription = typeof description === 'string'
+      ? description
+      : typeof existingMeta?.description === 'string'
+        ? existingMeta.description
+        : '';
+
+    const trimmedUrl = typeof url === 'string' && url.trim().length > 0 ? url.trim() : '';
+    const existingSrc = typeof existingMeta?.src === 'string' ? existingMeta.src : '';
+    const existingUrlFallback = typeof existingMeta?.url === 'string' ? existingMeta.url : '';
+    const resolvedSrc = trimmedUrl || existingSrc || existingUrlFallback;
+    if (!resolvedSrc) return res.status(400).json({ error: 'Missing source URL' });
+
+    const baseType = typeof rawType === 'string' && rawType.trim().length > 0
+      ? rawType.trim()
+      : typeof existingMeta?.type === 'string'
+        ? existingMeta.type
+        : '';
+
+    const normalizedType = baseType.toLowerCase() === 'image' ? 'image' : 'video';
+
+    const lowerUrl = resolvedSrc.toLowerCase();
     const imageExtPattern = /(\.jpe?g|\.png|\.webp)$/;
     const hasImageExtension = imageExtPattern.test(lowerUrl);
-    const normalizedType = rawType === 'image' || hasImageExtension ? 'image' : 'video';
-    const poster = typeof rawPoster === 'string' && rawPoster.trim().length > 0 ? rawPoster : null;
-    const thumbnail = typeof rawThumbnail === 'string' && rawThumbnail.trim().length > 0 ? rawThumbnail : null;
+    const effectiveType = normalizedType === 'image' || hasImageExtension ? 'image' : normalizedType;
+
+    const posterInput = typeof rawPoster === 'string' && rawPoster.trim().length > 0 ? rawPoster.trim() : '';
+    const thumbnailInput = typeof rawThumbnail === 'string' && rawThumbnail.trim().length > 0 ? rawThumbnail.trim() : '';
+    const posterExisting = typeof existingMeta?.poster === 'string' ? existingMeta.poster : '';
+    const thumbnailExisting = typeof existingMeta?.thumbnail === 'string' ? existingMeta.thumbnail : '';
 
     const resolvedPoster =
-      normalizedType === 'image'
-        ? poster || url
-        : poster;
+      effectiveType === 'image'
+        ? posterInput || resolvedSrc
+        : posterInput || posterExisting || thumbnailExisting || '';
 
     const resolvedThumbnail =
-      normalizedType === 'image'
-        ? thumbnail || resolvedPoster || url
-        : thumbnail || resolvedPoster || null;
+      effectiveType === 'image'
+        ? thumbnailInput || resolvedPoster || resolvedSrc
+        : thumbnailInput || resolvedPoster || thumbnailExisting || posterExisting || '';
 
     const resolvedDuration =
-      normalizedType === 'image' ? 0 : Number(durationSeconds) || 0;
+      effectiveType === 'image'
+        ? 0
+        : Number.isFinite(Number(durationSeconds))
+          ? Number(durationSeconds)
+          : Number(existingMeta?.durationSeconds) || 0;
 
     const likesNumber = Number(likes);
     const viewsNumber = Number(views);
-    const resolvedLikes = Number.isFinite(likesNumber) ? Math.max(0, Math.round(likesNumber)) : 0;
-    const resolvedViews = Number.isFinite(viewsNumber) ? Math.max(0, Math.round(viewsNumber)) : 0;
+    const resolvedLikes = Number.isFinite(likesNumber)
+      ? Math.max(0, Math.round(likesNumber))
+      : Number.isFinite(Number(existingMeta?.likes))
+        ? Math.max(0, Math.round(Number(existingMeta.likes)))
+        : 0;
+    const resolvedViews = Number.isFinite(viewsNumber)
+      ? Math.max(0, Math.round(viewsNumber))
+      : Number.isFinite(Number(existingMeta?.views))
+        ? Math.max(0, Math.round(Number(existingMeta.views)))
+        : 0;
     const resolvedPublishedAt = typeof publishedAt === 'string' && publishedAt.trim().length > 0
       ? publishedAt
-      : new Date().toISOString();
+      : typeof existingMeta?.publishedAt === 'string' && existingMeta.publishedAt.trim().length > 0
+        ? existingMeta.publishedAt
+        : new Date().toISOString();
+
+    const resolvedOrientation = typeof orientation === 'string' && orientation.trim().length > 0
+      ? orientation.trim()
+      : typeof existingMeta?.orientation === 'string' && existingMeta.orientation.trim().length > 0
+        ? existingMeta.orientation
+        : 'landscape';
 
     const meta = {
-      slug,
-      type: normalizedType,
-      src: url,
-      poster: resolvedPoster,
-      title,
-      description,
-      thumbnail: resolvedThumbnail,
-      orientation,
+      ...existingMeta,
+      slug: resolvedSlug,
+      type: effectiveType,
+      src: resolvedSrc,
+      poster: resolvedPoster || null,
+      title: trimmedTitle,
+      description: trimmedDescription,
+      thumbnail: resolvedThumbnail || null,
+      orientation: resolvedOrientation,
       durationSeconds: resolvedDuration,
-      source: 'Blob',
+      source: existingMeta?.source || 'Blob',
       publishedAt: resolvedPublishedAt,
       likes: resolvedLikes,
       views: resolvedViews
     };
-    const folder = normalizedType === 'image' ? 'images' : 'videos';
-    const key = `content/${folder}/${slug}.json`;
+    const folder = effectiveType === 'image' ? 'images' : 'videos';
+
+    let keyFromMetaUrl = null;
+    if (metaUrl) {
+      try {
+        const parsed = new URL(metaUrl);
+        const idx = parsed.pathname.indexOf('/content/');
+        if (idx !== -1) {
+          keyFromMetaUrl = parsed.pathname.slice(idx + 1);
+        }
+      } catch (error) {
+        console.error('Failed to derive key from metaUrl', error);
+      }
+    }
+
+    const key = keyFromMetaUrl || `content/${folder}/${resolvedSlug}.json`;
+
     await put(key, JSON.stringify(meta), {
       token: process.env.BLOB_READ_WRITE_TOKEN,
       access: 'public',
-      contentType: 'application/json'
+      contentType: 'application/json',
+      addRandomSuffix: false
     });
     res.status(200).json({ ok: true, key });
   } catch (e) {
-    res.status(500).json({ error: 'Failed to register meta' });
+    console.error('Failed to register meta', e);
+    res.status(500).json({ error: e?.message || 'Failed to register meta' });
   }
 }
 

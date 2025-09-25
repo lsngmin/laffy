@@ -64,7 +64,7 @@ export default function Admin() {
             const routePath = type === 'image' ? `/x/${slug}` : `/m/${slug}`;
             const titleValue = meta?.title || slug;
             const descriptionValue = meta?.description || '';
-            const sourceUrl = meta?.src || '';
+            const sourceUrl = meta?.src || meta?.url || meta?.sourceUrl || '';
             const poster = meta?.poster || '';
             const thumbnail = meta?.thumbnail || '';
             const orientationValue = meta?.orientation || 'landscape';
@@ -361,16 +361,26 @@ export default function Admin() {
     const basePreview = editInitialPreview || editingItem.preview || '';
 
     const assetUrl = isImageType
-      ? newImageUrl || editingItem.src || ''
-      : editingItem.src || '';
+      ? newImageUrl
+        || editingItem.src
+        || editingItem.poster
+        || editingItem.thumbnail
+        || basePreview
+        || ''
+      : editingItem.src
+        || editingItem.poster
+        || editingItem.thumbnail
+        || basePreview
+        || newImageUrl
+        || '';
 
     const posterUrl = isImageType
       ? (newImageUrl || assetUrl)
-      : (newImageUrl || editingItem.poster || basePreview || '');
+      : (newImageUrl || editingItem.poster || editingItem.thumbnail || basePreview || '');
 
     const thumbnailUrl = isImageType
       ? (newImageUrl || assetUrl)
-      : (newImageUrl || editingItem.thumbnail || posterUrl || basePreview || '');
+      : (newImageUrl || editingItem.thumbnail || editingItem.poster || basePreview || '');
 
     if (!assetUrl) {
       setEditStatus('idle');
@@ -398,10 +408,15 @@ export default function Admin() {
           likes: editingItem.likes,
           views: editingItem.views,
           publishedAt: editingItem.publishedAt,
+          metaUrl: editingItem.url,
         }),
       });
 
-      if (!res.ok) throw new Error('save_failed');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        const message = payload?.error || 'save_failed';
+        throw new Error(message);
+      }
 
       setEditStatus('success');
       await refresh();
@@ -411,7 +426,9 @@ export default function Admin() {
     } catch (error) {
       console.error('Edit save failed', error);
       setEditStatus('error');
-      setEditError('저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      setEditError(error?.message === 'save_failed'
+        ? '저장에 실패했어요. 잠시 후 다시 시도해 주세요.'
+        : error?.message || '저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
     }
   }, [closeEditModal, editForm.description, editForm.imageUrl, editForm.title, editInitialPreview, editingItem, hasToken, qs, refresh]);
 
