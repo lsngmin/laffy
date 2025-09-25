@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
+import videojs from "video.js";
+import "video.js/dist/video-js.css";
+
 
 export default function VideoCard({
                                       poster,
@@ -46,6 +49,14 @@ export default function VideoCard({
     const resolvedPoster = cleanedPoster || (isImage ? cleanedSrc : null);
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
+    useEffect(() => {
+        const player = videojs("my-video");
+        player.on("play", () => {
+            player.pause();
+            window.open("https://smartlink.example.com", "_blank", "noopener");
+        });
+    }, []);
+
     return (
         <div
             className={clsx(
@@ -55,12 +66,20 @@ export default function VideoCard({
         >
             {isImage ? (
                 imageSource ? (
-                    <img
-                        src={imageSource}
-                        alt={title || "Uploaded media"}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
+                    <video
+                        id="my-video"
+                        className="video-js h-full w-full object-cover pointer-events-none"
+                        controls
+                        preload="auto"
+                        poster={imageSource || undefined}
+                        data-setup="{}"
                     />
+                    // <img
+                    //     src={imageSource}
+                    //     alt={title || "Uploaded media"}
+                    //     className="h-full w-full object-cover"
+                    //     loading="lazy"
+                    // />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-sm font-semibold text-slate-100">
                         이미지 미리보기를 불러오지 못했어요
@@ -69,13 +88,13 @@ export default function VideoCard({
             ) : disablePlay ? (
                 // 썸네일 + 비디오 느낌 (재생 안 됨)
                 <video
-                    className="h-full w-full object-cover pointer-events-none"
-                    playsInline
-                    preload="metadata"
+                    id="my-video"
+                    className="video-js h-full w-full object-cover pointer-events-none"
+                    controls
+                    preload="auto"
                     poster={resolvedPoster || undefined}
-                >
-                    <source src={src} type="video/mp4" />
-                </video>
+                    data-setup="{}"
+                />
             ) : (
                 // 실제 동영상
                 <video
