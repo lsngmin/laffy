@@ -205,6 +205,12 @@ export async function getStaticProps({ params, locale }) {
   if ((meme.type || '').toLowerCase() !== 'image') {
     return { notFound: true };
   }
+
+  const normalizedMeme = { ...meme, title: meme.description || meme.title };
+  if ('description' in normalizedMeme) {
+    delete normalizedMeme.description;
+  }
+
   // SEO data
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
     || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
@@ -220,14 +226,13 @@ export async function getStaticProps({ params, locale }) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'ImageObject',
-    name: meme.title,
-    description: meme.description,
+    name: normalizedMeme.title,
     contentUrl: thumb || undefined,
     uploadDate,
   };
   return {
     props: {
-      meme: { ...meme, __seo: { canonicalUrl, hreflangs, jsonLd, metaImage: thumb } },
+      meme: { ...normalizedMeme, __seo: { canonicalUrl, hreflangs, jsonLd, metaImage: thumb } },
       allMemes: items,
       ...(await serverSideTranslations(locale, ['common'])),
     },
