@@ -81,6 +81,15 @@ export default function ImageDetail(props) {
     enabled: Boolean(slug || title),
   });
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const payload = visitPayloadBuilder({ url: window.location.href });
+    if (payload) {
+      vaTrack('x_visit', payload);
+    }
+    return undefined;
+  }, [visitPayloadBuilder]);
+
   // Vercel Analytics: dwell / first scroll / any click / custom bounce
   useEffect(() => {
     const slugValue = slug;
