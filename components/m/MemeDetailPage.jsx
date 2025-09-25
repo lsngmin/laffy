@@ -25,8 +25,6 @@ export default function MemeDetailPage({
   belowVideoSlot = null,
   afterArticleSlot = null,
   onCtaClick,
-  hideDescription = false,
-  titleOverride,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, toggleLike, ready: likesReady } = useLikes();
@@ -157,10 +155,7 @@ export default function MemeDetailPage({
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
             <header className="space-y-4">
-              <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{headingText}</h1>
-              {!hideDescription && meme.description && (
-                <p className="text-sm leading-relaxed text-slate-200/90 sm:text-base">{meme.description}</p>
-              )}
+              <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.description}</h1>
               <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-slate-300/90">
                 {relativeTime && <span>{`${t('meta.postedLabel')}: ${relativeTime}`}</span>}
                 {viewsDisplay && <span>{`${t('meta.viewsLabel')}: ${viewsDisplay}`}</span>}
@@ -233,4 +228,3 @@ export default function MemeDetailPage({
     </>
   );
 }
-  const headingText = titleOverride || meme.title;
