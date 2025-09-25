@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useTranslation } from 'next-i18next';
 import { BookmarkIcon, HeartIcon, ShareIcon } from './icons';
 import { getDetailHref } from '../lib/paths';
+import { vaTrack } from '../lib/va';
 
 export default function MemeCard({
   meme,
@@ -30,24 +31,47 @@ export default function MemeCard({
     return () => clearTimeout(timer);
   }, [favoritePulse]);
 
+  const trackInteraction = useCallback(
+    (eventName, extra = {}) => {
+      try {
+        vaTrack(eventName, {
+          slug: meme.slug,
+          title: meme.title,
+          type: meme.type,
+          location: 'feed_card',
+          ...extra,
+        });
+      } catch {}
+    },
+    [meme.slug, meme.title, meme.type]
+  );
+
   const handleLike = useCallback(
     (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const nextState = !isLiked;
+      trackInteraction('feed_like_toggle', {
+        status: nextState ? 'liked' : 'unliked',
+      });
       onToggleLike?.(meme.slug);
       setLikePulse(true);
     },
-    [meme.slug, onToggleLike]
+    [isLiked, meme.slug, onToggleLike, trackInteraction]
   );
 
   const handleFavorite = useCallback(
     (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const nextState = !isFavorite;
+      trackInteraction('feed_bookmark_toggle', {
+        status: nextState ? 'bookmarked' : 'unbookmarked',
+      });
       onToggleFavorite?.(meme.slug);
       setFavoritePulse(true);
     },
-    [meme.slug, onToggleFavorite]
+    [isFavorite, meme.slug, onToggleFavorite, trackInteraction]
   );
 
   const handleShare = useCallback(
@@ -61,6 +85,10 @@ export default function MemeCard({
         title: meme.title,
         url: targetUrl
       };
+      const hasShareApi = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+      trackInteraction('feed_share_click', {
+        method: hasShareApi ? 'web_share_api' : 'twitter_intent',
+      });
       if (navigator.share) {
         try {
           await navigator.share(sharePayload);

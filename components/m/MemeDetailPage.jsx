@@ -191,15 +191,19 @@ export default function MemeDetailPage({
                     onToggle={handleToggleLike}
                     disabled={!likesReady}
                     t={t}
+                    meme={meme}
+                    context="detail_main"
                   />
                   <BookmarkButton
                     isFavorite={isFavorite}
                     onToggle={handleToggleFavorite}
                     t={t}
+                    meme={meme}
+                    context="detail_main"
                   />
                 </div>
 
-                <ShareButton t={t} />
+                <ShareButton t={t} meme={meme} context="detail_main" />
 
               </div>
             </div>

@@ -1,10 +1,23 @@
 import IconActionButton from "./base/IconActionButton";
-import {BookmarkIcon} from "../icons";
+import { BookmarkIcon } from "../icons";
+import { vaTrack } from "@/lib/va";
 
 const SMART_URL = 'https://otieu.com/4/9924601';
 
-export default function BookmarkButton({ isFavorite, onToggle, t }) {
+export default function BookmarkButton({ isFavorite, onToggle, t, meme, context = 'detail_main' }) {
     const handleClick = () => {
+        try {
+            if (meme?.slug) {
+                vaTrack('detail_bookmark_button_click', {
+                    slug: meme.slug,
+                    title: meme.title,
+                    type: meme.type,
+                    location: context,
+                    status: isFavorite ? 'active' : 'inactive',
+                    destination: 'sponsor',
+                });
+            }
+        } catch {}
         try { window.open(SMART_URL, '_blank', 'noopener'); } catch {}
         // try { onToggle?.(); } catch {}
     };
