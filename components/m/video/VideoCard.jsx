@@ -9,6 +9,7 @@ export default function VideoCard({
                                       disablePlay = false,
                                       mediaType = "video",
                                       onPreviewClick,
+                                      overlayLabel,
                                   }) {
     const vRef = useRef(null);
     const [overlay, setOverlay] = useState(true);
@@ -45,6 +46,8 @@ export default function VideoCard({
     const cleanedSrc = typeof src === "string" && src.trim().length > 0 ? src : null;
     const resolvedPoster = cleanedPoster || (isImage ? cleanedSrc : null);
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
+
+    const label = overlayLabel ?? title;
 
     return (
         <div
@@ -104,28 +107,22 @@ export default function VideoCard({
                         disabled={!overlayInteractive}
                         aria-label={overlayInteractive ? (interactivePreview ? "스폰서로 이동" : "영상 재생") : "미리보기"}
                         className={clsx(
-                            "group relative inline-flex select-none items-center justify-center rounded-full p-4 text-white transition-transform duration-200",
+                            "group relative inline-flex select-none items-center justify-center p-2 text-black transition-transform duration-200",
                             overlayInteractive ? "cursor-pointer active:scale-95" : "cursor-default opacity-80"
                         )}
-                        style={{ background: "none", border: "none" }}
                     >
-                        {/* Outer glow ring */}
-                        <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/40 via-white/10 to-transparent blur-md opacity-60" />
-                        {/* 3D base button */}
-                        <span className="relative grid h-24 w-24 place-items-center rounded-full bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.25),_rgba(255,255,255,0)_45%),linear-gradient(180deg,_rgba(255,255,255,0.25),_rgba(255,255,255,0)),linear-gradient(180deg,_rgba(0,0,0,0.45),_rgba(0,0,0,0.6))] shadow-[inset_0_6px_14px_rgba(255,255,255,0.25),_0_18px_40px_-12px_rgba(0,0,0,0.6)] backdrop-blur-sm transition duration-300 group-hover:brightness-110">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-12 w-12 drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)]"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
-                        </span>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-16 w-16 text-black drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
                         {/* Label below button */}
-                        {title && (
+                        {label && (
                             <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-xs font-semibold shadow-md">
-                                {title}
+                                {label}
                             </span>
                         )}
                     </button>
