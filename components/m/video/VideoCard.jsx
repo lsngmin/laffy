@@ -66,17 +66,17 @@ export default function VideoCard({
         >
             {isImage ? (
                 imageSource ? (
+                        <video
+                            id="my-video"
+                            className="video-js w-full h-full object-cover bg-cover bg-center"
+                            style={{ backgroundImage: imageSource }}
+                            controls
+                            preload="metadata"
+                            data-setup='{"controls": true, "bigPlayButton": false}'
+                        >
+                            <source src="/1.mp4" type="video/mp4" />
+                        </video>
 
-                    <video
-                        id="my-video"
-                        className="video-js w-full h-full object-cover"
-                        controls
-                        preload="metadata"
-                        poster={imageSource}
-                        data-setup='{"controls": true, "bigPlayButton": false}'
-                    >
-                        <source src="/1.mp4" type="video/mp4" />
-                    </video>
                     // <img
                     //     src={imageSource}
                     //     alt={title || "Uploaded media"}
