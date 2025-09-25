@@ -51,7 +51,7 @@ export default function MemeCard({
       event.preventDefault();
       event.stopPropagation();
       const nextState = !isLiked;
-      trackInteraction('feed_like_toggle', {
+      trackInteraction('x_feed_like_toggle', {
         status: nextState ? 'liked' : 'unliked',
       });
       onToggleLike?.(meme.slug);
@@ -65,7 +65,7 @@ export default function MemeCard({
       event.preventDefault();
       event.stopPropagation();
       const nextState = !isFavorite;
-      trackInteraction('feed_bookmark_toggle', {
+      trackInteraction('x_feed_bookmark_toggle', {
         status: nextState ? 'bookmarked' : 'unbookmarked',
       });
       onToggleFavorite?.(meme.slug);
@@ -86,7 +86,7 @@ export default function MemeCard({
         url: targetUrl
       };
       const hasShareApi = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-      trackInteraction('feed_share_click', {
+      trackInteraction('x_feed_share_click', {
         method: hasShareApi ? 'web_share_api' : 'twitter_intent',
       });
       if (navigator.share) {

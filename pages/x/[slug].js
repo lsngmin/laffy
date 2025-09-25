@@ -17,12 +17,25 @@ export default function ImageDetail(props) {
   const clickedRef = useRef(false);
   const sentRef = useRef({});
 
-  const trackOnce = (name, payload, dedupeKey = '') => {
+  const trackOnce = (name, payload, dedupeKey = '', options = {}) => {
     try {
       const key = dedupeKey ? `${name}:${dedupeKey}` : name;
       if (sentRef.current[key]) return;
+      const persist = Boolean(options.persist);
+      let storageKey = '';
+      if (persist && typeof window !== 'undefined') {
+        storageKey = `laffy:event:${key}`;
+        const already = window.sessionStorage?.getItem(storageKey) === '1';
+        if (already) {
+          sentRef.current[key] = true;
+          return;
+        }
+      }
       sentRef.current[key] = true;
       vaTrack(name, payload);
+      if (persist && storageKey) {
+        try { window.sessionStorage?.setItem(storageKey, '1'); } catch {}
+      }
     } catch {}
   };
 
@@ -97,11 +110,11 @@ export default function ImageDetail(props) {
 
     // Dwell timers (3s, 10s)
     const t3 = setTimeout(() => {
-      trackOnce('x_stay_3s', { slug: slugValue, title: titleValue }, slugValue);
+      trackOnce('x_stay_3s', { slug: slugValue, title: titleValue }, slugValue, { persist: true });
       // 3초 체류만으로도 참여 인정(정상 이탈 분리)
       engagedRef.current = true;
     }, 3000);
-    const t10 = setTimeout(() => trackOnce('x_stay_10s', { slug: slugValue, title: titleValue }, slugValue), 10000);
+    const t10 = setTimeout(() => trackOnce('x_stay_10s', { slug: slugValue, title: titleValue }, slugValue, { persist: true }), 10000);
 
     // Custom bounce timer (7s) — if no engagement by then
     const bounceTimer = setTimeout(() => {
@@ -126,7 +139,7 @@ export default function ImageDetail(props) {
     const onAnyClick = () => {
       if (!clickedRef.current) {
         clickedRef.current = true;
-        trackOnce('x_any_click', { slug: slugValue, title: titleValue }, slugValue);
+        trackOnce('x_any_click', { slug: slugValue, title: titleValue }, slugValue, { persist: true });
       }
       engagedRef.current = true;
       document.removeEventListener('click', onAnyClick, true);

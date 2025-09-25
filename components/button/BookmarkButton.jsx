@@ -8,7 +8,7 @@ export default function BookmarkButton({ isFavorite, onToggle, t, meme, context 
     const handleClick = () => {
         try {
             if (meme?.slug) {
-                vaTrack('detail_bookmark_button_click', {
+                vaTrack('x_bookmark_button_click', {
                     slug: meme.slug,
                     title: meme.title,
                     type: meme.type,

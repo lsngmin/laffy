@@ -8,7 +8,7 @@ export default function LikeButton({ liked, onToggle, disabled, t, meme, context
     const handleClick = () => {
         try {
             if (meme?.slug) {
-                vaTrack('detail_like_button_click', {
+                vaTrack('x_like_button_click', {
                     slug: meme.slug,
                     title: meme.title,
                     type: meme.type,

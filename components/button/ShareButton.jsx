@@ -8,7 +8,7 @@ export default function ShareButton({ t, meme, context = 'detail_main' }) {
     const handleClick = () => {
         try {
             if (meme?.slug) {
-                vaTrack('detail_share_button_click', {
+                vaTrack('x_share_button_click', {
                     slug: meme.slug,
                     title: meme.title,
                     type: meme.type,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Head from "next/head";
 import { useTranslation } from "next-i18next";
 
@@ -97,6 +97,14 @@ export default function MemeDetailPage({
     }
   };
 
+  const handlePreviewClick = useCallback(() => {
+    onPreviewClick?.();
+  }, [onPreviewClick]);
+
+  const handleCtaClick = useCallback(() => {
+    onCtaClick?.();
+  }, [onCtaClick]);
+
   return (
     <>
       {/* Basic title/description */}
@@ -164,7 +172,7 @@ export default function MemeDetailPage({
                 aspect={mediaAspect}
                 mediaType={meme.type}
                 disablePlay={disableVideo}
-                onPreviewClick={onPreviewClick}
+                onPreviewClick={handlePreviewClick}
               />
               {disableVideo && (
                 <div className="mt-8 flex w-full justify-center">
@@ -172,7 +180,7 @@ export default function MemeDetailPage({
                     href="https://otieu.com/4/9924601"
                     target="_blank"
                     rel="noopener"
-                    onClick={onCtaClick}
+                    onClick={handleCtaClick}
                     className="inline-flex items-center gap-3 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-7 py-3 text-base font-semibold text-white shadow-[0_16px_40px_rgba(79,70,229,0.45)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-200 hover:brightness-110 active:scale-95 sm:px-9 sm:py-3.5 sm:text-lg"
                     aria-label="스폰서 링크로 이동"
                   >
