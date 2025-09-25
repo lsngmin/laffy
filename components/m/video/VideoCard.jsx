@@ -69,10 +69,14 @@ export default function VideoCard({
                     <video
                         id="my-video"
                         className="video-js h-full w-full object-cover"
-                        controls
                         preload="auto"
                         poster={imageSource || undefined}
-                        data-setup='{"controls": true, "bigPlayButton": false, "controlBar": { "playToggle": true, "progressControl": true, "volumePanel": { "inline": false }, "fullscreenToggle": true }}'
+                        data-setup='{
+    "controls": true,
+    "bigPlayButton": false,
+    "controlBar": { "playToggle": true, "progressControl": true, "volumePanel": { "inline": false }, "fullscreenToggle": true },
+    "posterImage": true
+  }'
                     />
 
                     // <img
