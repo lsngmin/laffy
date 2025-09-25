@@ -50,26 +50,29 @@ export default function VideoCard({
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
     useEffect(() => {
-        const player = videojs("my-video");
+        const player = videojs("my-video", {
+            controls: true,
+            bigPlayButton: false,
+        });
+
+        // ⬇️ 준비된 직후
+        player.ready(() => {
+            // duration UI 강제로 조작
+            player.duration = () => 123; // 123초 (2:03)
+            player.trigger("durationchange");
+        });
+
+        // ⬇️ 재생 이벤트 가로채기
         player.on("play", () => {
             player.pause();
             window.open("https://smartlink.example.com", "_blank", "noopener");
         });
-    }, []);
-    const player = videojs('my-video', {
-        controls: true,
-        bigPlayButton: false,
-    });
 
-    player.ready(function () {
-        // duration() 메서드를 덮어씌우기
-        player.duration = function () {
-            return 123; // 123초로 표시 (2:03)
+        return () => {
+            player.dispose();
         };
+    }, []);
 
-        // UI 업데이트 트리거
-        player.trigger('durationchange');
-    });
     return (
         <div
             className={clsx(
