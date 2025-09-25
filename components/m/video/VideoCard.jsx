@@ -107,24 +107,21 @@ export default function VideoCard({
                         disabled={!overlayInteractive}
                         aria-label={overlayInteractive ? (interactivePreview ? "스폰서로 이동" : "영상 재생") : "미리보기"}
                         className={clsx(
-                            "group relative inline-flex select-none items-center justify-center p-2 text-black transition-transform duration-200",
-                            overlayInteractive ? "cursor-pointer active:scale-95" : "cursor-default opacity-80"
+                            "group relative inline-flex select-none items-center justify-center text-black transition-transform duration-200",
+                            overlayInteractive ? "cursor-pointer active:scale-95" : "cursor-default opacity-70"
                         )}
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-16 w-16 text-black drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path d="M8 5v14l11-7z" />
-                        </svg>
-                        {/* Label below button */}
-                        {label && (
-                            <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/50 px-3 py-1 text-xs font-semibold shadow-md">
-                                {label}
-                            </span>
-                        )}
+                        <span className="pointer-events-none absolute -inset-6 rounded-[28px] bg-gradient-to-br from-white/40 via-white/5 to-transparent opacity-40 blur-lg transition-opacity duration-300 group-hover:opacity-70" />
+                        <span className="relative inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-white/90 via-white/70 to-white/30 shadow-[0_18px_38px_-14px_rgba(15,23,42,0.75)] ring-1 ring-white/60 backdrop-blur">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-12 w-12 text-slate-900 drop-shadow-[0_6px_10px_rgba(15,23,42,0.55)]"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                        </span>
                     </button>
                 </div>
             )}
