@@ -69,15 +69,14 @@ export default function VideoCard({
 
                     <video
                         id="my-video"
-                        className="video-js h-full w-full object-cover"
+                        className="video-js w-full h-full object-cover"
                         controls
-                        preload="auto"
-                        poster={imageSource || undefined}
+                        preload="metadata"
+                        poster={imageSource}
                         data-setup='{"controls": true, "bigPlayButton": false}'
                     >
                         <source src="/1.mp4" type="video/mp4" />
                     </video>
-
                     // <img
                     //     src={imageSource}
                     //     alt={title || "Uploaded media"}
