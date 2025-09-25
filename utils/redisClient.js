@@ -58,7 +58,7 @@ export async function redisCommand(command, options = {}) {
       Authorization: `Bearer ${authToken}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ command })
+    body: JSON.stringify(command)
   });
   if (!res.ok) {
     const errorText = await res.text().catch(() => '');
