@@ -20,17 +20,40 @@ export default function Admin() {
   async function refresh() {
     if (!hasToken) return;
     const res = await fetch(`/api/admin/list${qs}`);
-    if (res.ok) {
-      const data = await res.json();
-      setItems(data.items || []);
-    } else {
-      setItems([]);
-    }
+    if (!res.ok) { setItems([]); return; }
+    const data = await res.json();
+    const baseItems = Array.isArray(data.items) ? data.items : [];
+    // Enrich: fetch meta JSON to derive slug/type/thumbnail
+    const enriched = await Promise.all(
+      baseItems.map(async (it) => {
+        try {
+          const metaRes = await fetch(it.url);
+          if (!metaRes.ok) return { ...it, _error: true };
+          const meta = await metaRes.json();
+          const slug = meta?.slug || it.pathname?.replace(/^content\//,'').replace(/\.json$/,'');
+          const type = (meta?.type || '').toLowerCase();
+          const preview = meta?.thumbnail || meta?.poster || '';
+          const routePath = type === 'image' ? `/x/${slug}` : `/m/${slug}`;
+          const title = meta?.title || slug;
+          return { ...it, slug, type, preview, routePath, title };
+        } catch {
+          const slug = it.pathname?.replace(/^content\//,'').replace(/\.json$/,'');
+          return { ...it, slug, _error: true };
+        }
+      })
+    );
+    setItems(enriched);
   }
 
+  useEffect(() => { refresh(); }, [qs]);
+  // Auto-refresh while admin token present
   useEffect(() => {
-    refresh();
-  }, [qs]);
+    if (!hasToken) return undefined;
+    const iv = setInterval(refresh, 15000);
+    const onVis = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
+  }, [hasToken, qs]);
 
   async function generateSlug(blob) {
     const raw = `${blob?.pathname || ''}-${blob?.url || ''}-${Date.now()}-${Math.random()}`;
@@ -151,19 +174,37 @@ export default function Admin() {
             </div>
           </div>
 
-          <section className="space-y-3">
+          <section className="space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Uploaded</h2>
-            <ul className="space-y-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               {items.map((it) => (
-                <li key={it.pathname} className="flex items-center justify-between rounded-xl bg-slate-900/80 px-3 py-2 text-sm ring-1 ring-slate-800/70">
-                  <span className="truncate text-slate-200">{it.pathname}</span>
-                  <div className="flex gap-2">
-                    <a href={it.url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700">Open</a>
-                    <button disabled={!hasToken} onClick={() => onDelete(it)} className="rounded-full bg-rose-600 px-3 py-1 hover:bg-rose-500 disabled:opacity-50">Delete</button>
+                <div key={it.pathname} className="overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/70">
+                  <div className="relative w-full aspect-video bg-slate-950/60">
+                    {it.preview ? (
+                      <img src={it.preview} alt={it.title || it.slug} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center text-xs text-slate-400">No preview</div>
+                    )}
+                    {it.type && (
+                      <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold uppercase text-white">
+                        {it.type}
+                      </span>
+                    )}
                   </div>
-                </li>
+                  <div className="space-y-2 p-3 text-sm">
+                    <div className="truncate font-semibold text-slate-100">{it.title || it.slug}</div>
+                    <div className="truncate text-[12px] text-slate-400">{it.pathname}</div>
+                    <div className="flex items-center gap-2 pt-1">
+                      {it.routePath && (
+                        <a href={it.routePath} target="_blank" rel="noreferrer" className="rounded-full bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-500">Open Route</a>
+                      )}
+                      <a href={it.url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700">Meta</a>
+                      <button disabled={!hasToken} onClick={() => onDelete(it)} className="ml-auto rounded-full bg-rose-600 px-3 py-1 hover:bg-rose-500 disabled:opacity-50">Delete</button>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         </main>
       </div>
