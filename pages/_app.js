@@ -9,11 +9,12 @@ import { useRouter } from 'next/router';
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const analyticsBeforeSend = useMemo(() => getAnalyticsBeforeSend(), []);
-  const isAdmin = typeof router?.pathname === 'string' && router.pathname.startsWith('/admin');
+  const routeIsAdmin = typeof router?.pathname === 'string' && router.pathname.startsWith('/admin');
+  const disableAds = Boolean(Component?.disableAds || pageProps?.disableAds || routeIsAdmin);
   return (
     <>
       <Analytics beforeSend={analyticsBeforeSend} />
-      {!isAdmin && <MonetagOnclick />}
+      {!disableAds && <MonetagOnclick />}
       <Component {...pageProps} />
     </>
   );

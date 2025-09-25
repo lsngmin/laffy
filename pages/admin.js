@@ -1377,3 +1377,5 @@ export default function Admin() {
     </>
   );
 }
+
+Admin.disableAds = true;
