@@ -6,7 +6,8 @@ import QuadAdGrid from '@/components/ads/QuadAdGrid';
 const MonetagInvoke = dynamic(() => import('@/components/ads/MonetagInvokeContainer'), { ssr: false });
 import * as g from '@/lib/gtag';
 import { vaTrack } from '@/lib/va';
-import { useEffect, useRef, useLayoutEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+import usePageviewTracker from '@/hooks/usePageviewTracker';
 
 const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
@@ -16,73 +17,97 @@ export default function ImageDetail(props) {
   const clickedRef = useRef(false);
   const sentRef = useRef({});
 
-  const trackOnce = (name, payload) => {
+  const trackOnce = (name, payload, dedupeKey = '') => {
     try {
-      if (sentRef.current[name]) return;
-      sentRef.current[name] = true;
+      const key = dedupeKey ? `${name}:${dedupeKey}` : name;
+      if (sentRef.current[key]) return;
+      sentRef.current[key] = true;
       vaTrack(name, payload);
     } catch {}
   };
 
-  // Robust sender for x_visit (earliest possible + sessionStorage guard)
-  const sendVisitIfNeeded = (slug, title) => {
-    const key = typeof window !== 'undefined' ? `x_visit_sent:${window.location.pathname}` : '';
-    const already = key && typeof window !== 'undefined' && window.sessionStorage?.getItem(key) === '1';
-    if (already) return;
+  const slug = props?.meme?.slug || '';
+  const title = props?.meme?.title || '';
 
-    const href = typeof window !== 'undefined' ? window.location.href : '';
-    const sp = href ? new URL(href).searchParams : null;
-    const utm = sp
+  const visitMatch = useCallback((event) => {
+    if (!event || typeof window === 'undefined') return false;
+    try {
+      const origin = window.location.origin || undefined;
+      const eventUrl = event.url ? new URL(event.url, origin) : null;
+      if (!eventUrl) return false;
+      return eventUrl.pathname === window.location.pathname;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const visitPayloadBuilder = useCallback((event) => {
+    if (typeof window === 'undefined') return null;
+    const origin = window.location.origin || undefined;
+    const eventUrl = event?.url ? new URL(event.url, origin) : null;
+    const path = eventUrl?.pathname || window.location.pathname || '';
+    const storageKey = path ? `x_visit_sent:${path}` : '';
+    const already = storageKey && window.sessionStorage?.getItem(storageKey) === '1';
+    if (already) return null;
+
+    const searchParams = eventUrl?.searchParams
+      || (window.location.href ? new URL(window.location.href).searchParams : null);
+    const utm = searchParams
       ? {
-          utm_source: sp.get('utm_source') || '',
-          utm_medium: sp.get('utm_medium') || '',
-          utm_campaign: sp.get('utm_campaign') || '',
-          utm_content: sp.get('utm_content') || '',
-          utm_term: sp.get('utm_term') || '',
+          utm_source: searchParams.get('utm_source') || '',
+          utm_medium: searchParams.get('utm_medium') || '',
+          utm_campaign: searchParams.get('utm_campaign') || '',
+          utm_content: searchParams.get('utm_content') || '',
+          utm_term: searchParams.get('utm_term') || '',
         }
       : {};
-    trackOnce('x_visit', {
+
+    const payload = {
       slug,
       title,
       referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
       ...utm,
-    });
-    try { if (key) window.sessionStorage?.setItem(key, '1'); } catch {}
-  };
+    };
+    try {
+      if (storageKey) window.sessionStorage?.setItem(storageKey, '1');
+    } catch {}
+    return payload;
+  }, [slug, title]);
 
-  // Send visit as early as possible
-  useLayoutEffect(() => {
-    const slug = props?.meme?.slug || '';
-    const title = props?.meme?.title || '';
-    sendVisitIfNeeded(slug, title);
-  }, [props?.meme?.slug, props?.meme?.title]);
+  usePageviewTracker({
+    eventName: 'x_visit',
+    match: visitMatch,
+    getPayload: visitPayloadBuilder,
+    enabled: Boolean(slug || title),
+  });
 
   // Vercel Analytics: dwell / first scroll / any click / custom bounce
   useEffect(() => {
-    const slug = props?.meme?.slug || '';
-    const title = props?.meme?.title || '';
-
-    // Ensure visit got sent (fallback)
-    sendVisitIfNeeded(slug, title);
+    const slugValue = slug;
+    const titleValue = title;
 
     // Dwell timers (3s, 10s)
     const t3 = setTimeout(() => {
-      // Safety: if visit wasn't sent yet, send it now
-      sendVisitIfNeeded(slug, title);
-      trackOnce('x_stay_3s', { slug, title });
+      trackOnce('x_stay_3s', { slug: slugValue, title: titleValue }, slugValue);
       // 3초 체류만으로도 참여 인정(정상 이탈 분리)
       engagedRef.current = true;
     }, 3000);
-    const t10 = setTimeout(() => trackOnce('x_stay_10s', { slug, title }), 10000);
+    const t10 = setTimeout(() => trackOnce('x_stay_10s', { slug: slugValue, title: titleValue }, slugValue), 10000);
 
     // Custom bounce timer (7s) — if no engagement by then
     const bounceTimer = setTimeout(() => {
-      if (!engagedRef.current) trackOnce('x_bounce', { slug, title, reason: 'no_engagement_within_7s' });
+      if (!engagedRef.current) {
+        trackOnce(
+          'x_bounce',
+          { slug: slugValue, title: titleValue, reason: 'no_engagement_within_7s' },
+          slugValue,
+        );
+      }
     }, 7000);
 
     // First scroll = engagement
     const onScroll = () => {
-      trackOnce('x_scroll', { slug, title });
+      trackOnce('x_scroll', { slug: slugValue, title: titleValue }, slugValue);
       engagedRef.current = true;
       window.removeEventListener('scroll', onScroll);
     };
@@ -92,7 +117,7 @@ export default function ImageDetail(props) {
     const onAnyClick = () => {
       if (!clickedRef.current) {
         clickedRef.current = true;
-        trackOnce('x_any_click', { slug, title });
+        trackOnce('x_any_click', { slug: slugValue, title: titleValue }, slugValue);
       }
       engagedRef.current = true;
       document.removeEventListener('click', onAnyClick, true);
@@ -106,7 +131,7 @@ export default function ImageDetail(props) {
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('click', onAnyClick, true);
     };
-  }, [props?.meme?.slug, props?.meme?.title]);
+  }, [slug, title]);
 
   return (
     <MemeDetailPage
