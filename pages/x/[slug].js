@@ -26,10 +26,6 @@ export default function ImageDetail(props) {
 
   // Robust sender for x_visit (earliest possible + sessionStorage guard)
   const sendVisitIfNeeded = (slug, title) => {
-    const key = typeof window !== 'undefined' ? `x_visit_sent:${window.location.pathname}` : '';
-    const already = key && typeof window !== 'undefined' && window.sessionStorage?.getItem(key) === '1';
-    if (already) return;
-
     const href = typeof window !== 'undefined' ? window.location.href : '';
     const sp = href ? new URL(href).searchParams : null;
     const utm = sp
@@ -47,7 +43,6 @@ export default function ImageDetail(props) {
       referrer: typeof document !== 'undefined' ? (document.referrer || '') : '',
       ...utm,
     });
-    try { if (key) window.sessionStorage?.setItem(key, '1'); } catch {}
   };
 
   // Send visit as early as possible
@@ -70,8 +65,7 @@ export default function ImageDetail(props) {
       // Safety: if visit wasn't sent yet, send it now
       sendVisitIfNeeded(slug, title);
       trackOnce('x_stay_3s', { slug, title });
-      // 3초 체류만으로도 참여 인정(정상 이탈 분리)
-      engagedRef.current = true;
+      // dwell(3s)은 더 이상 참여(engagement)로 간주하지 않음
     }, 3000);
     const t10 = setTimeout(() => trackOnce('x_stay_10s', { slug, title }), 10000);
 
@@ -83,7 +77,7 @@ export default function ImageDetail(props) {
     // First scroll = engagement
     const onScroll = () => {
       trackOnce('x_scroll', { slug, title });
-      engagedRef.current = true;
+      // 스크롤은 더 이상 참여로 간주하지 않음
       window.removeEventListener('scroll', onScroll);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
