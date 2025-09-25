@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ClientBlobUploader from '../components/ClientBlobUploader';
 
 export default function Admin() {
@@ -12,6 +12,8 @@ export default function Admin() {
   const [orientation, setOrientation] = useState('landscape');
   const [duration, setDuration] = useState('0');
   const [items, setItems] = useState([]);
+  const [copiedSlug, setCopiedSlug] = useState('');
+  const copyTimeoutRef = useRef(null);
 
   const hasToken = Boolean(token);
 
@@ -54,6 +56,10 @@ export default function Admin() {
     document.addEventListener('visibilitychange', onVis);
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
   }, [hasToken, qs]);
+
+  useEffect(() => () => {
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+  }, []);
 
   async function generateSlug(blob) {
     const raw = `${blob?.pathname || ''}-${blob?.url || ''}-${Date.now()}-${Math.random()}`;
@@ -177,46 +183,74 @@ export default function Admin() {
           <section className="space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Uploaded</h2>
             <div className="grid gap-3 sm:grid-cols-2">
-              {items.map((it) => (
-                <div key={it.pathname} className="overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/70">
-                  <div className="relative w-full aspect-video bg-slate-950/60">
-                    {it.preview ? (
-                      <img src={it.preview} alt={it.title || it.slug} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="grid h-full w-full place-items-center text-xs text-slate-400">No preview</div>
-                    )}
-                    {it.type && (
-                      <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold uppercase text-white">
-                        {it.type}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-2 p-3 text-sm">
-                    <div className="truncate font-semibold text-slate-100">{it.slug}</div>
-                    <div className="truncate text-[12px] text-slate-400">{it.pathname}</div>
-                    <div className="flex items-center gap-2 pt-1">
-                      {it.routePath && (
-                        <>
-                          <a href={it.routePath} target="_blank" rel="noreferrer" className="rounded-full bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-500">Open Route</a>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(it.routePath);
-                              } catch (e) {
-                                console.error('Copy failed', e);
-                              }
-                            }}
-                            className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
-                          >
-                            Copy
-                          </button>
-                        </>
+              {items.map((it) => {
+                const copied = copiedSlug === it.slug;
+                return (
+                  <div key={it.pathname} className="overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/70">
+                    <div className="relative w-full aspect-video bg-slate-950/60">
+                      {it.preview ? (
+                        <img src={it.preview} alt={it.title || it.slug} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-xs text-slate-400">No preview</div>
                       )}
-                      <button disabled={!hasToken} onClick={() => onDelete(it)} className="ml-auto rounded-full bg-rose-600 px-3 py-1 hover:bg-rose-500 disabled:opacity-50">Delete</button>
+                      {it.type && (
+                        <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold uppercase text-white">
+                          {it.type}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-2 p-3 text-sm">
+                      <div className="truncate font-semibold text-slate-100">{it.title || it.slug}</div>
+                      <div className="truncate text-[12px] text-slate-400">{it.slug}</div>
+                      <div className="flex items-center gap-2 pt-1">
+                        {it.routePath && (
+                          <>
+                            <a href={it.routePath} target="_blank" rel="noreferrer" className="rounded-full bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-500">Open Route</a>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                                  const absoluteUrl = origin ? new URL(it.routePath, origin).toString() : it.routePath;
+                                  const canUseClipboard = typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
+                                  if (canUseClipboard) {
+                                    await navigator.clipboard.writeText(absoluteUrl);
+                                  } else if (typeof document !== 'undefined') {
+                                    const textarea = document.createElement('textarea');
+                                    textarea.value = absoluteUrl;
+                                    textarea.setAttribute('readonly', '');
+                                    textarea.style.position = 'absolute';
+                                    textarea.style.left = '-9999px';
+                                    document.body.appendChild(textarea);
+                                    textarea.select();
+                                    if (typeof document.execCommand === 'function') {
+                                      document.execCommand('copy');
+                                    } else {
+                                      throw new Error('Clipboard API unavailable');
+                                    }
+                                    document.body.removeChild(textarea);
+                                  }
+                                  setCopiedSlug(it.slug);
+                                  if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+                                  copyTimeoutRef.current = setTimeout(() => setCopiedSlug(''), 1800);
+                                } catch (e) {
+                                  console.error('Copy failed', e);
+                                }
+                              }}
+                              className={`rounded-full px-3 py-1 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${copied ? 'bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 shadow-lg shadow-emerald-500/30' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                            >
+                              {copied ? 'Copied ✨' : 'Copy'}
+                            </button>
+                            {copied && (
+                              <span className="sr-only" aria-live="polite">링크가 복사되었습니다.</span>
+                            )}
+                          </>
+                        )}
+                        <button disabled={!hasToken} onClick={() => onDelete(it)} className="ml-auto rounded-full bg-rose-600 px-3 py-1 hover:bg-rose-500 disabled:opacity-50">Delete</button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         </main>
