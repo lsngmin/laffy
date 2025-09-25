@@ -64,7 +64,8 @@ export default function Admin() {
       const enriched = await Promise.all(
         baseItems.map(async (it) => {
           try {
-            const metaRes = await fetch(it.url);
+            const metaFetchUrl = it.url ? `${it.url}${it.url.includes('?') ? '&' : '?'}_=${Date.now()}` : it.url;
+            const metaRes = await fetch(metaFetchUrl, { cache: 'no-store' });
             if (!metaRes.ok) return { ...it, _error: true };
             const meta = await metaRes.json();
             const slug = meta?.slug || it.pathname?.replace(/^content\//, '').replace(/\.json$/, '');
