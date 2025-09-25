@@ -25,18 +25,18 @@ export default class MyDocument extends Document {
             }}
           />
           {/* Additional zone script (disabled on /admin) */}
-          {!isAdmin && (
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `
-                  (function(s){
-                    s.dataset.zone='9906397';
-                    s.src='https://forfrogadiertor.com/tag.min.js';
-                  })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')));
-                `,
-              }}
-            />
-          )}
+          {/*{!isAdmin && (*/}
+          {/*  <script*/}
+          {/*    dangerouslySetInnerHTML={{*/}
+          {/*      __html: `*/}
+          {/*        (function(s){*/}
+          {/*          s.dataset.zone='9906397';*/}
+          {/*          s.src='https://forfrogadiertor.com/tag.min.js';*/}
+          {/*        })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')));*/}
+          {/*      `,*/}
+          {/*    }}*/}
+          {/*  />*/}
+          {/*)}*/}
 
 
         </Head>
