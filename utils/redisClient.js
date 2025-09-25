@@ -19,7 +19,9 @@ function pickEnv(keys) {
   for (const key of keys) {
     const value = process.env[key];
     if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
+      const trimmed = value.trim();
+      const unquoted = trimmed.replace(/^['"]|['"]$/g, '');
+      return unquoted;
     }
   }
   return null;
@@ -58,7 +60,10 @@ export async function redisCommand(command, options = {}) {
     },
     body: JSON.stringify({ command })
   });
-  if (!res.ok) throw new Error('Upstash request failed');
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Upstash request failed (${res.status}): ${errorText}`);
+  }
   const data = await res.json();
   return data.result;
 }
