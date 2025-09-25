@@ -110,7 +110,7 @@ export default function VideoCard({
             )}
 
             {/* 오버레이 아이콘 */}
-            {overlay && (
+            {!overlay && (
                 <div
                     className={clsx(
                         "absolute inset-0 grid place-items-center transition",
