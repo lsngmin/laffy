@@ -14,7 +14,10 @@ export default async function handler(req, res) {
       orientation = 'landscape',
       type: rawType,
       poster: rawPoster,
-      thumbnail: rawThumbnail
+      thumbnail: rawThumbnail,
+      likes,
+      views,
+      publishedAt,
     } = req.body || {};
     if (!slug || !title || !url) return res.status(400).json({ error: 'Missing fields' });
 
@@ -38,6 +41,14 @@ export default async function handler(req, res) {
     const resolvedDuration =
       normalizedType === 'image' ? 0 : Number(durationSeconds) || 0;
 
+    const likesNumber = Number(likes);
+    const viewsNumber = Number(views);
+    const resolvedLikes = Number.isFinite(likesNumber) ? Math.max(0, Math.round(likesNumber)) : 0;
+    const resolvedViews = Number.isFinite(viewsNumber) ? Math.max(0, Math.round(viewsNumber)) : 0;
+    const resolvedPublishedAt = typeof publishedAt === 'string' && publishedAt.trim().length > 0
+      ? publishedAt
+      : new Date().toISOString();
+
     const meta = {
       slug,
       type: normalizedType,
@@ -49,9 +60,9 @@ export default async function handler(req, res) {
       orientation,
       durationSeconds: resolvedDuration,
       source: 'Blob',
-      publishedAt: new Date().toISOString(),
-      likes: 0,
-      views: 0
+      publishedAt: resolvedPublishedAt,
+      likes: resolvedLikes,
+      views: resolvedViews
     };
     const folder = normalizedType === 'image' ? 'images' : 'videos';
     const key = `content/${folder}/${slug}.json`;
