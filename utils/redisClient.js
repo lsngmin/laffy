@@ -1,20 +1,43 @@
+const REST_URL_KEYS = [
+  'UPSTASH_REDIS_REST_URL',
+  'KV_REST_API_URL',
+  'REDIS_REST_URL',
+];
+
+const REST_TOKEN_KEYS = [
+  'UPSTASH_REDIS_REST_TOKEN',
+  'KV_REST_API_TOKEN',
+  'REDIS_REST_TOKEN',
+];
+
+const REST_READONLY_TOKEN_KEYS = [
+  'KV_REST_API_READ_ONLY_TOKEN',
+  'REDIS_REST_API_READ_ONLY_TOKEN',
+];
+
+function pickEnv(keys) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function isRestUrl(value) {
+  if (!value) return false;
+  return value.startsWith('https://') || value.startsWith('http://');
+}
+
 function resolveCredentials() {
-  const url = process.env.UPSTASH_REDIS_REST_URL
-    || process.env.KV_REST_API_URL
-    || process.env.KV_URL
-    || null;
+  const rawUrl = pickEnv(REST_URL_KEYS);
+  const url = isRestUrl(rawUrl) ? rawUrl : null;
 
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-    || process.env.KV_REST_API_TOKEN
-    || null;
+  const token = pickEnv(REST_TOKEN_KEYS);
+  const readOnlyToken = pickEnv(REST_READONLY_TOKEN_KEYS);
 
-  const readOnlyToken = process.env.KV_REST_API_READ_ONLY_TOKEN || null;
-
-  return {
-    url,
-    token,
-    readOnlyToken,
-  };
+  return { url, token, readOnlyToken };
 }
 
 export function hasUpstash() {

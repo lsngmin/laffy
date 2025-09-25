@@ -152,7 +152,29 @@ export default async function handler(req, res) {
       addRandomSuffix: false,
       allowOverwrite: true
     });
-    res.status(200).json({ ok: true, key });
+
+    const revalidateTargets = new Set();
+    revalidateTargets.add('/m');
+    revalidateTargets.add('/x');
+    if (effectiveType === 'image') {
+      revalidateTargets.add(`/x/${resolvedSlug}`);
+    } else {
+      revalidateTargets.add(`/m/${resolvedSlug}`);
+    }
+
+    if (typeof res.revalidate === 'function') {
+      await Promise.all(
+        Array.from(revalidateTargets).map(async (path) => {
+          try {
+            await res.revalidate(path);
+          } catch (error) {
+            console.error('Failed to revalidate path', path, error);
+          }
+        })
+      );
+    }
+
+    res.status(200).json({ ok: true, key, revalidated: Array.from(revalidateTargets) });
   } catch (e) {
     console.error('Failed to register meta', e);
     res.status(500).json({ error: e?.message || 'Failed to register meta' });

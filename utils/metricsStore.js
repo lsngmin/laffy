@@ -43,7 +43,11 @@ export async function getMetrics(slug, options = {}) {
   const { viewerId } = options;
   const { hasUpstash } = await import('./redisClient');
   if (hasUpstash()) {
-    return getMetricsFromRedis(slug, viewerId);
+    try {
+      return await getMetricsFromRedis(slug, viewerId);
+    } catch (error) {
+      console.warn('[metrics] Redis get failed, falling back to store', error);
+    }
   }
 
   const store = await getStore();
@@ -67,7 +71,11 @@ export async function bumpView(slug, options = {}) {
   const { viewerId } = options;
   const { hasUpstash } = await import('./redisClient');
   if (hasUpstash()) {
-    return bumpViewWithRedis(slug, viewerId);
+    try {
+      return await bumpViewWithRedis(slug, viewerId);
+    } catch (error) {
+      console.warn('[metrics] Redis view bump failed, falling back to store', error);
+    }
   }
 
   const store = await getStore();
@@ -101,7 +109,11 @@ export async function setLikeState(slug, options = {}) {
   const { viewerId, liked: desiredState } = options;
   const { hasUpstash } = await import('./redisClient');
   if (hasUpstash()) {
-    return setLikeStateWithRedis(slug, viewerId, desiredState);
+    try {
+      return await setLikeStateWithRedis(slug, viewerId, desiredState);
+    } catch (error) {
+      console.warn('[metrics] Redis like update failed, falling back to store', error);
+    }
   }
 
   const store = await getStore();
@@ -142,18 +154,22 @@ export async function overwriteMetrics(slug, metrics = {}) {
   const { hasUpstash } = await import('./redisClient');
 
   if (hasUpstash()) {
-    const { redisCommand } = await import('./redisClient');
-    const key = metricsKey(slug);
-    if (viewsValue !== null || likesValue !== null) {
-      const fields = [];
-      if (viewsValue !== null) fields.push('views', String(viewsValue));
-      if (likesValue !== null) fields.push('likes', String(likesValue));
-      if (fields.length) await redisCommand(['HSET', key, ...fields]);
+    try {
+      const { redisCommand } = await import('./redisClient');
+      const key = metricsKey(slug);
+      if (viewsValue !== null || likesValue !== null) {
+        const fields = [];
+        if (viewsValue !== null) fields.push('views', String(viewsValue));
+        if (likesValue !== null) fields.push('likes', String(likesValue));
+        if (fields.length) await redisCommand(['HSET', key, ...fields]);
+      }
+      await redisCommand(['DEL', viewSetKey(slug), likeSetKey(slug)]);
+      const views = parseCount(await redisCommand(['HGET', key, 'views']));
+      const likes = parseCount(await redisCommand(['HGET', key, 'likes']));
+      return { views, likes };
+    } catch (error) {
+      console.warn('[metrics] Redis overwrite failed, falling back to store', error);
     }
-    await redisCommand(['DEL', viewSetKey(slug), likeSetKey(slug)]);
-    const views = parseCount(await redisCommand(['HGET', key, 'views']));
-    const likes = parseCount(await redisCommand(['HGET', key, 'likes']));
-    return { views, likes };
   }
 
   const store = await getStore();

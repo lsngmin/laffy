@@ -506,7 +506,9 @@ export default function Admin() {
     const item = pendingDelete;
     const payload = buildRegisterPayload(item);
     const metaUrl = typeof item.url === 'string' ? item.url : '';
-    const body = item.url ? { url: item.url } : { pathname: item.pathname };
+    const body = item.url
+      ? { url: item.url, slug: item.slug, type: item.type }
+      : { pathname: item.pathname, slug: item.slug, type: item.type };
     setDeleteStatus('pending');
     setDeleteError('');
 
