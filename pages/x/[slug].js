@@ -199,7 +199,7 @@ export default function ImageDetail(props) {
         vaTrack('x_cta_click_unable_to_play', { slug, title });
       }}
       hideDescription
-      videoOverlayLabel={props?.meme?.description || props?.meme?.title || ''}
+      titleOverride={props?.meme?.description || props?.meme?.title || ''}
     />
   );
 }

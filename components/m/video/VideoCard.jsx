@@ -9,7 +9,6 @@ export default function VideoCard({
                                       disablePlay = false,
                                       mediaType = "video",
                                       onPreviewClick,
-                                      overlayLabel,
                                   }) {
     const vRef = useRef(null);
     const [overlay, setOverlay] = useState(true);
@@ -46,8 +45,6 @@ export default function VideoCard({
     const cleanedSrc = typeof src === "string" && src.trim().length > 0 ? src : null;
     const resolvedPoster = cleanedPoster || (isImage ? cleanedSrc : null);
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
-
-    const label = overlayLabel ?? title;
 
     return (
         <div
