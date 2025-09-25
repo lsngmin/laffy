@@ -35,6 +35,18 @@ export function useLikes() {
 
   const isLiked = useCallback((slug) => likedSlugs.has(slug), [likedSlugs]);
 
+  const setLikedState = useCallback((slug, liked) => {
+    setLikedSlugs((prev) => {
+      const next = new Set(prev);
+      if (liked) {
+        next.add(slug);
+      } else {
+        next.delete(slug);
+      }
+      return next;
+    });
+  }, []);
+
   const toggleLike = useCallback((slug) => {
     setLikedSlugs((prev) => {
       const next = new Set(prev);
@@ -47,5 +59,5 @@ export function useLikes() {
     });
   }, []);
 
-  return { isLiked, toggleLike, ready };
+  return { isLiked, toggleLike, setLikedState, ready };
 }

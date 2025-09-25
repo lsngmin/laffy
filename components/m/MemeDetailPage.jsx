@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
 import { useTranslation } from "next-i18next";
+import Link from "next/link";
+import clsx from "clsx";
 
 import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/components/button";
 import { BookmarkLink, BackToFeedLink } from "@/components/link";
@@ -27,7 +29,7 @@ export default function MemeDetailPage({
   onCtaClick,
 }) {
   const { t, i18n } = useTranslation("common");
-  const { isLiked, toggleLike, ready: likesReady } = useLikes();
+  const { isLiked, setLikedState, ready: likesReady } = useLikes();
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
@@ -40,7 +42,7 @@ export default function MemeDetailPage({
   const relativeTime = publishedDate ? formatRelativeTime(publishedDate, locale) : null;
   const liked = isLiked(meme.slug);
 
-  const likesDisplay = formatCount((serverCounts.likes ?? meme.likes) + (liked ? 1 : 0), locale);
+  const likesDisplay = formatCount(serverCounts.likes ?? meme.likes, locale);
   const viewsDisplay = formatCount(serverCounts.views ?? meme.views, locale);
 
   // Safe meta values for social preview (length/whitespace)
@@ -56,23 +58,31 @@ export default function MemeDetailPage({
   useEffect(() => {
     setIsFavorite(loadFavorites().includes(meme.slug));
 
+    let cancelled = false;
+
     (async () => {
       try {
-        await fetch("/api/metrics/view", {
+        const res = await fetch("/api/metrics/view", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ slug: meme.slug }),
         });
-        const res = await fetch(`/api/metrics/get?slug=${encodeURIComponent(meme.slug)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setServerCounts({ views: data.views, likes: data.likes });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const views = typeof data?.views === 'number' ? data.views : meme.views;
+        const likes = typeof data?.likes === 'number' ? data.likes : meme.likes;
+        setServerCounts({ views, likes });
+        if (typeof data?.liked === 'boolean') {
+          setLikedState(meme.slug, data.liked);
         }
       } catch {
         // 무시
       }
     })();
-  }, [meme.slug]);
+
+    return () => { cancelled = true; };
+  }, [meme.slug, meme.views, meme.likes, setLikedState]);
 
   const handleToggleFavorite = () => {
     const updated = toggleFavoriteSlug(meme.slug);
@@ -80,20 +90,32 @@ export default function MemeDetailPage({
   };
 
   const handleToggleLike = async () => {
+    const prevLiked = liked;
+    const nextLiked = !prevLiked;
+    const prevLikesCount = typeof serverCounts.likes === 'number' ? serverCounts.likes : meme.likes;
+
+    setLikedState(meme.slug, nextLiked);
+    setServerCounts((s) => ({
+      ...s,
+      likes: Math.max(0, prevLikesCount + (nextLiked ? 1 : -1)),
+    }));
+
     try {
-      toggleLike(meme.slug);
-      const delta = liked ? -1 : 1;
       const res = await fetch("/api/metrics/like", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug: meme.slug, delta }),
+        body: JSON.stringify({ slug: meme.slug, liked: nextLiked }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setServerCounts((s) => ({ ...s, likes: data.likes }));
+      if (!res.ok) throw new Error('like_failed');
+      const data = await res.json();
+      const resolvedLikes = typeof data?.likes === 'number' ? data.likes : prevLikesCount;
+      setServerCounts((s) => ({ ...s, likes: resolvedLikes }));
+      if (typeof data?.liked === 'boolean') {
+        setLikedState(meme.slug, data.liked);
       }
     } catch {
-      // 무시
+      setLikedState(meme.slug, prevLiked);
+      setServerCounts((s) => ({ ...s, likes: prevLikesCount }));
     }
   };
 
@@ -104,6 +126,24 @@ export default function MemeDetailPage({
   const handleCtaClick = useCallback(() => {
     onCtaClick?.();
   }, [onCtaClick]);
+
+  const navItems = useMemo(
+    () => [
+      { key: "spotlight", label: t("nav.spotlight", "Spotlight"), href: "/m" },
+      { key: "trending", label: t("nav.trending", "Trending"), href: "/m?filter=trending" },
+      { key: "fresh", label: t("nav.fresh", "Fresh Drops"), href: "/m?filter=fresh" },
+      { key: "feelgood", label: t("nav.feelgood", "Feel Good"), href: "/m?filter=feelgood" },
+      { key: "loops", label: t("nav.loops", "Silky Loops"), href: "/m?filter=loops" },
+      { key: "random", label: t("nav.random", "Shuffle"), href: "/m?filter=random" },
+    ],
+    [t]
+  );
+
+  const rawActiveKey = typeof meme?.category === "string" ? meme.category.toLowerCase() : "";
+  const fallbackActiveKey = navItems[0]?.key || "";
+  const activeCategoryKey = navItems.some((item) => item.key === rawActiveKey)
+    ? rawActiveKey
+    : fallbackActiveKey;
 
   return (
     <>
@@ -139,14 +179,44 @@ export default function MemeDetailPage({
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
-          <div className="flex items-center justify-between text-xs text-slate-300">
-            <BookmarkLink label={t("favorites.cta")} />
-            <LocaleSwitchButton locale={locale} />
-          </div>
+          {/*<div className="flex items-center justify-between text-xs text-slate-300">*/}
+          {/*  <BookmarkLink label={t("favorites.cta")} />*/}
+          {/*  <LocaleSwitchButton locale={locale} />*/}
+          {/*</div>*/}
 
           <div className="mt-6 mb-3 text-center">
-            <LogoText />
+            <LogoText size={'3xl'} />
           </div>
+
+          {navItems.length > 0 && (
+            <nav className="relative mx-auto mb-6 max-w-3xl" aria-label={t("nav.label", "Meme navigation")}>
+              <div className="relative rounded-3xl bg-slate-900/60 px-3 py-2 shadow-inner shadow-black/30 ring-1 ring-white/5">
+                <span className="pointer-events-none absolute inset-y-0 left-0 w-8 rounded-l-3xl bg-gradient-to-r from-slate-950 via-slate-950/70 to-transparent" aria-hidden="true" />
+                <span className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-3xl bg-gradient-to-l from-slate-950 via-slate-950/70 to-transparent" aria-hidden="true" />
+                <ul className="flex snap-x snap-mandatory items-center gap-2 overflow-x-auto text-sm text-slate-300">
+                  {navItems.map((item) => {
+                    const active = item.key === activeCategoryKey;
+                    return (
+                      <li key={item.key} className="snap-start">
+                        <Link
+                          href={item.href}
+                          prefetch={false}
+                          className={clsx(
+                            "inline-flex items-center whitespace-nowrap rounded-full px-4 py-2 font-semibold transition",
+                            active
+                              ? "bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400 text-slate-950 shadow-[0_10px_32px_rgba(56,189,248,0.25)]"
+                              : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </nav>
+          )}
           <BannerAdsMonetag />
 
           {hideBackToFeed ? (backSlot ?? null) : (

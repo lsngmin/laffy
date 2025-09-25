@@ -149,7 +149,8 @@ export default async function handler(req, res) {
       token: process.env.BLOB_READ_WRITE_TOKEN,
       access: 'public',
       contentType: 'application/json',
-      addRandomSuffix: false
+      addRandomSuffix: false,
+      allowOverwrite: true
     });
     res.status(200).json({ ok: true, key });
   } catch (e) {

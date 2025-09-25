@@ -21,14 +21,23 @@ export default function Admin() {
   const [editStatus, setEditStatus] = useState('idle');
   const [editUploadState, setEditUploadState] = useState('idle');
   const [editUploadMessage, setEditUploadMessage] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleteStatus, setDeleteStatus] = useState('idle');
+  const [deleteError, setDeleteError] = useState('');
+  const [undoInfo, setUndoInfo] = useState(null);
+  const [undoStatus, setUndoStatus] = useState('idle');
   const [view, setView] = useState('uploads');
   const [metricsBySlug, setMetricsBySlug] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState(null);
+  const [metricsEditor, setMetricsEditor] = useState(null);
+  const metricsSaving = metricsEditor?.status === 'saving';
+  const metricsSuccess = metricsEditor?.status === 'success';
 
   const copyTimeoutRef = useRef(null);
   const pendingMetricsRef = useRef(new Set());
   const editFileInputRef = useRef(null);
+  const undoTimeoutRef = useRef(null);
 
   const hasToken = Boolean(token);
   const qs = useMemo(() => (hasToken ? `?token=${encodeURIComponent(token)}` : ''), [token, hasToken]);
@@ -118,6 +127,7 @@ export default function Admin() {
 
   useEffect(() => () => {
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -342,6 +352,64 @@ export default function Admin() {
     if (editFileInputRef.current) editFileInputRef.current.value = '';
   }, [editInitialPreview]);
 
+  const buildRegisterPayload = useCallback((item) => {
+    if (!item) return null;
+    const typeValue = (item.type || '').toLowerCase();
+    const isImage = typeValue === 'image';
+    const previewCandidates = [item.preview, item.poster, item.thumbnail];
+    const basePreview = previewCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+    const srcCandidates = [item.src, item.poster, item.thumbnail, basePreview];
+    const assetUrl = srcCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+    if (!assetUrl) return null;
+
+    const posterCandidates = isImage
+      ? [item.poster, assetUrl, item.thumbnail, basePreview]
+      : [item.poster, item.thumbnail, basePreview];
+    const posterUrl = posterCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+
+    const thumbnailCandidates = isImage
+      ? [item.thumbnail, posterUrl, assetUrl, basePreview]
+      : [item.thumbnail, posterUrl, basePreview];
+    const thumbnailUrl = thumbnailCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+
+    const likesNumber = Number(item.likes);
+    const viewsNumber = Number(item.views);
+
+    return {
+      slug: item.slug,
+      title: item.title || item.slug,
+      description: item.description || '',
+      url: assetUrl,
+      durationSeconds: isImage ? 0 : Number(item.durationSeconds) || 0,
+      orientation: item.orientation || 'landscape',
+      type: isImage ? 'image' : (typeValue || 'video'),
+      poster: posterUrl || null,
+      thumbnail: thumbnailUrl || null,
+      likes: Number.isFinite(likesNumber) ? likesNumber : 0,
+      views: Number.isFinite(viewsNumber) ? viewsNumber : 0,
+      publishedAt: item.publishedAt || '',
+    };
+  }, []);
+
+  const clearUndoTimer = useCallback(() => {
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = null;
+    }
+  }, []);
+
+  const openDeleteModal = useCallback((item) => {
+    setPendingDelete(item);
+    setDeleteStatus('idle');
+    setDeleteError('');
+  }, []);
+
+  const closeDeleteModal = useCallback(() => {
+    setPendingDelete(null);
+    setDeleteStatus('idle');
+    setDeleteError('');
+  }, []);
+
   const handleSaveEdit = useCallback(async () => {
     if (!editingItem) return;
     if (!hasToken) {
@@ -432,6 +500,188 @@ export default function Admin() {
     }
   }, [closeEditModal, editForm.description, editForm.imageUrl, editForm.title, editInitialPreview, editingItem, hasToken, qs, refresh]);
 
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    const item = pendingDelete;
+    const payload = buildRegisterPayload(item);
+    const metaUrl = typeof item.url === 'string' ? item.url : '';
+    const body = item.url ? { url: item.url } : { pathname: item.pathname };
+    setDeleteStatus('pending');
+    setDeleteError('');
+
+    try {
+      const res = await fetch(`/api/admin/delete${qs}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('delete_failed');
+
+      closeDeleteModal();
+      if (payload) {
+        clearUndoTimer();
+        setUndoInfo({
+          payload,
+          metaUrl,
+          title: payload.title,
+          slug: item.slug,
+        });
+        setUndoStatus('idle');
+        undoTimeoutRef.current = setTimeout(() => {
+          setUndoInfo(null);
+          setUndoStatus('idle');
+        }, 10000);
+      } else {
+        setUndoInfo(null);
+        setUndoStatus('idle');
+      }
+      refresh();
+    } catch (error) {
+      console.error('Delete failed', error);
+      setDeleteStatus('error');
+      setDeleteError('삭제에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  }, [pendingDelete, buildRegisterPayload, qs, clearUndoTimer, closeDeleteModal, refresh]);
+
+  const handleUndoDelete = useCallback(async () => {
+    if (!undoInfo) return;
+    setUndoStatus('pending');
+    try {
+      const res = await fetch(`/api/admin/register${qs}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...undoInfo.payload,
+          metaUrl: undoInfo.metaUrl,
+        }),
+      });
+      if (!res.ok) throw new Error('undo_failed');
+      setUndoStatus('success');
+      clearUndoTimer();
+      undoTimeoutRef.current = setTimeout(() => {
+        setUndoInfo(null);
+        setUndoStatus('idle');
+      }, 1200);
+      await refresh();
+    } catch (error) {
+      console.error('Undo failed', error);
+      setUndoStatus('error');
+    }
+  }, [undoInfo, qs, refresh, clearUndoTimer]);
+
+  const handleDismissUndo = useCallback(() => {
+    clearUndoTimer();
+    setUndoInfo(null);
+    setUndoStatus('idle');
+  }, [clearUndoTimer]);
+
+  const openMetricsEditor = useCallback((row) => {
+    if (!row?.slug) return;
+    const baseViews = typeof row.metrics?.views === 'number'
+      ? row.metrics.views
+      : (typeof row.views === 'number' ? row.views : null);
+    const baseLikes = typeof row.metrics?.likes === 'number'
+      ? row.metrics.likes
+      : (typeof row.likes === 'number' ? row.likes : null);
+    const views = baseViews === null ? '' : String(baseViews);
+    const likes = baseLikes === null ? '' : String(baseLikes);
+    setMetricsEditor({
+      slug: row.slug,
+      title: row.title || row.slug,
+      views,
+      likes,
+      status: 'idle',
+      error: '',
+    });
+  }, []);
+
+  const closeMetricsEditor = useCallback(() => {
+    setMetricsEditor(null);
+  }, []);
+
+  const handleMetricsFieldChange = useCallback((field, value) => {
+    setMetricsEditor((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        [field]: value,
+        error: '',
+        status: prev.status === 'error' ? 'idle' : prev.status,
+      };
+    });
+  }, []);
+
+  const handleMetricsSave = useCallback(async () => {
+    if (!metricsEditor || !hasToken) return;
+    const { slug, views, likes } = metricsEditor;
+
+    const parseValue = (raw) => {
+      if (raw === null || raw === undefined) return null;
+      if (String(raw).trim() === '') return null;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return null;
+      return Math.max(0, Math.round(num));
+    };
+
+    const parsedViews = parseValue(views);
+    const parsedLikes = parseValue(likes);
+
+    if ((views && parsedViews === null) || (likes && parsedLikes === null)) {
+      setMetricsEditor((prev) => (prev ? {
+        ...prev,
+        status: 'error',
+        error: '숫자로 입력해 주세요.',
+      } : prev));
+      return;
+    }
+
+    setMetricsEditor((prev) => (prev ? { ...prev, status: 'saving', error: '' } : prev));
+
+    const payload = { slug };
+    if (parsedViews !== null) payload.views = parsedViews;
+    if (parsedLikes !== null) payload.likes = parsedLikes;
+
+    try {
+      const res = await fetch(`/api/admin/metrics${qs}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('save_failed');
+      const data = await res.json();
+      const nextViews = Number(data?.views) || 0;
+      const nextLikes = Number(data?.likes) || 0;
+      setMetricsBySlug((prev) => ({
+        ...prev,
+        [slug]: { views: nextViews, likes: nextLikes },
+      }));
+      setItems((prev) => prev.map((item) => (item.slug === slug ? {
+        ...item,
+        views: nextViews,
+        likes: nextLikes,
+      } : item)));
+      setMetricsEditor((prev) => (prev ? {
+        ...prev,
+        status: 'success',
+        views: String(nextViews),
+        likes: String(nextLikes),
+        error: '',
+      } : prev));
+      setTimeout(() => {
+        setMetricsEditor((prev) => {
+          if (!prev || prev.slug === slug) return null;
+          return prev;
+        });
+      }, 900);
+    } catch (error) {
+      setMetricsEditor((prev) => (prev ? {
+        ...prev,
+        status: 'error',
+        error: '메트릭 저장에 실패했어요. 잠시 후 다시 시도해 주세요.',
+      } : prev));
+    }
+  }, [hasToken, metricsEditor, qs]);
+
   async function generateSlug(blob) {
     const raw = `${blob?.pathname || ''}-${blob?.url || ''}-${Date.now()}-${Math.random()}`;
     const cryptoObj = globalThis.crypto;
@@ -490,18 +740,9 @@ export default function Admin() {
     refresh();
   }
 
-  async function onDelete(item) {
-    const body = item.url ? { url: item.url } : { pathname: item.pathname };
-    await fetch(`/api/admin/delete${qs}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    refresh();
-  }
-
   const uploadsVisible = view === 'uploads';
   const analyticsVisible = view === 'analytics';
+  const undoDisplayTitle = undoInfo?.title || undoInfo?.payload?.title || undoInfo?.payload?.slug || '';
 
   return (
     <>
@@ -694,7 +935,7 @@ export default function Admin() {
                             )}
                             <button
                               disabled={!hasToken}
-                              onClick={() => onDelete(it)}
+                              onClick={() => openDeleteModal(it)}
                               className="ml-auto rounded-full bg-rose-600 px-3 py-1 hover:bg-rose-500 disabled:opacity-50"
                             >
                               Delete
@@ -751,6 +992,7 @@ export default function Admin() {
                         <th className="px-4 py-3 text-right font-semibold">좋아요</th>
                         <th className="px-4 py-3 text-right font-semibold">좋아요율</th>
                         <th className="px-4 py-3 text-right font-semibold">링크</th>
+                        <th className="px-4 py-3 text-right font-semibold">편집</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -787,12 +1029,21 @@ export default function Admin() {
                                 <span className="text-xs text-slate-500">—</span>
                               )}
                             </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => openMetricsEditor(row)}
+                                className="inline-flex items-center justify-center rounded-full border border-slate-600/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+                              >
+                                수정
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
                       {sortedAnalyticsRows.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
+                          <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
                             분석할 콘텐츠가 없습니다.
                           </td>
                         </tr>
@@ -810,6 +1061,158 @@ export default function Admin() {
           </div>
         </main>
       </div>
+      {metricsEditor && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm px-4 py-10">
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 shadow-[0_32px_100px_rgba(15,23,42,0.7)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-metrics-modal-title"
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400" />
+            <button
+              type="button"
+              onClick={closeMetricsEditor}
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-800/70 text-slate-300 transition hover:bg-slate-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+              aria-label="메트릭 편집 닫기"
+            >
+              ✕
+            </button>
+            <div className="space-y-6 p-7 sm:p-9">
+              <header className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-400/70">Metrics</p>
+                <h3 id="admin-metrics-modal-title" className="text-xl font-semibold text-white sm:text-2xl">
+                  {metricsEditor.title}
+                </h3>
+                <p className="text-[12px] text-slate-500">Slug · {metricsEditor.slug}</p>
+              </header>
+
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">조회수</label>
+                  <input
+                    value={metricsEditor.views}
+                    onChange={(event) => handleMetricsFieldChange('views', event.target.value)}
+                    placeholder="숫자 입력"
+                    inputMode="numeric"
+                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">좋아요</label>
+                  <input
+                    value={metricsEditor.likes}
+                    onChange={(event) => handleMetricsFieldChange('likes', event.target.value)}
+                    placeholder="숫자 입력"
+                    inputMode="numeric"
+                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  />
+                </div>
+              </div>
+
+              {metricsEditor.error && (
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                  {metricsEditor.error}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeMetricsEditor}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-600/60 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMetricsSave}
+                  disabled={metricsSaving}
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_16px_40px_rgba(16,185,129,0.35)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-100 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {metricsSaving ? '저장 중…' : metricsSuccess ? '저장 완료!' : '메트릭 저장'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur">
+          <div
+            className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-rose-500/40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 shadow-[0_40px_120px_rgba(127,29,29,0.55)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-delete-modal-title"
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-500 via-orange-400 to-amber-300" />
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-800/70 text-slate-300 transition hover:bg-slate-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-200"
+              aria-label="삭제 확인 창 닫기"
+            >
+              ✕
+            </button>
+            <div className="space-y-6 p-7 sm:p-9">
+              <header className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-400/70">Delete Content</p>
+                <h3 id="admin-delete-modal-title" className="text-2xl font-semibold text-white sm:text-3xl">{pendingDelete.title || pendingDelete.slug}</h3>
+                <p className="text-[12px] text-slate-500">Slug · {pendingDelete.slug}</p>
+              </header>
+
+              <div className="space-y-4 text-sm text-slate-200/90">
+                <p>이 콘텐츠의 메타 데이터가 영구 삭제됩니다. 삭제 후 10초 안에 되돌리기가 가능합니다.</p>
+                <div className="space-y-2 rounded-2xl border border-rose-500/20 bg-slate-900/70 p-4 text-xs text-slate-300">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="uppercase tracking-widest text-slate-500">Slug</span>
+                    <span className="font-mono text-[11px] text-slate-200">{pendingDelete.slug}</span>
+                  </div>
+                  {pendingDelete.routePath && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="uppercase tracking-widest text-slate-500">Route</span>
+                      <span className="truncate text-[11px] text-slate-200">{pendingDelete.routePath}</span>
+                    </div>
+                  )}
+                  {pendingDelete.preview && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="uppercase tracking-widest text-slate-500">Preview</span>
+                      <span className="truncate text-[11px] text-slate-200">{pendingDelete.preview}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[12px] text-rose-200/80">
+                  이 작업은 메타 파일을 삭제하지만 원본 미디어는 별도 보관됩니다. 필요 시 되돌리기를 눌러 복구할 수 있습니다.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-600/60 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deleteStatus === 'pending'}
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_18px_42px_rgba(248,113,113,0.35)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-200 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {deleteStatus === 'pending' ? '삭제 중…' : '영구 삭제'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm px-4 py-10">
           <div
@@ -935,6 +1338,39 @@ export default function Admin() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {undoInfo && (
+        <div className="fixed bottom-6 left-1/2 z-40 w-[min(90vw,26rem)] -translate-x-1/2">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/90 px-4 py-3 text-sm text-slate-200 shadow-[0_25px_60px_rgba(15,23,42,0.55)] backdrop-blur">
+            <div className="flex-1" role="status" aria-live="polite">
+              {undoStatus === 'error'
+                ? '복원에 실패했어요. 다시 시도해 주세요.'
+                : undoStatus === 'success'
+                  ? '복원이 완료됐어요!'
+                  : `${undoDisplayTitle ? `‘${undoDisplayTitle}’` : '콘텐츠'} 항목을 삭제했어요.`}
+            </div>
+            <button
+              type="button"
+              onClick={handleUndoDelete}
+              disabled={undoStatus === 'pending' || undoStatus === 'success'}
+              className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-sm font-semibold shadow ${undoStatus === 'pending' || undoStatus === 'success' ? 'cursor-default bg-white/40 text-slate-700' : 'bg-white text-slate-900 hover:bg-white/90'}`}
+            >
+              {undoStatus === 'pending'
+                ? '복원 중…'
+                : undoStatus === 'success'
+                  ? '완료'
+                  : '되돌리기'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDismissUndo}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200"
+              aria-label="되돌리기 알림 닫기"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
