@@ -56,7 +56,20 @@ export default function VideoCard({
             window.open("https://smartlink.example.com", "_blank", "noopener");
         });
     }, []);
+    const player = videojs('my-video', {
+        controls: true,
+        bigPlayButton: false,
+    });
 
+    player.ready(function () {
+        // duration() 메서드를 덮어씌우기
+        player.duration = function () {
+            return 123; // 123초로 표시 (2:03)
+        };
+
+        // UI 업데이트 트리거
+        player.trigger('durationchange');
+    });
     return (
         <div
             className={clsx(
