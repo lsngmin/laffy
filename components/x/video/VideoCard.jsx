@@ -3,7 +3,9 @@ import clsx from "clsx";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 
-import { openSmartLink } from "@/components/x/ads/smartLink";
+import * as g from "@/lib/gtag";
+import { vaTrack } from "@/lib/va";
+import { VIDEO_PREVIEW_SPONSOR_URL } from "@/components/x/constants";
 
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
 import DEFAULT_VIDEOJS_OPTIONS from "./videoPlayerOptions";
@@ -19,8 +21,12 @@ export default function VideoCard({
     poster,
     title,
     aspect,
-    onPreviewClick,
+    slug,
     durationSeconds,
+    onEngagement,
+    sponsorUrl = VIDEO_PREVIEW_SPONSOR_URL,
+    trackingRoute = "x",
+    trackingPlacement = "overlay",
 }) {
     const videoElementRef = useRef(null);
     const videoJsPlayerRef = useRef(null);
@@ -59,7 +65,35 @@ export default function VideoCard({
     }, [resolvedPoster]);
 
 
-    const interactivePreview = typeof onPreviewClick === "function";
+    const analyticsSlug = typeof slug === "string" ? slug : "";
+    const analyticsTitle = resolvedTitle;
+    const resolvedSponsorUrl = typeof sponsorUrl === "string" && sponsorUrl ? sponsorUrl : VIDEO_PREVIEW_SPONSOR_URL;
+
+    const interactivePreview = typeof onEngagement === "function";
+
+    const triggerAnalytics = useCallback(() => {
+        if (analyticsSlug || analyticsTitle) {
+            try {
+                vaTrack("x_overlay_click", { slug: analyticsSlug, title: analyticsTitle });
+            } catch {}
+        }
+
+        try {
+            g.event("video_overlay_click", {
+                route: trackingRoute,
+                action_type: "sponsored",
+                slug: analyticsSlug,
+                title: analyticsTitle,
+                placement: trackingPlacement,
+            });
+        } catch {}
+
+        if (typeof window !== "undefined") {
+            try {
+                window.open(resolvedSponsorUrl, "_blank", "noopener");
+            } catch {}
+        }
+    }, [analyticsSlug, analyticsTitle, resolvedSponsorUrl, trackingPlacement, trackingRoute]);
 
     const handleInteraction = useCallback(
         (event) => {
@@ -68,17 +102,15 @@ export default function VideoCard({
 
             restorePoster();
 
+            triggerAnalytics();
+
             if (interactivePreview) {
                 try {
-                    onPreviewClick();
-                } catch {
-                    // ignore preview errors
-                }
+                    onEngagement();
+                } catch {}
             }
-
-            openSmartLink();
         },
-        [interactivePreview, onPreviewClick, restorePoster]
+        [interactivePreview, onEngagement, restorePoster, triggerAnalytics]
 
     );
 
