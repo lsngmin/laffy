@@ -87,6 +87,7 @@ export default function VideoCard({
             controls: true,
             bigPlayButton: false,
             preload: "metadata",
+            autoplay: false
         });
 
         videoJsPlayerRef.current = player;
@@ -123,7 +124,7 @@ export default function VideoCard({
         return () => {
             player.off('play', triggerRedirect);
             player.off('touchstart', triggerRedirect);
-            player.off('pointerdown', triggerRedirect);
+            // player.off('pointerdown', triggerRedirect);
             player.off('click', triggerRedirect);
             player.dispose();
             videoJsPlayerRef.current = null;
