@@ -12,11 +12,20 @@ export default function UploadsSection({
   onDelete,
   registerMeta,
   uploadFormState,
+  onRefresh,
+  onLoadMore,
+  hasMore,
+  isLoading,
+  isLoadingMore,
+  isRefreshing,
+  error,
 }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [orientationFilter, setOrientationFilter] = useState('');
   const [sortOption, setSortOption] = useState('recent');
+  const handleRefresh = onRefresh || (() => {});
+  const handleLoadMore = onLoadMore || (() => {});
 
   const filteredItems = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -45,6 +54,10 @@ export default function UploadsSection({
     return next;
   }, [items, orientationFilter, search, sortOption, typeFilter]);
 
+  const isFiltering = Boolean(search || typeFilter || orientationFilter || (sortOption && sortOption !== 'recent'));
+  const showEmptyState = !isLoading && !filteredItems.length;
+  const canShowLoadMore = hasMore;
+
   return (
     <section className="space-y-8">
       <UploadForm
@@ -66,6 +79,17 @@ export default function UploadsSection({
           <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
             Uploaded ({filteredItems.length}/{items.length})
           </h2>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            {isRefreshing && <span className="hidden sm:inline">자동 새로고침 중…</span>}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoading || isRefreshing}
+              className="rounded-full border border-slate-700 px-3 py-1 font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+            >
+              새로고침
+            </button>
+          </div>
         </div>
         <UploadFilters
           search={search}
@@ -89,9 +113,35 @@ export default function UploadsSection({
               onDelete={onDelete}
             />
           ))}
-          {!filteredItems.length && (
+
+          {isLoading && !items.length && (
             <div className="col-span-full rounded-2xl border border-dashed border-slate-700 px-4 py-12 text-center text-sm text-slate-400">
-              조건에 맞는 콘텐츠가 없습니다.
+              콘텐츠를 불러오는 중입니다…
+            </div>
+          )}
+
+          {error && !isLoading && !items.length && (
+            <div className="col-span-full rounded-2xl border border-dashed border-red-500/60 px-4 py-12 text-center text-sm text-red-300">
+              콘텐츠를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+            </div>
+          )}
+
+          {showEmptyState && items.length > 0 && (
+            <div className="col-span-full rounded-2xl border border-dashed border-slate-700 px-4 py-12 text-center text-sm text-slate-400">
+              {isFiltering ? '조건에 맞는 콘텐츠가 없습니다.' : '표시할 콘텐츠가 없습니다.'}
+            </div>
+          )}
+
+          {canShowLoadMore && (
+            <div className="col-span-full flex justify-center">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                className="rounded-full bg-slate-800 px-6 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-500"
+              >
+                {isLoadingMore ? '불러오는 중…' : '더 보기'}
+              </button>
             </div>
           )}
         </div>

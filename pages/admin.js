@@ -71,7 +71,17 @@ export default function AdminPage() {
   const [orientation, setOrientation] = useState('landscape');
   const [duration, setDuration] = useState('0');
 
-  const { items, setItems, refresh } = useAdminItems({ enabled: hasToken, queryString: qs });
+  const {
+    items,
+    setItems,
+    refresh,
+    loadMore,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isRefreshing,
+    error: itemsError,
+  } = useAdminItems({ enabled: hasToken, queryString: qs });
   const { copiedSlug, copy } = useClipboard();
   const analytics = useAnalyticsMetrics({ items, enabled: hasToken && view === 'analytics' });
 
@@ -419,6 +429,13 @@ export default function AdminPage() {
             onDelete={openDeleteModal}
             registerMeta={registerMeta}
             uploadFormState={uploadFormState}
+            onRefresh={refresh}
+            onLoadMore={loadMore}
+            hasMore={hasMore}
+            isLoading={isLoading}
+            isLoadingMore={isLoadingMore}
+            isRefreshing={isRefreshing}
+            error={itemsError}
           />
         )}
 
