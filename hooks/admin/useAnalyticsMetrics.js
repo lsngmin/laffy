@@ -9,9 +9,32 @@ const DEFAULT_COLUMNS = {
   edit: true,
 };
 
+const DEFAULT_FILTERS = {
+  type: '',
+  orientation: '',
+  query: '',
+};
+
 const BATCH_FETCH_LIMIT = 25;
 
-export default function useAnalyticsMetrics({ items, enabled }) {
+function normalizeFilters(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_FILTERS };
+  }
+
+  const type = typeof raw.type === 'string' ? raw.type.trim() : DEFAULT_FILTERS.type;
+  const orientation =
+    typeof raw.orientation === 'string' ? raw.orientation.trim() : DEFAULT_FILTERS.orientation;
+  const query = typeof raw.query === 'string' ? raw.query.trim() : DEFAULT_FILTERS.query;
+
+  return {
+    type,
+    orientation,
+    query,
+  };
+}
+
+export default function useAnalyticsMetrics({ items, enabled, initialFilters }) {
   const [metricsBySlug, setMetricsBySlug] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState(null);
@@ -19,23 +42,62 @@ export default function useAnalyticsMetrics({ items, enabled }) {
   const [sortDirection, setSortDirection] = useState('desc');
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
   const [metricsEditor, setMetricsEditor] = useState(null);
+  const [filtersState, setFiltersState] = useState(() => normalizeFilters(initialFilters));
 
   const pendingMetricsRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!initialFilters) return;
+    setFiltersState((prev) => {
+      const next = normalizeFilters(initialFilters);
+      const keys = Object.keys(next);
+      const changed = keys.some((key) => next[key] !== prev[key]);
+      return changed ? next : prev;
+    });
+  }, [initialFilters]);
+
+  const filters = useMemo(() => ({ ...filtersState }), [filtersState]);
+
+  const filteredItems = useMemo(() => {
+    if (!Array.isArray(items)) return [];
+    const normalizedQuery = filters.query.trim().toLowerCase();
+
+    return items.filter((item) => {
+      if (!item) return false;
+      if (filters.type && item.type !== filters.type) return false;
+      if (filters.orientation && item.orientation !== filters.orientation) return false;
+      if (normalizedQuery) {
+        const haystack = `${item.title || ''} ${item.slug || ''}`.toLowerCase();
+        if (!haystack.includes(normalizedQuery)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [items, filters]);
 
   useEffect(() => {
     setMetricsBySlug((prev) => {
       if (!prev || typeof prev !== 'object') return {};
       const next = {};
-      items.forEach((item) => {
+      const allowedSlugs = new Set();
+      filteredItems.forEach((item) => {
         if (item.slug && prev[item.slug]) next[item.slug] = prev[item.slug];
+        if (item.slug) allowedSlugs.add(item.slug);
+      });
+      const pendingSet = pendingMetricsRef.current;
+      pendingSet.forEach((slug) => {
+        if (!allowedSlugs.has(slug)) {
+          pendingSet.delete(slug);
+        }
       });
       return next;
     });
-  }, [items]);
+  }, [filteredItems]);
 
   useEffect(() => {
     if (!enabled) return undefined;
-    const slugs = items.map((item) => item.slug).filter(Boolean);
+    const slugs = filteredItems.map((item) => item.slug).filter(Boolean);
     const pendingSet = pendingMetricsRef.current;
     const fetchTargets = slugs.filter((slug) => !metricsBySlug[slug] && !pendingSet.has(slug));
 
@@ -132,17 +194,17 @@ export default function useAnalyticsMetrics({ items, enabled }) {
       fetchTargets.forEach((slug) => pendingSet.delete(slug));
       setMetricsLoading(false);
     };
-  }, [enabled, items, metricsBySlug]);
+  }, [enabled, filteredItems, metricsBySlug]);
 
   const analyticsRows = useMemo(
     () =>
-      items
+      filteredItems
         .filter((item) => item.slug)
         .map((item) => ({
           ...item,
           metrics: metricsBySlug[item.slug] || null,
         })),
-    [items, metricsBySlug]
+    [filteredItems, metricsBySlug]
   );
 
   const sortedAnalyticsRows = useMemo(() => {
@@ -188,6 +250,27 @@ export default function useAnalyticsMetrics({ items, enabled }) {
       ...prev,
       [column]: !prev[column],
     }));
+  }, []);
+
+  const setFilters = useCallback((updater) => {
+    setFiltersState((prev) => {
+      const draft = { ...prev };
+      const patch = typeof updater === 'function' ? updater(draft) : updater;
+      const merged = { ...prev, ...(patch || {}) };
+      const normalized = normalizeFilters(merged);
+      const keys = Object.keys(normalized);
+      const changed = keys.some((key) => normalized[key] !== prev[key]);
+      return changed ? normalized : prev;
+    });
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setFiltersState((prev) => {
+      const next = { ...DEFAULT_FILTERS };
+      const keys = Object.keys(next);
+      const changed = keys.some((key) => next[key] !== prev[key]);
+      return changed ? next : prev;
+    });
   }, []);
 
   const setSort = useCallback((key) => {
@@ -257,6 +340,10 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     sortedAnalyticsRows,
     analyticsTotals,
     averageLikeRate,
+    filteredItems,
+    filters,
+    setFilters,
+    resetFilters,
     metricsBySlug,
     metricsLoading,
     metricsError,
