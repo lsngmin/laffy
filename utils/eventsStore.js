@@ -241,6 +241,105 @@ end
 return ingested
 `;
 
+const SUMMARY_LUA_SCRIPT = `
+local okDates, dateKeys = pcall(cjson.decode, ARGV[1] or '[]')
+if not okDates or type(dateKeys) ~= 'table' then
+  dateKeys = {}
+end
+
+local okCombos, combos = pcall(cjson.decode, ARGV[2] or '[]')
+if not okCombos or type(combos) ~= 'table' then
+  combos = {}
+end
+
+local comboResults = {}
+local comboSessions = {}
+local timeseries = {}
+
+for i = 1, #combos do
+  local combo = combos[i]
+  if type(combo) == 'table' then
+    local name = combo['name']
+    local slug = combo['slug'] or '${GLOBAL_SLUG}'
+    local comboKey = combo['comboKey']
+    if (type(comboKey) ~= 'string' or comboKey == '') and type(name) == 'string' and name ~= '' then
+      comboKey = name .. '::' .. slug
+    end
+
+    if type(name) == 'string' and name ~= '' and type(slug) == 'string' and slug ~= '' and comboKey then
+      local totalCount = 0
+      local totalValue = 0
+      local lastTs = 0
+      local sessionKeys = {}
+
+      for j = 1, #dateKeys do
+        local dateKey = dateKeys[j]
+        if type(dateKey) == 'string' and dateKey ~= '' then
+          local aggKey = 'events:agg:' .. dateKey .. ':' .. name .. ':' .. slug
+          local aggValues = redis.call('HMGET', aggKey, 'count', 'sum_value', 'last_ts')
+          if aggValues and #aggValues >= 3 then
+            local count = tonumber(aggValues[1]) or 0
+
+            if count > 0 then
+              local sumValue = tonumber(aggValues[2]) or 0
+              local last = tonumber(aggValues[3]) or 0
+
+              totalCount = totalCount + count
+              totalValue = totalValue + sumValue
+              if last > lastTs then
+                lastTs = last
+              end
+
+              local tsEntry = timeseries[dateKey]
+              if not tsEntry then
+                tsEntry = { count = 0, value = 0 }
+              end
+              tsEntry.count = tsEntry.count + count
+              tsEntry.value = tsEntry.value + sumValue
+              timeseries[dateKey] = tsEntry
+
+              local sessionKey = 'events:sessions:' .. dateKey .. ':' .. name .. ':' .. slug
+              if redis.call('EXISTS', sessionKey) == 1 then
+                sessionKeys[#sessionKeys + 1] = sessionKey
+              end
+            end
+          end
+        end
+      end
+
+      comboResults[comboKey] = {
+        count = totalCount,
+        value = totalValue,
+        lastTs = lastTs,
+        name = name,
+        slug = slug,
+      }
+      comboSessions[comboKey] = sessionKeys
+    end
+  end
+end
+
+local uniqueSessions = {}
+for comboKey, sessionKeys in pairs(comboSessions) do
+  if type(sessionKeys) == 'table' and #sessionKeys > 0 then
+    local ok, result = pcall(redis.call, 'PFCOUNT', unpack(sessionKeys))
+    if ok then
+      uniqueSessions[comboKey] = tonumber(result) or 0
+    else
+      uniqueSessions[comboKey] = 0
+    end
+  else
+    uniqueSessions[comboKey] = 0
+  end
+end
+
+return cjson.encode({
+  combos = comboResults,
+  uniques = uniqueSessions,
+  timeseries = timeseries,
+})
+`;
+
 function ensureMemoryStore() {
   if (!global.__eventStore) {
     global.__eventStore = {
@@ -419,16 +518,134 @@ function entriesToObject(entries) {
   return obj;
 }
 
-async function getSummaryFromRedis(options = {}) {
-  const range = normalizeRange(options.startDate, options.endDate);
-  const dateKeys = rangeToDateKeys(range);
-  const limit = clampLimit(options.limit, 50);
-  const combosRaw = await fetchCatalogFromRedis();
-  const catalog = buildCatalogFromCombos(combosRaw);
-  const combos = filterCombos(combosRaw, {
-    eventName: options.eventName,
-    slug: options.slug,
+function createEmptySummaryResult(catalog) {
+  return {
+    items: [],
+    totals: {
+      count: 0,
+      uniqueSessions: 0,
+      visitors: 0,
+      pageViews: 0,
+      bounceEvents: 0,
+      bounceRate: 0,
+      pageViewEventNames: [],
+      visitorEventNames: [],
+      bounceEventNames: [],
+    },
+    timeseries: [],
+    catalog: catalog || { events: [], slugsByEvent: {} },
+  };
+}
+
+function parseSummaryScriptResult(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.warn('[events] failed to parse summary script result', error);
+      return null;
+    }
+  }
+  if (typeof raw === 'object') {
+    return raw;
+  }
+  return null;
+}
+
+function buildSummaryFromScriptData({ combos, limit, catalog, scriptData }) {
+  if (!scriptData || typeof scriptData !== 'object') {
+    return createEmptySummaryResult(catalog);
+  }
+
+  const comboResults = scriptData.combos && typeof scriptData.combos === 'object' ? scriptData.combos : {};
+  const uniqueResults = scriptData.uniques && typeof scriptData.uniques === 'object' ? scriptData.uniques : {};
+  const timeseriesRaw = scriptData.timeseries && typeof scriptData.timeseries === 'object' ? scriptData.timeseries : {};
+
+  const items = [];
+  let totalCount = 0;
+  let totalUnique = 0;
+  let totalPageViews = 0;
+  let totalBounceEvents = 0;
+  const pageViewEvents = new Set();
+  const visitorEvents = new Set();
+  const bounceEvents = new Set();
+
+  combos.forEach((combo) => {
+    const slugKey = combo.slug || GLOBAL_SLUG;
+    const comboKey = serializeCombo(combo.name, slugKey);
+    const entry = comboResults[comboKey] || {};
+    const comboCount = Number(entry.count) || 0;
+    if (!comboCount) return;
+    const comboValue = Number(entry.value) || 0;
+    const lastTs = Number(entry.lastTs) || 0;
+    const uniqueSessions = Number(uniqueResults[comboKey]) || 0;
+
+    totalCount += comboCount;
+    totalUnique += uniqueSessions;
+
+    const { isPageView, isVisitor, isBounce } = classifyEventName(combo.name);
+    if (isPageView) {
+      totalPageViews += comboCount;
+      pageViewEvents.add(combo.name);
+    }
+    if (isVisitor) {
+      visitorEvents.add(combo.name);
+    }
+    if (isBounce) {
+      totalBounceEvents += comboCount;
+      bounceEvents.add(combo.name);
+    }
+
+    items.push({
+      eventName: combo.name,
+      slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
+      count: comboCount,
+      uniqueSessions,
+      valueSum: comboValue,
+      lastTimestamp: lastTs || null,
+      lastDate: lastTs ? new Date(lastTs).toISOString() : null,
+    });
   });
+
+  items.sort((a, b) => b.count - a.count);
+  const limitedItems = limit ? items.slice(0, limit) : items;
+
+  const timeseries = Object.entries(timeseriesRaw)
+    .map(([date, value]) => {
+      const count = Number(value?.count) || 0;
+      const sumValue = Number(value?.value) || 0;
+      return { date, count, valueSum: sumValue };
+    })
+    .filter((entry) => entry.count > 0 || entry.valueSum > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const visitors = totalUnique;
+  const effectivePageViews = pageViewEvents.size ? totalPageViews : totalCount;
+  const bounceRate = visitors > 0 ? totalBounceEvents / visitors : 0;
+
+  return {
+    items: limitedItems,
+    totals: {
+      count: totalCount,
+      uniqueSessions: totalUnique,
+      visitors,
+      pageViews: effectivePageViews,
+      bounceEvents: totalBounceEvents,
+      bounceRate,
+      pageViewEventNames: Array.from(pageViewEvents),
+      visitorEventNames: Array.from(visitorEvents),
+      bounceEventNames: Array.from(bounceEvents),
+    },
+    timeseries,
+    catalog,
+  };
+}
+
+async function getSummaryFromRedisFallback({ combos, dateKeys, limit, catalog }) {
+  if (!combos.length || !dateKeys.length) {
+    return createEmptySummaryResult(catalog);
+  }
 
   const items = [];
   const timeseriesMap = new Map();
@@ -538,6 +755,48 @@ async function getSummaryFromRedis(options = {}) {
     timeseries,
     catalog,
   };
+}
+
+async function getSummaryFromRedis(options = {}) {
+  const range = normalizeRange(options.startDate, options.endDate);
+  const dateKeys = rangeToDateKeys(range);
+  const limit = clampLimit(options.limit, 50);
+  const combosRaw = await fetchCatalogFromRedis();
+  const catalog = buildCatalogFromCombos(combosRaw);
+  const combos = filterCombos(combosRaw, {
+    eventName: options.eventName,
+    slug: options.slug,
+  });
+
+  if (!combos.length || !dateKeys.length) {
+    return createEmptySummaryResult(catalog);
+  }
+
+  const payload = combos.map((combo) => {
+    const slugKey = combo.slug || GLOBAL_SLUG;
+    return {
+      name: combo.name,
+      slug: slugKey,
+      comboKey: serializeCombo(combo.name, slugKey),
+    };
+  });
+
+  try {
+    const rawResult = await redisEvalScript(
+      SUMMARY_LUA_SCRIPT,
+      [],
+      [JSON.stringify(dateKeys), JSON.stringify(payload)],
+      { allowReadOnly: true }
+    );
+    const parsed = parseSummaryScriptResult(rawResult);
+    if (!parsed) {
+      throw new Error('invalid summary script response');
+    }
+    return buildSummaryFromScriptData({ combos, limit, catalog, scriptData: parsed });
+  } catch (error) {
+    console.warn('[events] summary script failed, falling back to manual aggregation', error);
+    return getSummaryFromRedisFallback({ combos, dateKeys, limit, catalog });
+  }
 }
 
 function getSummaryFromMemory(options = {}) {
