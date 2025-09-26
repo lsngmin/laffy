@@ -9,6 +9,27 @@ const DEFAULT_COLUMNS = {
   edit: true,
 };
 
+const DEFAULT_FILTERS = {
+  type: '',
+  orientation: '',
+  query: '',
+};
+
+const BATCH_FETCH_LIMIT = 10;
+
+function normalizeFilters(rawFilters) {
+  if (!rawFilters || typeof rawFilters !== 'object') {
+    return { ...DEFAULT_FILTERS };
+  }
+
+  return {
+    type: typeof rawFilters.type === 'string' ? rawFilters.type.trim() : '',
+    orientation:
+      typeof rawFilters.orientation === 'string' ? rawFilters.orientation.trim() : '',
+    query: typeof rawFilters.query === 'string' ? rawFilters.query.trim() : '',
+  };
+}
+
 function normalizeHistory(entries) {
   if (!Array.isArray(entries)) return [];
   return entries
@@ -20,13 +41,19 @@ function normalizeHistory(entries) {
     .filter((entry) => Boolean(entry.date));
 }
 
-export default function useAnalyticsMetrics({ items, enabled, startDate, endDate }) {
+export default function useAnalyticsMetrics({
+  items,
+  enabled,
+  initialFilters = DEFAULT_FILTERS,
+  startDate,
+  endDate,
+}) {
   const [metricsBySlug, setMetricsBySlug] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState(null);
   const [sortKey, setSortKey] = useState('views');
   const [sortDirection, setSortDirection] = useState('desc');
-  const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
+  const [visibleColumns, setVisibleColumns] = useState(() => ({ ...DEFAULT_COLUMNS }));
   const [metricsEditor, setMetricsEditor] = useState(null);
   const [selectedSlugs, setSelectedSlugs] = useState([]);
   const [filtersState, setFiltersState] = useState(() => normalizeFilters(initialFilters));
@@ -35,48 +62,28 @@ export default function useAnalyticsMetrics({ items, enabled, startDate, endDate
   const pendingMetricsRef = useRef(new Set());
   const rangeActive = Boolean(startDate && endDate);
 
-  const normalizedInitialFilters = useMemo(
-    () => ({
-      ...DEFAULT_FILTERS,
-      ...(initialFilters || {}),
-    }),
-    [initialFilters?.orientation, initialFilters?.query, initialFilters?.type]
-  );
-
   useEffect(() => {
-    setFilters((prev) => {
-      const next = normalizedInitialFilters;
-      if (
-        prev.type === next.type &&
-        prev.orientation === next.orientation &&
-        prev.query === next.query
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [normalizedInitialFilters]);
-
-  useEffect(() => {
-    if (!initialFilters) return;
     setFiltersState((prev) => {
       const next = normalizeFilters(initialFilters);
       const keys = Object.keys(next);
       const changed = keys.some((key) => next[key] !== prev[key]);
       return changed ? next : prev;
     });
-  }, [initialFilters]);
+  }, [initialFilters?.orientation, initialFilters?.query, initialFilters?.type]);
 
   const filters = useMemo(() => ({ ...filtersState }), [filtersState]);
 
   const filteredItems = useMemo(() => {
     if (!Array.isArray(items)) return [];
-    const normalizedQuery = filters.query.trim().toLowerCase();
+
+    const activeType = filters.type || '';
+    const activeOrientation = filters.orientation || '';
+    const normalizedQuery = (filters.query || '').trim().toLowerCase();
 
     return items.filter((item) => {
-      if (!item) return false;
-      if (filters.type && item.type !== filters.type) return false;
-      if (filters.orientation && item.orientation !== filters.orientation) return false;
+      if (!item || !item.slug) return false;
+      if (activeType && item.type !== activeType) return false;
+      if (activeOrientation && item.orientation !== activeOrientation) return false;
       if (normalizedQuery) {
         const haystack = `${item.title || ''} ${item.slug || ''}`.toLowerCase();
         if (!haystack.includes(normalizedQuery)) {
@@ -85,7 +92,7 @@ export default function useAnalyticsMetrics({ items, enabled, startDate, endDate
       }
       return true;
     });
-  }, [items, filters]);
+  }, [filters.orientation, filters.query, filters.type, items]);
 
   useEffect(() => {
     setMetricsBySlug((prev) => {
@@ -249,23 +256,6 @@ export default function useAnalyticsMetrics({ items, enabled, startDate, endDate
     };
 
   }, [enabled, filteredItems, metricsBySlug, startDate, endDate, items]);
-
-  const filteredItems = useMemo(() => {
-    const activeType = filters.type || '';
-    const activeOrientation = filters.orientation || '';
-    const query = (filters.query || '').trim().toLowerCase();
-
-    return items.filter((item) => {
-      if (!item?.slug) return false;
-      if (activeType && item.type !== activeType) return false;
-      if (activeOrientation && item.orientation !== activeOrientation) return false;
-      if (query) {
-        const haystack = `${item.title || ''} ${item.slug || ''}`.toLowerCase();
-        if (!haystack.includes(query)) return false;
-      }
-      return true;
-    });
-  }, [filters.orientation, filters.query, filters.type, items]);
 
   const selectedSlugSet = useMemo(() => new Set(selectedSlugs), [selectedSlugs]);
 
@@ -538,14 +528,40 @@ export default function useAnalyticsMetrics({ items, enabled, startDate, endDate
     const list = Array.isArray(updates) ? updates : [updates];
     setMetricsBySlug((prev) => {
       const next = { ...prev };
-      const existing = next[slug] || {};
-
       list.forEach((update) => {
         if (!update || typeof update.slug !== 'string') return;
         const slug = update.slug;
-        const views = Number(update.views) || 0;
-        const likes = Number(update.likes) || 0;
-        next[slug] = { ...existing, views, likes };
+        const existing =
+          slug in next && next[slug] && typeof next[slug] === 'object' ? next[slug] : {};
+        const entry = { ...existing };
+
+        if ('views' in update) {
+          entry.views = Number(update.views) || 0;
+        }
+
+        if ('likes' in update) {
+          entry.likes = Math.max(0, Number(update.likes) || 0);
+        }
+
+        if ('liked' in update) {
+          entry.liked = Boolean(update.liked);
+        }
+
+        if ('history' in update) {
+          entry.history = Array.isArray(update.history) ? update.history : null;
+        }
+
+        if ('rangeTotals' in update) {
+          entry.rangeTotals =
+            update.rangeTotals && typeof update.rangeTotals === 'object'
+              ? {
+                  views: Number(update.rangeTotals.views) || 0,
+                  likes: Math.max(0, Number(update.rangeTotals.likes) || 0),
+                }
+              : null;
+        }
+
+        next[slug] = entry;
       });
 
       return next;
@@ -607,8 +623,6 @@ export default function useAnalyticsMetrics({ items, enabled, startDate, endDate
     clearSelection,
     selectAllRows,
     buildCsv,
-    filters,
-    setFilters,
     updateFilters,
   };
 }

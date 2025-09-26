@@ -108,6 +108,22 @@ export default function AdminPage() {
   const [isHistoryOpen, setHistoryOpen] = useState(false);
   const [isCsvModalOpen, setCsvModalOpen] = useState(false);
 
+  const [analyticsStartDate, setAnalyticsStartDate] = useState('');
+  const [analyticsEndDate, setAnalyticsEndDate] = useState('');
+
+  const analyticsInitialFilters = useMemo(
+    () => ({ type: '', orientation: '', query: '' }),
+    []
+  );
+
+  const analytics = useAnalyticsMetrics({
+    items,
+    enabled: hasToken && view === 'analytics',
+    initialFilters: analyticsInitialFilters,
+    startDate: analyticsStartDate,
+    endDate: analyticsEndDate,
+  });
+
   const fetchHistory = useCallback(
     async (options = {}) => {
       if (!hasToken) return;
@@ -140,20 +156,6 @@ export default function AdminPage() {
       }
     },
     [analytics.selectedSlugs, hasToken, token]
-  );
-  const [analyticsStartDate, setAnalyticsStartDate] = useState('');
-  const [analyticsEndDate, setAnalyticsEndDate] = useState('');
-
-  const analytics = useAnalyticsMetrics({
-    items,
-    enabled: hasToken && view === 'analytics',
-    initialFilters: analyticsInitialFilters,
-    startDate: analyticsStartDate,
-    endDate: analyticsEndDate,
-  });
-  const analyticsInitialFilters = useMemo(
-    () => ({ type: '', orientation: '', query: '' }),
-    []
   );
 
   const defaultAdsterraRange = useMemo(() => getDefaultAdsterraDateRange(), []);
