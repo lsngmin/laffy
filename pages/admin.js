@@ -43,7 +43,7 @@ const NAV_ITEMS = [
   { key: 'events', label: '분석', ariaLabel: '커스텀 이벤트 분석', requiresToken: true },
   { key: 'ads', label: '수익', ariaLabel: '수익 분석', requiresToken: true },
   { key: 'insights', label: '인사이트', ariaLabel: '통합 인사이트', requiresToken: true },
-  { key: 'heatmap', label: '분석', ariaLabel: '히트맵 분석', requiresToken: true },
+  { key: 'heatmap', label: '히트맵', ariaLabel: '히트맵 분석', requiresToken: true },
 ];
 
 const NAV_KEYS = new Set(NAV_ITEMS.map((item) => item.key));
@@ -60,6 +60,46 @@ function getDefaultAdsterraDateRange() {
     return `${year}-${month}-${day}`;
   };
   return { start: toInput(start), end: toInput(end) };
+}
+
+const KST_TO_UTC_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+function toAdsterraDateLabel(value) {
+  if (!value && value !== 0) return '';
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '';
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (KST_TO_UTC_DATE_ONLY.test(raw)) {
+    const parsed = new Date(`${raw}T00:00:00+09:00`);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(raw.includes('T') ? raw : `${raw}Z`);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+}
+
+function convertEventSeriesToAdsterraTimezone(series) {
+  if (!Array.isArray(series)) return [];
+  const map = new Map();
+  series.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const label = toAdsterraDateLabel(entry.date);
+    if (!label) return;
+    const count = Number(entry.count) || 0;
+    const valueSum = Number(entry.valueSum) || 0;
+    const sortKey = Date.parse(`${label}T00:00:00Z`);
+    const current = map.get(label) || { date: label, count: 0, valueSum: 0, sortKey };
+    current.count += count;
+    current.valueSum += Number.isFinite(valueSum) ? valueSum : 0;
+    map.set(label, current);
+  });
+  return Array.from(map.values())
+    .sort((a, b) => (a.sortKey || 0) - (b.sortKey || 0))
+    .map(({ sortKey, ...rest }) => rest);
 }
 
 async function generateSlug(blob) {
@@ -107,6 +147,13 @@ export default function AdminPage() {
     const stored = window.localStorage.getItem('laffy-admin-view');
     return stored && NAV_KEYS.has(stored) ? stored : 'uploads';
   });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('laffy-admin-view');
+    if (stored && NAV_KEYS.has(stored)) {
+      setView(stored);
+    }
+  }, []);
   const [heatmapSlug, setHeatmapSlug] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -246,30 +293,42 @@ export default function AdminPage() {
     filters: { limit: 200 },
   });
 
+  const insightsEventSeriesInAdsterraTz = useMemo(
+    () => convertEventSeriesToAdsterraTimezone(insightsEvents.data.timeseries),
+    [insightsEvents.data.timeseries]
+  );
+
   const adCorrelationSeries = useMemo(() => {
     const seriesMap = new Map();
     adsterra.filteredStats.forEach((row) => {
       if (!row || typeof row !== 'object') return;
-      const rawLabel = row.localDate || row.date || row.day || row.Day || row.group;
-      const key = row.localDateIso || rawLabel;
-      if (!key || !rawLabel) return;
+      const rawLabel = row.rawDate || row.date || row.day || row.Day || row.group;
+      if (!rawLabel) return;
+      const label = typeof rawLabel === 'string' && rawLabel ? rawLabel : String(rawLabel);
+      if (!label) return;
+      const sortKey = Date.parse(`${label}T00:00:00Z`);
       const impressions = Number(row?.impression ?? row?.impressions ?? 0) || 0;
       const clicks = Number(row?.clicks ?? row?.click ?? 0) || 0;
       const revenue = Number(row?.revenue ?? 0) || 0;
-      const current = seriesMap.get(key) || {
-        label: rawLabel,
+      const current = seriesMap.get(label) || {
+        label,
         impressions: 0,
         clicks: 0,
         revenue: 0,
+        sortKey,
       };
-      current.label = rawLabel;
       current.impressions += impressions;
       current.clicks += clicks;
       current.revenue += revenue;
-      seriesMap.set(key, current);
+      current.sortKey = Number.isFinite(sortKey) ? sortKey : current.sortKey;
+      seriesMap.set(label, current);
     });
     return Array.from(seriesMap.entries())
-      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .sort((a, b) => {
+        const aSort = Number.isFinite(a[1].sortKey) ? a[1].sortKey : Date.parse(`${a[0]}T00:00:00Z`);
+        const bSort = Number.isFinite(b[1].sortKey) ? b[1].sortKey : Date.parse(`${b[0]}T00:00:00Z`);
+        return (aSort || 0) - (bSort || 0);
+      })
       .map(([key, value]) => ({ date: value.label, ...value, key }));
   }, [adsterra.filteredStats]);
 
@@ -937,7 +996,7 @@ export default function AdminPage() {
               formatPercent={formatPercent}
             />
             <EventAdCorrelation
-              eventSeries={insightsEvents.data.timeseries}
+              eventSeries={insightsEventSeriesInAdsterraTz}
               adSeries={adCorrelationSeries}
               formatNumber={formatNumber}
               formatDecimal={formatDecimal}
