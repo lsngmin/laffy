@@ -9,7 +9,30 @@ export default function AnalyticsToolbar({
   onOpenBulkEditor,
   onOpenHistory,
   onOpenCsvUpload,
+  startDate,
+  endDate,
+  onDateChange,
+  filters,
+  onFilterChange,
+
 }) {
+  const resolvedFilters = filters || {};
+  const typeValue = resolvedFilters.type || '';
+  const orientationValue = resolvedFilters.orientation || '';
+  const queryValue = resolvedFilters.query || '';
+
+  const handleQueryChange = (event) => {
+    onFilterChange?.({ query: event.target.value });
+  };
+
+  const handleTypeChange = (event) => {
+    onFilterChange?.({ type: event.target.value });
+  };
+
+  const handleOrientationChange = (event) => {
+    onFilterChange?.({ orientation: event.target.value });
+  };
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -34,6 +57,7 @@ export default function AnalyticsToolbar({
         </button>
       </div>
       <div className="flex flex-col gap-3 text-xs text-slate-300 md:flex-row md:items-center md:justify-between">
+
         <div className="flex flex-wrap items-center gap-2">
           {Object.entries(visibleColumns).map(([key, value]) => (
             <label
@@ -84,6 +108,7 @@ export default function AnalyticsToolbar({
             CSV 다운로드
           </button>
         </div>
+
       </div>
     </div>
   );
