@@ -5,18 +5,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!assertAdmin(req, res)) return;
   try {
-    const { url, pathname, slug, type } = req.body || {};
+    const { url, pathname, slug } = req.body || {};
     const target = url || pathname;
     if (!target) return res.status(400).json({ error: 'Missing url or pathname' });
     await del(target, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    const revalidateTargets = new Set(['/m', '/x']);
-    const normalizedType = typeof type === 'string' ? type.toLowerCase() : '';
+    const revalidateTargets = new Set(['/x']);
     if (slug) {
-      if (normalizedType === 'image') {
-        revalidateTargets.add(`/x/${slug}`);
-      } else {
-        revalidateTargets.add(`/m/${slug}`);
-      }
+      revalidateTargets.add(`/x/${slug}`);
     }
     if (typeof res.revalidate === 'function') {
       await Promise.all(

@@ -3,8 +3,7 @@ import { getAllContent } from '@/utils/contentSource';
 function xml(items) {
   const urls = items
     .map((it) => {
-      const isImage = (it.type || '').toLowerCase() === 'image';
-      const path = isImage ? `/x/${it.slug}` : `/m/${it.slug}`;
+      const path = `/x/${it.slug}`;
       const lastmod = it.publishedAt || new Date().toISOString();
       return `<url><loc>${path}</loc><lastmod>${lastmod}</lastmod></url>`;
     })
@@ -19,7 +18,7 @@ export async function getServerSideProps({ res, req }) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL
     || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`);
-  const withOrigin = items.map((it) => ({ ...it, slug: `${origin}${(it.type || '').toLowerCase() === 'image' ? '/x/' : '/m/'}${it.slug}` }));
+  const withOrigin = items.map((it) => ({ ...it, slug: `${origin}/x/${it.slug}` }));
   const body = xml(withOrigin);
   res.setHeader('Content-Type', 'application/xml');
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
