@@ -170,7 +170,7 @@ export default function ImageDetail(props) {
       showRecommended={false}
       recommendSlot={
         <div className="mt-10 flex justify-center">
-          <BannerRect width={300} height={250} />
+        {/* todo: 여기에 만든 광고 배너 추가*/}
         </div>
       }
       belowVideoSlot={null}
