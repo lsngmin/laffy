@@ -20,7 +20,7 @@ export default function VideoCard({
     const [overlay, setOverlay] = useState(true);
 
     const isImage = mediaType === "image";
-    const SMART_LINK = "https://smartlink.example.com";
+    const SMART_LINK = "https://otieu.com/4/9924601";
 
     useEffect(() => {
         setOverlay(true);
