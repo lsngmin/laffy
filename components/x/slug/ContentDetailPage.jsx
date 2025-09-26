@@ -18,8 +18,6 @@ const RelishInvokeAd = dynamic(() => import("@/components/x/ads/RelishInvokeAd")
 export default function ContentDetailPage({
   meme,
   disableVideo = false,
-  hideBackToFeed = false,
-  backSlot = null,
   onPreviewClick,
   onCtaClick,
 }) {
