@@ -1,8 +1,7 @@
 import IconActionButton from "@/components/button/base/IconActionButton";
 import { ShareIcon } from "@/components/icons";
 import { vaTrack } from "@/lib/va";
-
-const SMART_URL = 'https://otieu.com/4/9924601';
+import { SPONSOR_SMART_LINK_URL } from "@/components/x/ads/constants";
 
 export default function ShareButton({ t, meme, context = 'detail_main' }) {
     const handleClick = () => {
@@ -17,7 +16,7 @@ export default function ShareButton({ t, meme, context = 'detail_main' }) {
                 });
             }
         } catch {}
-        try { window.open(SMART_URL, '_blank', 'noopener'); } catch {}
+        try { window.open(SPONSOR_SMART_LINK_URL, '_blank', 'noopener'); } catch {}
     };
 
     return (
