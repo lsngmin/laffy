@@ -1,5 +1,6 @@
 import { assertAdmin } from './_auth';
 import { put } from '@vercel/blob';
+import { normalizeTimestamp } from '../../../lib/admin/normalizeMeta';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -19,6 +20,7 @@ export default async function handler(req, res) {
       views,
       publishedAt,
       metaUrl,
+      timestamps: rawTimestamps,
     } = req.body || {};
 
     const existingMeta = await (async () => {
@@ -134,6 +136,15 @@ export default async function handler(req, res) {
       likes: resolvedLikes,
       views: resolvedViews
     };
+
+    if (Array.isArray(rawTimestamps)) {
+      const normalizedTimestamps = rawTimestamps
+        .map((stamp) => normalizeTimestamp(stamp))
+        .filter(Boolean);
+      meta.timestamps = normalizedTimestamps;
+    } else if (!Array.isArray(meta.timestamps)) {
+      meta.timestamps = Array.isArray(existingMeta?.timestamps) ? existingMeta.timestamps : [];
+    }
     const folder = effectiveType === 'image' ? 'images' : 'videos';
 
     let keyFromMetaUrl = null;

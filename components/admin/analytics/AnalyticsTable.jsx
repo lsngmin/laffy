@@ -1,0 +1,55 @@
+import AnalyticsEmptyState from './AnalyticsEmptyState';
+import AnalyticsRow from './AnalyticsRow';
+
+export default function AnalyticsTable({
+  rows,
+  metricsLoading,
+  metricsError,
+  formatNumber,
+  formatPercent,
+  onEdit,
+  visibleColumns,
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/70">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-800/70 text-sm">
+          <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-widest text-slate-400">
+            <tr>
+              <th className="px-4 py-3 font-semibold">콘텐츠</th>
+              <th className="px-4 py-3 font-semibold">타입</th>
+              {visibleColumns.views && <th className="px-4 py-3 text-right font-semibold">조회수</th>}
+              {visibleColumns.likes && <th className="px-4 py-3 text-right font-semibold">좋아요</th>}
+              {visibleColumns.likeRate && <th className="px-4 py-3 text-right font-semibold">좋아요율</th>}
+              {visibleColumns.route && <th className="px-4 py-3 text-right font-semibold">링크</th>}
+              {visibleColumns.edit && <th className="px-4 py-3 text-right font-semibold">편집</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/60">
+            {rows.map((row) => (
+              <AnalyticsRow
+                key={row.slug}
+                row={row}
+                metrics={row.metrics}
+                metricsLoading={metricsLoading}
+                formatNumber={formatNumber}
+                formatPercent={formatPercent}
+                onEdit={onEdit}
+                visibleColumns={visibleColumns}
+              />
+            ))}
+            {!rows.length && <AnalyticsEmptyState />}
+          </tbody>
+        </table>
+      </div>
+      {metricsLoading && (
+        <div className="border-t border-slate-800/70 bg-slate-900/70 px-4 py-3 text-right text-xs text-slate-400">
+          메트릭을 불러오는 중입니다…
+        </div>
+      )}
+      {metricsError && (
+        <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{metricsError}</div>
+      )}
+    </div>
+  );
+}
