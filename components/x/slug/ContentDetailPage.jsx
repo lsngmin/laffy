@@ -108,7 +108,7 @@ export default function ContentDetailPage({
   return (
     <>
       {/* Basic title/description */}
-      <TitleNameHead title={meme.title} description={meme.description} />
+      <TitleNameHead title={meme.description} />
       {/* SEO: canonical, hreflang, JSON-LD (injected by pages via props if present) */}
       {meme.__seo && (
         <ImageSocialMeta seo={meme.__seo} title={safeTitle} description={safeDesc} />
@@ -127,15 +127,14 @@ export default function ContentDetailPage({
             ariaLabel={t("nav.label", "navigation")}
           />
 
-          <div className="mt-6 flex justify-center">
-            <RelishInvokeAd />
-          </div>
-
           <ElevatedNoticePanel />
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
+            <div className="flex justify-center">
+              <RelishInvokeAd />
+            </div>
             <header className="space-y-4">
-              <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.description}</h1>
+              <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.title}</h1>
               <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-slate-300/90">
                 {relativeTime && <span>{`${t("meta.postedLabel")}: ${relativeTime}`}</span>}
                 {viewsDisplay && <span>{`${t("meta.viewsLabel")}: ${viewsDisplay}`}</span>}
@@ -146,7 +145,7 @@ export default function ContentDetailPage({
             <div>
               <VideoCard
                 poster={meme.poster}
-                title={meme.title}
+                title={meme.description}
                 aspect={mediaAspect}
                 slug={meme.slug}
                 disablePlay={disableVideo}

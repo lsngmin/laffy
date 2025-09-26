@@ -1,34 +1,112 @@
 import Link from "next/link";
 
-import { CompassIcon, HeartIcon, EyeIcon, SparkIcon } from "@/components/icons";
+import { HeartIcon, EyeIcon, SparkIcon } from "@/components/icons";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { getDetailHref } from "@/lib/paths";
+
+const RAND_MOD = 2147483647;
+const RAND_MULTIPLIER = 16807;
+
+function createSeed(key) {
+    const source = typeof key === "string" && key ? key : "curated";
+    let acc = 0;
+    for (let i = 0; i < source.length; i += 1) {
+        acc = (acc * 31 + source.charCodeAt(i)) % RAND_MOD;
+    }
+    return acc || 1;
+}
+
+function seededShuffle(list, seed) {
+    const result = [...list];
+    let state = seed;
+    for (let i = result.length - 1; i > 0; i -= 1) {
+        state = (state * RAND_MULTIPLIER) % RAND_MOD;
+        const random = state / RAND_MOD;
+        const j = Math.floor(random * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+function toNumber(candidate) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return candidate;
+    }
+    if (typeof candidate === "string") {
+        const parsed = Number(candidate);
+        if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+            return parsed;
+        }
+    }
+    return null;
+}
+
+function pickMetric(item, keys) {
+    for (const key of keys) {
+        const value = key.split(".").reduce((acc, segment) => {
+            if (acc && typeof acc === "object" && segment in acc) {
+                return acc[segment];
+            }
+            return undefined;
+        }, item);
+        const numeric = toNumber(value);
+        if (numeric !== null) {
+            return numeric;
+        }
+    }
+    return 0;
+}
 
 export default function CuratedHighlights({ t, locale, items, currentSlug }) {
     const candidates = Array.isArray(items) ? items : [];
 
-    const curatedItems = candidates
-        .filter((item) => item && item.slug && item.slug !== currentSlug)
+    const filtered = candidates.filter((item) => item && item.slug && item.slug !== currentSlug);
+    const seed = createSeed(currentSlug);
+    const curatedItems = seededShuffle(filtered, seed)
         .slice(0, 4)
-        .map((item) => ({
-            ...item,
-            aspect: getOrientationClass(item.orientation),
-            relativeTime: item.publishedAt ? formatRelativeTime(new Date(item.publishedAt), locale) : null,
-        }));
+        .map((item) => {
+            const aspect = getOrientationClass(item.orientation);
+            const relativeTime = item.publishedAt ? formatRelativeTime(new Date(item.publishedAt), locale) : null;
+            const likes = pickMetric(item, [
+                "likes",
+                "metrics.likes",
+                "metrics.likeCount",
+                "stats.likes",
+                "stats.likeCount",
+                "engagement.likes",
+            ]);
+            const views = pickMetric(item, [
+                "views",
+                "metrics.views",
+                "metrics.viewCount",
+                "stats.views",
+                "stats.viewCount",
+                "engagement.views",
+            ]);
+            const preview = item.thumbnail || item.poster || item.image;
+            return {
+                ...item,
+                aspect,
+                relativeTime,
+                preview,
+                likes,
+                views,
+            };
+        });
 
     if (curatedItems.length === 0) {
         return null;
     }
 
     return (
-        <section className="mt-12 space-y-6 rounded-3xl bg-gradient-to-br from-slate-900/85 via-slate-900/70 to-slate-900/40 p-6 ring-1 ring-slate-800/70 backdrop-blur-xl shadow-[0_35px_80px_-45px_rgba(15,23,42,0.85)] sm:p-9">
+        <section className="mt-12 space-y-6 rounded-3xl bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-slate-900/45 p-6 ring-1 ring-slate-800/70 backdrop-blur-xl shadow-[0_35px_80px_-45px_rgba(15,23,42,0.85)] sm:p-9">
             <header className="space-y-3 text-left">
                 <p className="text-[12px] font-semibold uppercase tracking-[0.25em] text-indigo-200/80">
-                    {t("detail.recommended.eyebrow", "Handpicked For You")}
+                    {t("detail.recommended.eyebrow", "Handpicked Selection")}
                 </p>
                 <div className="space-y-2">
                     <h2 className="text-[26px] font-semibold leading-snug text-white sm:text-[30px]">
-                        {t("detail.recommended.title")}
+                        {t("detail.recommended.title", "Recommended Content")}
                     </h2>
                     <p className="text-sm leading-relaxed text-slate-300/90 sm:text-base">
                         {t("detail.recommended.subtitle")}
@@ -44,10 +122,10 @@ export default function CuratedHighlights({ t, locale, items, currentSlug }) {
                         className="group flex flex-col overflow-hidden rounded-3xl bg-slate-950/50 ring-1 ring-slate-800/70 transition duration-300 hover:-translate-y-1 hover:shadow-[0_25px_60px_-40px_rgba(99,102,241,0.55)] hover:ring-indigo-400/60"
                     >
                         <div className={`relative w-full ${item.aspect} overflow-hidden bg-slate-950/70`}>
-                            {item.thumbnail ? (
+                            {item.preview ? (
                                 <img
-                                    src={item.thumbnail}
-                                    alt={item.title}
+                                    src={item.preview}
+                                    alt={item.title || item.description || "recommended"}
                                     className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
                                     loading="lazy"
                                 />
@@ -56,23 +134,12 @@ export default function CuratedHighlights({ t, locale, items, currentSlug }) {
                                     {t("detail.recommended.noPreview", "미리보기 이미지 없음")}
                                 </div>
                             )}
-                            <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100 shadow-lg backdrop-blur">
-                                <CompassIcon className="h-3.5 w-3.5" />
-                                {item.type === "image"
-                                    ? t("meta.image")
-                                    : item.type === "video"
-                                      ? t("meta.video")
-                                      : t("meta.thread")}
-                            </span>
                         </div>
                         <div className="flex flex-1 flex-col gap-3 p-5">
                             <div className="space-y-2">
                                 <h3 className="text-lg font-semibold leading-tight text-white line-clamp-2">
-                                    {item.title}
+                                    {item.description || item.title}
                                 </h3>
-                                <p className="text-sm leading-relaxed text-slate-300/90 line-clamp-2">
-                                    {item.description}
-                                </p>
                             </div>
                             <div className="mt-auto flex flex-wrap items-center gap-3 text-[13px] font-medium text-slate-400/95">
                                 <span className="inline-flex items-center gap-1 text-rose-200/90">
