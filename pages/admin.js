@@ -12,6 +12,7 @@ import AdsterraControls from '../components/admin/adsterra/AdsterraControls';
 import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCards';
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
 import AdsterraChartPanel from '../components/admin/adsterra/AdsterraChartPanel';
+import HeatmapPanel from '../components/admin/heatmap/HeatmapPanel';
 import EventSummaryCards from '../components/admin/events/EventSummaryCards';
 import EventFilters from '../components/admin/events/EventFilters';
 import EventTable from '../components/admin/events/EventTable';
@@ -30,6 +31,7 @@ import useAdminItems from '../hooks/admin/useAdminItems';
 import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
 import useEventAnalytics from '../hooks/admin/useEventAnalytics';
+import useHeatmapAnalytics from '../hooks/admin/useHeatmapAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
 
@@ -37,6 +39,7 @@ const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
   { key: 'insights', label: '광고 통합 인사이트', requiresToken: true },
+  { key: 'heatmap', label: '히트맵 분석', requiresToken: true },
 ];
 
 function getDefaultAdsterraDateRange() {
@@ -94,6 +97,7 @@ export default function AdminPage() {
   }, [hasToken, token, uploadFilters]);
 
   const [view, setView] = useState('uploads');
+  const [heatmapSlug, setHeatmapSlug] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [orientation, setOrientation] = useState('landscape');
@@ -138,6 +142,12 @@ export default function AdminPage() {
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
     filters: { ...eventFilters, limit: 200 },
+  });
+
+  const heatmapAnalytics = useHeatmapAnalytics({
+    enabled: hasToken && view === 'heatmap',
+    token,
+    slug: heatmapSlug.trim(),
   });
 
   const fetchHistory = useCallback(
@@ -263,7 +273,7 @@ export default function AdminPage() {
   } = useAdminModals({ hasToken, queryString: qs, setItems, refresh });
 
   useEffect(() => {
-    if (!hasToken && (view === 'analytics' || view === 'insights')) {
+    if (!hasToken && (view === 'analytics' || view === 'insights' || view === 'heatmap')) {
       setView('uploads');
     }
   }, [hasToken, view]);
@@ -398,6 +408,16 @@ export default function AdminPage() {
   const handleUploadFiltersChange = useCallback((nextFilters) => {
     setUploadFilters((prev) => ({ ...prev, ...nextFilters }));
   }, []);
+
+  useEffect(() => {
+    if (view !== 'heatmap') return;
+    if (heatmapSlug && heatmapSlug.trim()) return;
+    const source = Array.isArray(items) ? items : [];
+    const firstSlug = source.find((item) => item?.slug)?.slug;
+    if (firstSlug) {
+      setHeatmapSlug(firstSlug);
+    }
+  }, [heatmapSlug, items, view]);
 
   const handleEventFilterChange = useCallback((next) => {
     setEventFilters((prev) => ({ ...prev, ...next }));
@@ -862,6 +882,20 @@ export default function AdminPage() {
               selectedPlacementId={adsterra.placementId}
             />
           </div>
+        )}
+
+        {view === 'heatmap' && (
+          <HeatmapPanel
+            slug={heatmapSlug}
+            onSlugChange={setHeatmapSlug}
+            items={items}
+            data={heatmapAnalytics.data}
+            loading={heatmapAnalytics.loading}
+            error={heatmapAnalytics.error}
+            onRefresh={heatmapAnalytics.refresh}
+            formatNumber={formatNumber}
+            formatPercent={formatPercent}
+          />
         )}
       </div>
 

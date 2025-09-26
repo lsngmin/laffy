@@ -1,7 +1,7 @@
 export default function AdminNav({ items, activeView, onChange }) {
   return (
     <nav className="rounded-full bg-slate-900/60 p-1 shadow-inner shadow-black/40">
-      <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
+      <div className="flex flex-wrap gap-1">
         {items.map((item) => {
           const active = activeView === item.key;
           const disabled = item.disabled;
