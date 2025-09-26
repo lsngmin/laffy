@@ -6,12 +6,13 @@ import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/c
 import { BookmarkLink, BackToFeedLink } from "@/components/link";
 import { useLikes } from "@/hooks/useLikes";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
-import { loadFavorites, toggleFavoriteSlug } from "@/utils/storage";
+import { loadFavorites } from "@/utils/storage";
 import VideoCard from "@/components/x/video/VideoCard";
 import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import CategoryNavigation from "./CategoryNavigation";
 import dynamic from "next/dynamic";
+import { SPONSOR_SMART_LINK_URL } from "@/components/x/ads/constants";
 
 const RelishInvokeAd = dynamic(() => import("@/components/x/ads/RelishInvokeAd"), { ssr: false });
 
@@ -23,8 +24,6 @@ export default function ContentDetailPage({
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, setLikedState, ready: likesReady } = useLikes();
-  const SMART_LINK_URL = "https://otieu.com/4/9924601";
-
   const [isFavorite, setIsFavorite] = useState(false);
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
 
@@ -78,41 +77,6 @@ export default function ContentDetailPage({
     return () => { cancelled = true; };
   }, [meme.slug, meme.views, meme.likes, setLikedState]);
 
-  const handleToggleFavorite = () => {
-    const updated = toggleFavoriteSlug(meme.slug);
-    setIsFavorite(updated.includes(meme.slug));
-  };
-
-  const handleToggleLike = async () => {
-    const prevLiked = liked;
-    const nextLiked = !prevLiked;
-    const prevLikesCount = typeof serverCounts.likes === "number" ? serverCounts.likes : meme.likes;
-
-    setLikedState(meme.slug, nextLiked);
-    setServerCounts((s) => ({
-      ...s,
-      likes: Math.max(0, prevLikesCount + (nextLiked ? 1 : -1)),
-    }));
-
-    try {
-      const res = await fetch("/api/metrics/like", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug: meme.slug, liked: nextLiked }),
-      });
-      if (!res.ok) throw new Error("like_failed");
-      const data = await res.json();
-      const resolvedLikes = typeof data?.likes === "number" ? data.likes : prevLikesCount;
-      setServerCounts((s) => ({ ...s, likes: resolvedLikes }));
-      if (typeof data?.liked === "boolean") {
-        setLikedState(meme.slug, data.liked);
-      }
-    } catch {
-      setLikedState(meme.slug, prevLiked);
-      setServerCounts((s) => ({ ...s, likes: prevLikesCount }));
-    }
-  };
-
   const handlePreviewClick = useCallback(() => {
     onPreviewClick?.();
   }, [onPreviewClick]);
@@ -122,7 +86,7 @@ export default function ContentDetailPage({
   }, [onCtaClick]);
 
   const openSmartLink = useCallback(() => {
-    try { window.location.href = SMART_LINK_URL; } catch {}
+    try { window.location.href = SPONSOR_SMART_LINK_URL; } catch {}
   }, []);
 
   const navItems = useMemo(
@@ -218,20 +182,18 @@ export default function ContentDetailPage({
                 onPreviewClick={handlePreviewClick}
                 durationSeconds={meme.durationSeconds}
               />
-              {disableVideo && (
-                <div className="mt-8 flex w-full justify-center">
-                  <a
-                    href="https://otieu.com/4/9924601"
-                    target="_blank"
-                    rel="noopener"
-                    onClick={handleCtaClick}
-                    className="inline-flex items-center gap-3 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-7 py-3 text-base font-semibold text-white shadow-[0_16px_40px_rgba(79,70,229,0.45)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-200 hover:brightness-110 active:scale-95 sm:px-9 sm:py-3.5 sm:text-lg"
-                    aria-label="스폰서 링크로 이동"
-                  >
-                    ▶ 재생이 안되면 여기를 클릭
-                  </a>
-                </div>
-              )}
+              <div className="mt-8 flex w-full justify-center">
+                <a
+                  href={SPONSOR_SMART_LINK_URL}
+                  target="_blank"
+                  rel="noopener"
+                  onClick={handleCtaClick}
+                  className="inline-flex items-center gap-3 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-7 py-3 text-base font-semibold text-white shadow-[0_16px_40px_rgba(79,70,229,0.45)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-200 hover:brightness-110 active:scale-95 sm:px-9 sm:py-3.5 sm:text-lg"
+                  aria-label="스폰서 링크로 이동"
+                >
+                  ▶ 재생이 안되면 여기를 클릭
+                </a>
+              </div>
             </div>
 
             <div className="flex flex-col gap-4">
@@ -239,15 +201,17 @@ export default function ContentDetailPage({
                 <div className="flex items-center gap-2">
                   <LikeButton
                     liked={liked}
-                    onToggle={handleToggleLike}
-                    disabled={!likesReady}
+                    likesReady={likesReady}
                     t={t}
                     meme={meme}
                     context="detail_main"
+                    serverCounts={serverCounts}
+                    setServerCounts={setServerCounts}
+                    setLikedState={setLikedState}
                   />
                   <BookmarkButton
                     isFavorite={isFavorite}
-                    onToggle={handleToggleFavorite}
+                    setIsFavorite={setIsFavorite}
                     t={t}
                     meme={meme}
                     context="detail_main"
