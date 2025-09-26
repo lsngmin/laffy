@@ -78,28 +78,35 @@ function ensureMemoryState() {
   return global.__heatmapMemState;
 }
 
+const REDIS_INCR_SCRIPT = `
+  local key = KEYS[1]
+  local total = 0
+  for index = 1, #ARGV, 2 do
+    local field = ARGV[index]
+    local increment = tonumber(ARGV[index + 1])
+    if field and increment and increment > 0 then
+      redis.call('HINCRBY', key, field, increment)
+      total = total + increment
+    end
+  end
+  return total
+`;
+
 async function recordWithRedis(slug, bucket, cells) {
-  const { redisBatch } = await import('./redisClient');
+  const { redisEval } = await import('./redisClient');
   const key = heatmapKey(slug);
-  const commands = cells.map((cell) => [
-    'HINCRBY',
-    key,
-    formatField(bucket, cell.section, cell.type, cell.cell),
-    cell.count,
-  ]);
-
-  const responses = await redisBatch(commands);
-  if (!Array.isArray(responses) || responses.length !== commands.length) {
-    throw new Error('Unexpected Redis pipeline response');
+  const args = [];
+  for (const cell of cells) {
+    args.push(formatField(bucket, cell.section, cell.type, cell.cell));
+    args.push(String(cell.count));
   }
 
-  for (const entry of responses) {
-    if (entry && typeof entry === 'object' && entry.error) {
-      throw new Error(`Redis pipeline error: ${entry.error}`);
-    }
+  const recorded = await redisEval(REDIS_INCR_SCRIPT, [key], args);
+  if (typeof recorded !== 'number') {
+    throw new Error('Unexpected Redis eval response');
   }
 
-  return cells.reduce((sum, cell) => sum + cell.count, 0);
+  return recorded;
 }
 
 async function recordWithMemory(slug, bucket, cells) {
