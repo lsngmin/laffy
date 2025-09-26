@@ -20,7 +20,7 @@ export default function VideoCard({
     const videoJsId = useMemo(() => `video-card-${Math.random().toString(36).slice(2)}`, []);
 
     const isImage = mediaType === "image";
-    const SMART_LINK = "https://otieu.com/4/9924601";
+    const SMART_LINK = "https://relishsubsequentlytank.com/m4dat49uw?key=5c0b078a04533db894c7b305e5dd7a67";
 
     const interactivePreview = useMemo(() => typeof onPreviewClick === 'function', [onPreviewClick]);
     const overlayInteractive = (!disablePlay && !isImage) || interactivePreview;
