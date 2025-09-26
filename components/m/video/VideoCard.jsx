@@ -94,6 +94,33 @@ export default function VideoCard({
 
         videoJsPlayerRef.current = player;
 
+        const formatDuration = (seconds) => {
+            if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
+            if (typeof videojs.formatTime === 'function') {
+                return videojs.formatTime(seconds, seconds);
+            }
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60)
+                .toString()
+                .padStart(2, '0');
+            return `${mins}:${secs}`;
+        };
+
+        const updateDurationDisplays = () => {
+            if (!resolvedDuration) return;
+            const formatted = formatDuration(resolvedDuration);
+            const durationDisplay = player.controlBar?.durationDisplay?.el()?.querySelector('.vjs-duration-display');
+            if (durationDisplay) durationDisplay.textContent = formatted;
+            const remainingDisplay = player.controlBar?.remainingTimeDisplay?.el()?.querySelector('.vjs-remaining-time-display');
+            if (remainingDisplay) remainingDisplay.textContent = `-${formatted}`;
+        };
+
+        const applyDurationOverride = () => {
+            if (!resolvedDuration) return;
+            player.duration(resolvedDuration);
+            updateDurationDisplays();
+        };
+
         player.ready(() => {
             player.poster(imageSource);
             player.addClass('vjs-keep-controls');
@@ -101,11 +128,11 @@ export default function VideoCard({
             player.userActive(true);
             player.on('userinactive', () => player.userActive(true));
 
-            if (resolvedDuration) {
-                player.duration = () => resolvedDuration;
-                player.trigger('durationchange');
-            }
+            applyDurationOverride();
         });
+
+        player.on('loadedmetadata', applyDurationOverride);
+        player.on('timeupdate', updateDurationDisplays);
 
         player.on('play', () => {
             restorePoster();
@@ -113,6 +140,8 @@ export default function VideoCard({
         });
 
         return () => {
+            player.off('loadedmetadata', applyDurationOverride);
+            player.off('timeupdate', updateDurationDisplays);
             player.dispose();
             videoJsPlayerRef.current = null;
         };
