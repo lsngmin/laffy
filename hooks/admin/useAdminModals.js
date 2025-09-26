@@ -1,5 +1,6 @@
 import { upload } from '@vercel/blob/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import buildRegisterPayload from '@/lib/admin/buildRegisterPayload';
 
 export default function useAdminModals({ hasToken, queryString, setItems, refresh }) {
   const [editingItem, setEditingItem] = useState(null);
@@ -132,51 +133,6 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     setEditUploadMessage('기존 이미지로 되돌렸어요.');
     if (editFileInputRef.current) editFileInputRef.current.value = '';
   }, [editInitialPreview]);
-
-  const buildRegisterPayload = useCallback((item) => {
-    if (!item) return null;
-    const typeValue = (item.type || '').toLowerCase();
-    const isImage = typeValue === 'image';
-    const previewCandidates = [item.preview, item.poster, item.thumbnail];
-    const basePreview =
-      previewCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
-    const srcCandidates = [item.src, item.poster, item.thumbnail, basePreview];
-    const assetUrl =
-      srcCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
-    if (!assetUrl) return null;
-
-    const posterCandidates = isImage
-      ? [item.poster, assetUrl, item.thumbnail, basePreview]
-      : [item.poster, item.thumbnail, basePreview];
-    const posterUrl =
-      posterCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
-
-    const thumbnailCandidates = isImage
-      ? [item.thumbnail, posterUrl, assetUrl, basePreview]
-      : [item.thumbnail, posterUrl, basePreview];
-    const thumbnailUrl =
-      thumbnailCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
-
-    const likesNumber = Number(item.likes);
-    const viewsNumber = Number(item.views);
-    const rawDuration = Number(item.durationSeconds);
-    const durationSeconds = Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0;
-
-    return {
-      slug: item.slug,
-      title: item.title || item.slug,
-      description: item.description || '',
-      url: assetUrl,
-      durationSeconds,
-      orientation: item.orientation || 'landscape',
-      type: isImage ? 'image' : typeValue || 'video',
-      poster: posterUrl || null,
-      thumbnail: thumbnailUrl || null,
-      likes: Number.isFinite(likesNumber) ? likesNumber : 0,
-      views: Number.isFinite(viewsNumber) ? viewsNumber : 0,
-      publishedAt: item.publishedAt || '',
-    };
-  }, []);
 
   const clearUndoTimer = useCallback(() => {
     if (undoTimeoutRef.current) {
@@ -375,14 +331,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       setDeleteStatus('error');
       setDeleteError('삭제에 실패했어요. 잠시 후 다시 시도해 주세요.');
     }
-  }, [
-    pendingDelete,
-    buildRegisterPayload,
-    qs,
-    clearUndoTimer,
-    closeDeleteModal,
-    refresh,
-  ]);
+  }, [pendingDelete, qs, clearUndoTimer, closeDeleteModal, refresh]);
 
   const handleUndoDelete = useCallback(async () => {
     if (!undoInfo) return;
