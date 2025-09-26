@@ -60,6 +60,7 @@ export default function Admin() {
   const editFileInputRef = useRef(null);
   const undoTimeoutRef = useRef(null);
   const adsterraPlacementsRequestRef = useRef(0);
+  const adsterraPlacementsInitializedRef = useRef(false);
   const adsterraStatsRequestRef = useRef(0);
 
   const hasToken = Boolean(token);
@@ -74,20 +75,40 @@ export default function Admin() {
     []
   );
   const defaultAdsterraRange = useMemo(() => getDefaultAdsterraDateRange(), []);
-  const [adsterraTokenInput, setAdsterraTokenInput] = useState('');
-  const [adsterraActiveToken, setAdsterraActiveToken] = useState('');
-  const [adsterraDomains, setAdsterraDomains] = useState([]);
-  const [adsterraDomainId, setAdsterraDomainId] = useState('');
+  const adsterraEnvToken = useMemo(
+    () => (process.env.NEXT_PUBLIC_ADSTERRA_API_TOKEN || process.env.NEXT_PUBLIC_ADSTERRA_TOKEN || '').trim(),
+    []
+  );
+  const adsterraDomainId = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_ADSTERRA_DOMAIN_ID;
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (trimmed) return trimmed;
+    }
+    return '5609169';
+  }, []);
+  const adsterraDomainName = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_ADSTERRA_DOMAIN_NAME;
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (trimmed) return trimmed;
+    }
+    return 'laffy.org';
+  }, []);
+  const [adsterraActiveToken, setAdsterraActiveToken] = useState(adsterraEnvToken);
   const [adsterraPlacements, setAdsterraPlacements] = useState([]);
   const [adsterraPlacementId, setAdsterraPlacementId] = useState('');
   const [adsterraStartDate, setAdsterraStartDate] = useState(defaultAdsterraRange.start);
   const [adsterraEndDate, setAdsterraEndDate] = useState(defaultAdsterraRange.end);
   const [adsterraStats, setAdsterraStats] = useState([]);
-  const [adsterraLoadingDomains, setAdsterraLoadingDomains] = useState(false);
   const [adsterraLoadingPlacements, setAdsterraLoadingPlacements] = useState(false);
   const [adsterraLoadingStats, setAdsterraLoadingStats] = useState(false);
   const [adsterraError, setAdsterraError] = useState('');
   const [adsterraStatus, setAdsterraStatus] = useState('');
+  const [adsterraCountryFilter, setAdsterraCountryFilter] = useState('');
+  const [adsterraOsFilter, setAdsterraOsFilter] = useState('');
+  const [adsterraDeviceFilter, setAdsterraDeviceFilter] = useState('');
+  const [adsterraDeviceFormatFilter, setAdsterraDeviceFormatFilter] = useState('');
 
   const navItems = useMemo(
     () => [
@@ -323,12 +344,94 @@ export default function Admin() {
     return totalRate / withViews.length;
   }, [analyticsRows]);
 
+  const adsterraPlacementLabelMap = useMemo(() => {
+    const map = new Map();
+    adsterraPlacements.forEach((placement) => {
+      if (!placement || typeof placement !== 'object') return;
+      const id = placement.id ?? placement.ID ?? placement.placement_id ?? placement.placementId;
+      if (!id && id !== 0) return;
+      const label = placement.title
+        || placement.alias
+        || placement.name
+        || placement.placement
+        || placement.ad_format
+        || placement.format
+        || String(id);
+      map.set(String(id), label);
+    });
+    return map;
+  }, [adsterraPlacements]);
+
+  const adsterraCountryOptions = useMemo(() => {
+    const values = new Set();
+    adsterraStats.forEach((row) => {
+      const value = row?.country ?? row?.Country ?? row?.geo ?? row?.Geo;
+      if (value) values.add(String(value));
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [adsterraStats]);
+
+  const adsterraOsOptions = useMemo(() => {
+    const values = new Set();
+    adsterraStats.forEach((row) => {
+      const value = row?.os ?? row?.OS ?? row?.platform ?? row?.Platform;
+      if (value) values.add(String(value));
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [adsterraStats]);
+
+  const adsterraDeviceOptions = useMemo(() => {
+    const values = new Set();
+    adsterraStats.forEach((row) => {
+      const value = row?.device ?? row?.Device ?? row?.device_type ?? row?.deviceType;
+      if (value) values.add(String(value));
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [adsterraStats]);
+
+  const adsterraDeviceFormatOptions = useMemo(() => {
+    const values = new Set();
+    adsterraStats.forEach((row) => {
+      const value = row?.device_format ?? row?.deviceFormat ?? row?.DeviceFormat;
+      if (value) values.add(String(value));
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [adsterraStats]);
+
+  const filteredAdsterraStats = useMemo(() => {
+    const normalize = (value) => {
+      if (value === null || value === undefined) return '';
+      return String(value).trim().toLowerCase();
+    };
+
+    const normalizedCountry = normalize(adsterraCountryFilter);
+    const normalizedOs = normalize(adsterraOsFilter);
+    const normalizedDevice = normalize(adsterraDeviceFilter);
+    const normalizedDeviceFormat = normalize(adsterraDeviceFormatFilter);
+
+    return adsterraStats.filter((row) => {
+      const countryValue = row?.country ?? row?.Country ?? row?.geo ?? row?.Geo;
+      if (normalizedCountry && normalize(countryValue) !== normalizedCountry) return false;
+
+      const osValue = row?.os ?? row?.OS ?? row?.platform ?? row?.Platform;
+      if (normalizedOs && normalize(osValue) !== normalizedOs) return false;
+
+      const deviceValue = row?.device ?? row?.Device ?? row?.device_type ?? row?.deviceType;
+      if (normalizedDevice && normalize(deviceValue) !== normalizedDevice) return false;
+
+      const deviceFormatValue = row?.device_format ?? row?.deviceFormat ?? row?.DeviceFormat;
+      if (normalizedDeviceFormat && normalize(deviceFormatValue) !== normalizedDeviceFormat) return false;
+
+      return true;
+    });
+  }, [adsterraStats, adsterraCountryFilter, adsterraDeviceFilter, adsterraDeviceFormatFilter, adsterraOsFilter]);
+
   const adsterraTotals = useMemo(() => {
-    if (!Array.isArray(adsterraStats) || !adsterraStats.length) {
+    if (!Array.isArray(filteredAdsterraStats) || !filteredAdsterraStats.length) {
       return { impressions: 0, clicks: 0, revenue: 0, ctr: 0, cpm: 0 };
     }
 
-    const totals = adsterraStats.reduce(
+    const totals = filteredAdsterraStats.reduce(
       (acc, row) => {
         const impressions = Number(row?.impression ?? row?.impressions ?? 0);
         const clicks = Number(row?.clicks ?? row?.click ?? 0);
@@ -346,7 +449,7 @@ export default function Admin() {
     const cpm = totals.impressions > 0 ? (totals.revenue / totals.impressions) * 1000 : 0;
 
     return { ...totals, ctr, cpm };
-  }, [adsterraStats]);
+  }, [filteredAdsterraStats]);
 
   const adsterraCanFetchStats = Boolean(
     adsterraActiveToken &&
@@ -361,103 +464,106 @@ export default function Admin() {
     return `${(value * 100).toFixed(1)}%`;
   }, []);
 
-  const handleLoadAdsterraDomains = useCallback(async () => {
-    const trimmedToken = adsterraTokenInput.trim();
-    if (!trimmedToken) {
-      setAdsterraError('토큰을 입력해 주세요.');
+  const uploadsVisible = view === 'uploads';
+  const analyticsVisible = view === 'analytics';
+  const adsterraVisible = view === 'adsterra';
+
+  useEffect(() => {
+    if (adsterraEnvToken && !adsterraActiveToken) {
+      setAdsterraActiveToken(adsterraEnvToken);
+    }
+  }, [adsterraActiveToken, adsterraEnvToken]);
+
+  const fetchAdsterraPlacements = useCallback(async () => {
+    if (adsterraLoadingPlacements) {
+      return;
+    }
+    if (!adsterraActiveToken) {
+      setAdsterraError('통계 API 토큰이 설정되지 않았어요.');
+      return;
+    }
+    if (!adsterraDomainId) {
+      setAdsterraError('도메인 정보가 올바르지 않습니다.');
       return;
     }
 
-    setAdsterraLoadingDomains(true);
+    adsterraPlacementsInitializedRef.current = true;
+    const requestId = adsterraPlacementsRequestRef.current + 1;
+    adsterraPlacementsRequestRef.current = requestId;
+    setAdsterraLoadingPlacements(true);
     setAdsterraError('');
     setAdsterraStatus('');
-    setAdsterraDomains([]);
-    setAdsterraDomainId('');
-    setAdsterraPlacements([]);
-    setAdsterraPlacementId('');
-    setAdsterraStats([]);
 
     try {
-      const res = await fetch('/api/adsterra/domains', {
+      const res = await fetch('/api/adsterra/placements', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token: trimmedToken }),
+        body: JSON.stringify({ token: adsterraActiveToken, domainId: adsterraDomainId }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json?.error || '도메인 목록을 불러오지 못했어요.');
+        throw new Error(json?.error || '플레이스먼트를 불러오지 못했어요.');
       }
-      const domains = Array.isArray(json?.domains) ? json.domains : [];
-      setAdsterraDomains(domains);
-      setAdsterraActiveToken(trimmedToken);
-      setAdsterraStatus(domains.length ? '도메인 목록을 불러왔어요.' : '도메인 정보를 찾을 수 없어요.');
+      if (adsterraPlacementsRequestRef.current !== requestId) return;
+      const placements = Array.isArray(json?.placements) ? json.placements : [];
+      setAdsterraPlacements(placements);
+
+      const extractPlacementId = (placement) => {
+        if (!placement || typeof placement !== 'object') return '';
+        const idValue = placement.id ?? placement.ID ?? placement.placement_id ?? placement.placementId ?? placement.value;
+        return idValue !== undefined && idValue !== null ? String(idValue) : '';
+      };
+
+      if (placements.length) {
+        const hasCurrent = placements.some((placement) => extractPlacementId(placement) === adsterraPlacementId);
+        if (!hasCurrent) {
+          const firstId = extractPlacementId(placements[0]);
+          if (firstId) {
+            setAdsterraPlacementId(firstId);
+          }
+        }
+      } else {
+        setAdsterraPlacementId('');
+      }
+      setAdsterraStatus(placements.length ? '플레이스먼트를 불러왔어요.' : '등록된 플레이스먼트를 찾을 수 없어요.');
     } catch (error) {
-      setAdsterraActiveToken('');
-      setAdsterraError(error.message || '도메인 목록을 불러오지 못했어요.');
+      if (adsterraPlacementsRequestRef.current === requestId) {
+        setAdsterraPlacements([]);
+        setAdsterraPlacementId('');
+        setAdsterraStats([]);
+        setAdsterraError(error.message || '플레이스먼트를 불러오지 못했어요.');
+      }
     } finally {
-      setAdsterraLoadingDomains(false);
-    }
-  }, [adsterraTokenInput]);
-
-  const handleAdsterraDomainChange = useCallback(
-    async (value) => {
-      const domainValue = typeof value === 'string' ? value : '';
-      setAdsterraDomainId(domainValue);
-      setAdsterraPlacements([]);
-      setAdsterraPlacementId('');
-      setAdsterraStats([]);
-      setAdsterraStatus('');
-
-      if (!domainValue) {
+      if (adsterraPlacementsRequestRef.current === requestId) {
         setAdsterraLoadingPlacements(false);
-        return;
       }
+    }
+  }, [adsterraActiveToken, adsterraDomainId, adsterraLoadingPlacements, adsterraPlacementId]);
 
-      if (!adsterraActiveToken) {
-        setAdsterraError('먼저 토큰으로 도메인 목록을 불러와 주세요.');
-        return;
-      }
+  useEffect(() => {
+    adsterraPlacementsInitializedRef.current = false;
+  }, [adsterraActiveToken, adsterraDomainId]);
 
-      const requestId = adsterraPlacementsRequestRef.current + 1;
-      adsterraPlacementsRequestRef.current = requestId;
-      setAdsterraLoadingPlacements(true);
-      setAdsterraError('');
-
-      try {
-        const res = await fetch('/api/adsterra/placements', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token: adsterraActiveToken, domainId: domainValue }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(json?.error || '플레이스먼트를 불러오지 못했어요.');
-        }
-        if (adsterraPlacementsRequestRef.current !== requestId) return;
-        const placements = Array.isArray(json?.placements) ? json.placements : [];
-        setAdsterraPlacements(placements);
-        if (placements.length === 1) {
-          setAdsterraPlacementId(placements[0].id);
-        }
-        setAdsterraStatus(placements.length ? '플레이스먼트를 불러왔어요.' : '등록된 플레이스먼트가 없습니다.');
-      } catch (error) {
-        if (adsterraPlacementsRequestRef.current === requestId) {
-          setAdsterraError(error.message || '플레이스먼트를 불러오지 못했어요.');
-        }
-      } finally {
-        if (adsterraPlacementsRequestRef.current === requestId) {
-          setAdsterraLoadingPlacements(false);
-        }
-      }
-    },
-    [adsterraActiveToken]
-  );
+  useEffect(() => {
+    if (!adsterraVisible) return;
+    if (adsterraPlacementsInitializedRef.current) return;
+    if (!adsterraActiveToken) {
+      setAdsterraError('통계 API 토큰이 설정되지 않았어요.');
+      return;
+    }
+    fetchAdsterraPlacements();
+  }, [
+    adsterraVisible,
+    adsterraActiveToken,
+    fetchAdsterraPlacements,
+  ]);
 
   const handleAdsterraPlacementChange = useCallback((value) => {
-    const placementValue = typeof value === 'string' ? value : '';
+    const placementValue = value === null || value === undefined ? '' : String(value);
     setAdsterraPlacementId(placementValue);
     setAdsterraStats([]);
     setAdsterraStatus('');
+    setAdsterraError('');
   }, []);
 
   const handleResetAdsterraDates = useCallback(() => {
@@ -468,11 +574,11 @@ export default function Admin() {
 
   const handleFetchAdsterraStats = useCallback(async () => {
     if (!adsterraActiveToken) {
-      setAdsterraError('토큰을 다시 불러와 주세요.');
+      setAdsterraError('통계 API 토큰 환경 변수를 확인해 주세요.');
       return;
     }
     if (!adsterraDomainId) {
-      setAdsterraError('도메인을 선택해 주세요.');
+      setAdsterraError('도메인 정보가 설정되지 않았어요. 환경 변수를 확인해 주세요.');
       return;
     }
     if (!adsterraPlacementId) {
@@ -518,7 +624,7 @@ export default function Admin() {
       if (adsterraStatsRequestRef.current !== requestId) return;
       const items = Array.isArray(json?.items) ? json.items : [];
       setAdsterraStats(items);
-      setAdsterraStatus(`총 ${items.length}건의 통계를 불러왔어요.`);
+      setAdsterraStatus(`총 ${items.length}건의 통계를 불러왔어요. (필터는 클라이언트에서 적용됩니다)`);
     } catch (error) {
       if (adsterraStatsRequestRef.current === requestId) {
         setAdsterraStats([]);
@@ -536,6 +642,12 @@ export default function Admin() {
     adsterraStartDate,
     adsterraEndDate,
   ]);
+
+  useEffect(() => {
+    if (!adsterraVisible) return;
+    if (!adsterraCanFetchStats) return;
+    handleFetchAdsterraStats();
+  }, [adsterraVisible, adsterraCanFetchStats, handleFetchAdsterraStats]);
 
   const openEditModal = useCallback((item) => {
     if (!item) return;
@@ -1059,9 +1171,6 @@ export default function Admin() {
     refresh();
   }
 
-  const uploadsVisible = view === 'uploads';
-  const analyticsVisible = view === 'analytics';
-  const adsterraVisible = view === 'adsterra';
   const undoDisplayTitle = undoInfo?.title || undoInfo?.payload?.title || undoInfo?.payload?.slug || '';
 
   return (
@@ -1383,60 +1492,61 @@ export default function Admin() {
               className={`space-y-6 transition-all duration-200 ease-out ${adsterraVisible ? 'relative opacity-100' : 'absolute inset-0 translate-y-2 opacity-0 pointer-events-none'}`}
             >
               <div className="space-y-4 rounded-2xl bg-slate-900/80 p-5 ring-1 ring-slate-800/70">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="sm:flex-1">
-                    <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">통계 API 토큰</label>
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="토큰을 입력해 주세요"
-                      value={adsterraTokenInput}
-                      onChange={(e) => setAdsterraTokenInput(e.target.value)}
-                      className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
-                    />
-                    <p className="mt-1 text-[11px] text-slate-500">토큰은 이 페이지에서만 사용되며 서버에 저장되지 않습니다.</p>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-slate-400">연결된 도메인</p>
+                    <p className="text-sm font-semibold text-white">
+                      {adsterraDomainName}
+                      <span className="ml-2 text-xs font-normal text-slate-400">
+                        {adsterraDomainId ? `#${adsterraDomainId}` : '—'}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">환경 변수에 저장된 토큰으로 자동 연결돼요.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleLoadAdsterraDomains}
-                    disabled={adsterraLoadingDomains || !adsterraTokenInput.trim()}
-                    className="inline-flex items-center justify-center rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {adsterraLoadingDomains ? '도메인 불러오는 중…' : '도메인 불러오기'}
-                  </button>
+                  <div className="flex flex-col gap-1 text-xs text-slate-400 md:items-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchAdsterraPlacements();
+                      }}
+                      disabled={!adsterraActiveToken || adsterraLoadingPlacements}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-600/60 px-3 py-1 text-[11px] font-semibold text-slate-200 transition hover:bg-slate-800/60 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      플레이스먼트 새로고침
+                    </button>
+                    {adsterraLoadingPlacements && <span>플레이스먼트를 불러오는 중입니다…</span>}
+                    {!adsterraActiveToken && (
+                      <span className="text-rose-200">환경 변수에 통계 API 토큰을 설정해 주세요.</span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">도메인</label>
-                    <select
-                      value={adsterraDomainId}
-                      onChange={(e) => handleAdsterraDomainChange(e.target.value)}
-                      disabled={!adsterraActiveToken || adsterraLoadingDomains}
-                      className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100 disabled:opacity-40"
-                    >
-                      <option value="">도메인을 선택해 주세요</option>
-                      {adsterraDomains.map((domain) => (
-                        <option key={domain.id} value={domain.id}>
-                          {domain.title ? `${domain.title} (#${domain.id})` : domain.id}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="md:col-span-2 xl:col-span-1">
                     <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">광고 포맷 (플레이스먼트)</label>
                     <select
                       value={adsterraPlacementId}
                       onChange={(e) => handleAdsterraPlacementChange(e.target.value)}
-                      disabled={!adsterraDomainId || adsterraLoadingPlacements}
+                      disabled={!adsterraActiveToken || adsterraLoadingPlacements}
                       className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100 disabled:opacity-40"
                     >
                       <option value="">플레이스먼트를 선택해 주세요</option>
-                      {adsterraPlacements.map((placement) => (
-                        <option key={placement.id} value={placement.id}>
-                          {placement.title || placement.alias ? `${placement.title || placement.alias} (#${placement.id})` : placement.id}
-                        </option>
-                      ))}
+                      {adsterraPlacements.map((placement) => {
+                        const rawId = placement?.id ?? placement?.ID ?? placement?.placement_id ?? placement?.placementId ?? placement?.value;
+                        const optionValue = rawId !== undefined && rawId !== null ? String(rawId) : '';
+                        if (!optionValue) return null;
+                        const label = placement?.title
+                          || placement?.alias
+                          || placement?.placement
+                          || placement?.name
+                          || placement?.ad_format
+                          || `#${optionValue}`;
+                        return (
+                          <option key={optionValue} value={optionValue}>
+                            {label}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   <div>
@@ -1461,6 +1571,69 @@ export default function Admin() {
                   </div>
                 </div>
 
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">국가 필터</label>
+                    <select
+                      value={adsterraCountryFilter}
+                      onChange={(e) => setAdsterraCountryFilter(e.target.value)}
+                      className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                    >
+                      <option value="">전체</option>
+                      {adsterraCountryOptions.map((country) => (
+                        <option key={country} value={country}>
+                          {country}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">OS 필터</label>
+                    <select
+                      value={adsterraOsFilter}
+                      onChange={(e) => setAdsterraOsFilter(e.target.value)}
+                      className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                    >
+                      <option value="">전체</option>
+                      {adsterraOsOptions.map((os) => (
+                        <option key={os} value={os}>
+                          {os}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">디바이스 필터</label>
+                    <select
+                      value={adsterraDeviceFilter}
+                      onChange={(e) => setAdsterraDeviceFilter(e.target.value)}
+                      className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                    >
+                      <option value="">전체</option>
+                      {adsterraDeviceOptions.map((device) => (
+                        <option key={device} value={device}>
+                          {device}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">디바이스 포맷</label>
+                    <select
+                      value={adsterraDeviceFormatFilter}
+                      onChange={(e) => setAdsterraDeviceFormatFilter(e.target.value)}
+                      className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                    >
+                      <option value="">전체</option>
+                      {adsterraDeviceFormatOptions.map((format) => (
+                        <option key={format} value={format}>
+                          {format}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -1468,7 +1641,7 @@ export default function Admin() {
                     disabled={!adsterraCanFetchStats || adsterraLoadingStats}
                     className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {adsterraLoadingStats ? '통계 불러오는 중…' : '통계 불러오기'}
+                    {adsterraLoadingStats ? '통계 불러오는 중…' : '통계 다시 불러오기'}
                   </button>
                   <button
                     type="button"
@@ -1477,9 +1650,6 @@ export default function Admin() {
                   >
                     기간 초기화
                   </button>
-                  {adsterraLoadingPlacements && (
-                    <span className="text-xs text-slate-400">플레이스먼트를 불러오는 중입니다…</span>
-                  )}
                 </div>
 
                 {adsterraStatus && (
@@ -1498,17 +1668,17 @@ export default function Admin() {
                 <div className="rounded-2xl border border-white/5 bg-slate-900/80 p-4 shadow-lg shadow-black/20">
                   <p className="text-xs uppercase tracking-[0.25em] text-slate-400">총 노출수</p>
                   <p className="mt-2 text-2xl font-bold text-white">{formatNumber(adsterraTotals.impressions)}</p>
-                  <p className="mt-1 text-xs text-slate-500">선택한 기간 합계</p>
+                  <p className="mt-1 text-xs text-slate-500">선택한 기간 · 필터 기준 합계</p>
                 </div>
                 <div className="rounded-2xl border border-white/5 bg-slate-900/80 p-4 shadow-lg shadow-black/20">
                   <p className="text-xs uppercase tracking-[0.25em] text-slate-400">총 클릭수</p>
                   <p className="mt-2 text-2xl font-bold text-white">{formatNumber(adsterraTotals.clicks)}</p>
-                  <p className="mt-1 text-xs text-slate-500">평균 CTR {formatDecimal(adsterraTotals.ctr, 2)}%</p>
+                  <p className="mt-1 text-xs text-slate-500">필터 기준 평균 CTR {formatDecimal(adsterraTotals.ctr, 2)}%</p>
                 </div>
                 <div className="rounded-2xl border border-white/5 bg-slate-900/80 p-4 shadow-lg shadow-black/20">
                   <p className="text-xs uppercase tracking-[0.25em] text-slate-400">총 수익 (USD)</p>
                   <p className="mt-2 text-2xl font-bold text-white">{formatDecimal(adsterraTotals.revenue, 2)}</p>
-                  <p className="mt-1 text-xs text-slate-500">평균 CPM {formatDecimal(adsterraTotals.cpm, 3)}</p>
+                  <p className="mt-1 text-xs text-slate-500">필터 기준 평균 CPM {formatDecimal(adsterraTotals.cpm, 3)}</p>
                 </div>
               </div>
 
@@ -1518,6 +1688,11 @@ export default function Admin() {
                     <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-widest text-slate-400">
                       <tr>
                         <th className="px-4 py-3 font-semibold">날짜</th>
+                        <th className="px-4 py-3 font-semibold">국가</th>
+                        <th className="px-4 py-3 font-semibold">광고 포맷</th>
+                        <th className="px-4 py-3 font-semibold">OS</th>
+                        <th className="px-4 py-3 font-semibold">디바이스</th>
+                        <th className="px-4 py-3 font-semibold">디바이스 포맷</th>
                         <th className="px-4 py-3 text-right font-semibold">노출수</th>
                         <th className="px-4 py-3 text-right font-semibold">클릭수</th>
                         <th className="px-4 py-3 text-right font-semibold">CTR</th>
@@ -1526,16 +1701,43 @@ export default function Admin() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {adsterraStats.map((row, index) => {
+                      {filteredAdsterraStats.map((row, index) => {
                         const impressions = Number(row?.impression ?? row?.impressions ?? 0) || 0;
                         const clicks = Number(row?.clicks ?? row?.click ?? 0) || 0;
                         const revenue = Number(row?.revenue ?? 0) || 0;
                         const ctrRaw = Number(row?.ctr ?? ((impressions > 0 && clicks >= 0) ? (clicks / impressions) * 100 : 0)) || 0;
                         const cpmRaw = Number(row?.cpm ?? ((impressions > 0 && revenue >= 0) ? (revenue / impressions) * 1000 : 0)) || 0;
                         const dateLabel = row?.date || row?.day || row?.Day || row?.group || `#${index + 1}`;
+                        const countryLabel = row?.country ?? row?.Country ?? row?.geo ?? row?.Geo ?? '—';
+                        const osLabel = row?.os ?? row?.OS ?? row?.platform ?? row?.Platform ?? '—';
+                        const deviceLabel = row?.device ?? row?.Device ?? row?.device_type ?? row?.deviceType ?? '—';
+                        const deviceFormatLabel = row?.device_format ?? row?.deviceFormat ?? row?.DeviceFormat ?? '—';
+                        const placementIdFromRow = row?.placement_id
+                          ?? row?.placementId
+                          ?? row?.placementID
+                          ?? row?.placementid;
+                        const placementLabelRaw = row?.placement_name
+                          ?? row?.placement
+                          ?? row?.placementName
+                          ?? row?.ad_format
+                          ?? row?.adFormat
+                          ?? '';
+                        const placementResolved = placementLabelRaw
+                          || (placementIdFromRow !== undefined && placementIdFromRow !== null
+                            ? adsterraPlacementLabelMap.get(String(placementIdFromRow)) || ''
+                            : '');
+                        const placementDisplay = placementResolved
+                          || adsterraPlacementLabelMap.get(adsterraPlacementId)
+                          || '—';
+                        const rowKey = `${dateLabel}-${index}-${placementIdFromRow ?? ''}-${countryLabel}-${osLabel}-${deviceLabel}-${deviceFormatLabel}`;
                         return (
-                          <tr key={`${dateLabel}-${index}`} className="hover:bg-slate-800/40">
+                          <tr key={rowKey} className="hover:bg-slate-800/40">
                             <td className="px-4 py-3 font-semibold text-slate-100">{dateLabel}</td>
+                            <td className="px-4 py-3 text-slate-100">{countryLabel}</td>
+                            <td className="px-4 py-3 text-slate-100">{placementDisplay}</td>
+                            <td className="px-4 py-3 text-slate-100">{osLabel}</td>
+                            <td className="px-4 py-3 text-slate-100">{deviceLabel}</td>
+                            <td className="px-4 py-3 text-slate-100">{deviceFormatLabel}</td>
                             <td className="px-4 py-3 text-right text-slate-100">{formatNumber(impressions)}</td>
                             <td className="px-4 py-3 text-right text-slate-100">{formatNumber(clicks)}</td>
                             <td className="px-4 py-3 text-right text-slate-100">{`${formatDecimal(ctrRaw, 3)}%`}</td>
@@ -1544,9 +1746,9 @@ export default function Admin() {
                           </tr>
                         );
                       })}
-                      {!adsterraStats.length && !adsterraLoadingStats && (
+                      {!filteredAdsterraStats.length && !adsterraLoadingStats && (
                         <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
+                          <td colSpan={11} className="px-4 py-12 text-center text-sm text-slate-400">
                             통계를 불러오면 여기에 표시됩니다.
                           </td>
                         </tr>
