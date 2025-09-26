@@ -25,11 +25,16 @@ import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
+import EventAnalyticsToolbar from '../components/admin/events/EventAnalyticsToolbar';
+import EventSummaryCards from '../components/admin/events/EventSummaryCards';
+import EventTable from '../components/admin/events/EventTable';
+import AdEventInsightsPanel from '../components/admin/insights/AdEventInsightsPanel';
+import useEventAnalytics from '../hooks/admin/useEventAnalytics';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'adsterra', label: '통계', requiresToken: true },
+  { key: 'insights', label: '광고 통합 인사이트', requiresToken: true },
 ];
 
 function getDefaultAdsterraDateRange() {
@@ -124,6 +129,13 @@ export default function AdminPage() {
     endDate: analyticsEndDate,
   });
 
+  const eventAnalytics = useEventAnalytics({
+    enabled: hasToken && view === 'analytics',
+    token,
+    startDate: analyticsStartDate,
+    endDate: analyticsEndDate,
+  });
+
   const fetchHistory = useCallback(
     async (options = {}) => {
       if (!hasToken) return;
@@ -177,13 +189,22 @@ export default function AdminPage() {
   }, []);
 
   const adsterra = useAdsterraStats({
-    enabled: hasToken && view === 'adsterra',
+    enabled: hasToken && view === 'insights',
     defaultRange: defaultAdsterraRange,
     envToken: adsterraEnvToken,
     domainName: adsterraDomainNameEnv,
     domainKey: adsterraDomainKeyEnv || adsterraDomainIdEnv,
     initialDomainId: adsterraDomainIdEnv,
   });
+
+  const insightsEventAnalytics = useEventAnalytics({
+    enabled: hasToken && view === 'insights',
+    token,
+    startDate: adsterra.startDate,
+    endDate: adsterra.endDate,
+  });
+
+  const [insightsEventId, setInsightsEventId] = useState('');
 
   const {
     editingItem,
@@ -219,10 +240,24 @@ export default function AdminPage() {
   } = useAdminModals({ hasToken, queryString: qs, setItems, refresh });
 
   useEffect(() => {
-    if (!hasToken && (view === 'analytics' || view === 'adsterra')) {
+    if (!hasToken && (view === 'analytics' || view === 'insights')) {
       setView('uploads');
     }
   }, [hasToken, view]);
+
+  useEffect(() => {
+    if (view !== 'insights') return;
+    const events = Array.isArray(insightsEventAnalytics.events)
+      ? insightsEventAnalytics.events
+      : [];
+    if (!events.length) {
+      if (insightsEventId) setInsightsEventId('');
+      return;
+    }
+    if (!insightsEventId || !events.some((event) => event.id === insightsEventId)) {
+      setInsightsEventId(events[0].id);
+    }
+  }, [view, insightsEventAnalytics.events, insightsEventId]);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat('ko-KR'), []);
   const decimalFormatterTwo = useMemo(
@@ -616,10 +651,19 @@ export default function AdminPage() {
   );
 
   const handleAnalyticsDateChange = useCallback((field, value) => {
+    if (field && typeof field === 'object') {
+      if (Object.prototype.hasOwnProperty.call(field, 'start')) {
+        setAnalyticsStartDate(field.start || '');
+      }
+      if (Object.prototype.hasOwnProperty.call(field, 'end')) {
+        setAnalyticsEndDate(field.end || '');
+      }
+      return;
+    }
     if (field === 'start') {
-      setAnalyticsStartDate(value);
+      setAnalyticsStartDate(value || '');
     } else if (field === 'end') {
-      setAnalyticsEndDate(value);
+      setAnalyticsEndDate(value || '');
     }
   }, []);
 
@@ -628,6 +672,8 @@ export default function AdminPage() {
   }, [analytics.exportRows]);
 
   const visibleColumns = analytics.visibleColumns;
+  const eventStartInput = analyticsStartDate || eventAnalytics.range?.start || '';
+  const eventEndInput = analyticsEndDate || eventAnalytics.range?.end || '';
 
   return (
     <AdminPageShell>
@@ -714,10 +760,38 @@ export default function AdminPage() {
               onToggleRow={analytics.toggleRowSelection}
               onToggleAll={(selectAll) => (selectAll ? analytics.selectAllRows() : analytics.clearSelection())}
             />
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-slate-100">이벤트 분석</h2>
+              <EventAnalyticsToolbar
+                startDate={eventStartInput}
+                endDate={eventEndInput}
+                onDateChange={handleAnalyticsDateChange}
+                eventNames={eventAnalytics.availableNames}
+                selectedEvent={eventAnalytics.eventNameFilter}
+                onSelectEvent={eventAnalytics.setEventNameFilter}
+                slugFilter={eventAnalytics.slugFilter}
+                onSlugChange={eventAnalytics.setSlugFilter}
+                onRefresh={eventAnalytics.refresh}
+                onDownloadCsv={eventAnalytics.downloadCsv}
+                loading={eventAnalytics.loading}
+              />
+              {eventAnalytics.error && (
+                <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                  {eventAnalytics.error}
+                </div>
+              )}
+              <EventSummaryCards
+                totals={eventAnalytics.totals}
+                topEvent={eventAnalytics.events?.[0]}
+                range={eventAnalytics.range}
+                generatedAt={eventAnalytics.generatedAt}
+              />
+              <EventTable events={eventAnalytics.events} loading={eventAnalytics.loading} />
+            </div>
           </div>
         )}
 
-        {view === 'adsterra' && (
+        {view === 'insights' && (
           <div className="space-y-6">
             <AdsterraControls
               domainName={adsterraDomainNameEnv}
@@ -753,6 +827,25 @@ export default function AdminPage() {
               presets={adsterraPresets}
               onSavePreset={handleSavePreset}
               onApplyPreset={handleApplyPreset}
+            />
+            {insightsEventAnalytics.error && (
+              <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                {insightsEventAnalytics.error}
+              </div>
+            )}
+            <EventSummaryCards
+              totals={insightsEventAnalytics.totals}
+              topEvent={insightsEventAnalytics.events?.[0]}
+              range={insightsEventAnalytics.range}
+              generatedAt={insightsEventAnalytics.generatedAt}
+            />
+            <AdEventInsightsPanel
+              events={insightsEventAnalytics.events}
+              selectedEventId={insightsEventId}
+              onSelectEvent={setInsightsEventId}
+              adStats={adsterra.filteredStats}
+              loadingEvents={insightsEventAnalytics.loading}
+              loadingAds={adsterra.loadingStats}
             />
             <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
             <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
