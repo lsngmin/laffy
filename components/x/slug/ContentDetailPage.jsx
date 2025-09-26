@@ -3,6 +3,7 @@ import { useTranslation } from "next-i18next";
 
 import { LikeButton, ShareButton, BookmarkButton } from "@/components/x/button";
 import { useLikes } from "@/hooks/useLikes";
+import useHeatmapTracker from "@/hooks/useHeatmapTracker";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { loadFavorites } from "@/utils/storage";
 import VideoCard from "@/components/x/video/VideoCard";
@@ -37,6 +38,10 @@ export default function ContentDetailPage({
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
   const [ctaHref, setCtaHref] = useState(SPONSOR_SMART_LINK_URL);
   const ctaRef = useRef(null);
+  const { containerRef: heatmapContainerRef } = useHeatmapTracker({
+    slug: meme?.slug,
+    enabled: Boolean(meme?.slug),
+  });
 
   if (!meme) return null;
 
@@ -191,17 +196,23 @@ export default function ContentDetailPage({
       )}
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-        <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
+        <main
+          ref={heatmapContainerRef}
+          className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6"
+          data-heatmap-section="root"
+        >
           <div className="mt-6 mb-6 text-center">
             <LogoText size={"4xl"}/>
           </div>
 
-          <CategoryNavigation
-            items={navItems}
-            activeKey={activeCategoryKey}
-            onItemClick={openSmartLink}
-            ariaLabel={t("nav.label", "navigation")}
-          />
+          <div data-heatmap-section="nav">
+            <CategoryNavigation
+              items={navItems}
+              activeKey={activeCategoryKey}
+              onItemClick={openSmartLink}
+              ariaLabel={t("nav.label", "navigation")}
+            />
+          </div>
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
             <header className="space-y-4">
@@ -214,16 +225,18 @@ export default function ContentDetailPage({
             </header>
 
             <div>
-              <VideoCard
-                poster={meme.poster}
-                title={meme.description}
-                aspect={mediaAspect}
-                slug={meme.slug}
-                disablePlay={disableVideo}
-                onEngagement={onPreviewEngaged}
-                durationSeconds={meme.durationSeconds}
-              />
-              <div className="mt-8 flex w-full justify-center">
+              <div data-heatmap-section="video">
+                <VideoCard
+                  poster={meme.poster}
+                  title={meme.description}
+                  aspect={mediaAspect}
+                  slug={meme.slug}
+                  disablePlay={disableVideo}
+                  onEngagement={onPreviewEngaged}
+                  durationSeconds={meme.durationSeconds}
+                />
+              </div>
+              <div className="mt-8 flex w-full justify-center" data-heatmap-section="cta">
                 <a
                   ref={ctaRef}
                   href={ctaHref}
@@ -238,7 +251,7 @@ export default function ContentDetailPage({
               </div>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4" data-heatmap-section="social">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <LikeButton
