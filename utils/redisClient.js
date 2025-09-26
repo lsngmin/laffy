@@ -47,23 +47,55 @@ export function hasUpstash() {
   return Boolean(url && token);
 }
 
-export async function redisCommand(command, options = {}) {
+function resolveRequestConfig(options = {}) {
   const { allowReadOnly = false } = options;
   const { url, token, readOnlyToken } = resolveCredentials();
   const authToken = token || (allowReadOnly ? readOnlyToken : null);
   if (!url || !authToken) throw new Error('Upstash not configured');
-  const res = await fetch(url, {
+  return { url, authToken };
+}
+
+async function executeRedisRequest(endpoint, payload, authToken) {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${authToken}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(command)
+    body: JSON.stringify(payload)
   });
   if (!res.ok) {
     const errorText = await res.text().catch(() => '');
     throw new Error(`Upstash request failed (${res.status}): ${errorText}`);
   }
-  const data = await res.json();
+  return res.json();
+}
+
+export async function redisCommand(command, options = {}) {
+  const { url, authToken } = resolveRequestConfig(options);
+  const data = await executeRedisRequest(url, command, authToken);
   return data.result;
+}
+
+export async function redisBatch(commands, options = {}) {
+  if (!Array.isArray(commands) || commands.length === 0) return [];
+  const normalized = commands.filter((cmd) => Array.isArray(cmd) && cmd.length > 0);
+  if (normalized.length === 0) return [];
+
+  if (normalized.length === 1) {
+    const [single] = normalized;
+    const result = await redisCommand(single, options);
+    return [{ result }];
+  }
+
+  const { url, authToken } = resolveRequestConfig(options);
+  const endpoint = `${url}/pipeline`;
+  const data = await executeRedisRequest(endpoint, normalized, authToken);
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (Array.isArray(data?.result)) {
+    return data.result;
+  }
+  throw new Error('Invalid Upstash pipeline response');
 }

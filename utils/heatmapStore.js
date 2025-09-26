@@ -79,19 +79,27 @@ function ensureMemoryState() {
 }
 
 async function recordWithRedis(slug, bucket, cells) {
-  const { redisCommand } = await import('./redisClient');
+  const { redisBatch } = await import('./redisClient');
   const key = heatmapKey(slug);
-  let recorded = 0;
-  for (const cell of cells) {
-    const field = formatField(bucket, cell.section, cell.type, cell.cell);
-    try {
-      await redisCommand(['HINCRBY', key, field, cell.count]);
-      recorded += cell.count;
-    } catch (error) {
-      throw error;
+  const commands = cells.map((cell) => [
+    'HINCRBY',
+    key,
+    formatField(bucket, cell.section, cell.type, cell.cell),
+    cell.count,
+  ]);
+
+  const responses = await redisBatch(commands);
+  if (!Array.isArray(responses) || responses.length !== commands.length) {
+    throw new Error('Unexpected Redis pipeline response');
+  }
+
+  for (const entry of responses) {
+    if (entry && typeof entry === 'object' && entry.error) {
+      throw new Error(`Redis pipeline error: ${entry.error}`);
     }
   }
-  return recorded;
+
+  return cells.reduce((sum, cell) => sum + cell.count, 0);
 }
 
 async function recordWithMemory(slug, bucket, cells) {
