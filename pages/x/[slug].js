@@ -102,6 +102,143 @@ export default function ImageDetail(props) {
     return undefined;
   }, [visitPayloadBuilder]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !slug) return undefined;
+    try {
+      const storage = window.sessionStorage;
+      const key = 'laffy:visitedSlugs';
+      const raw = storage?.getItem(key);
+      let visited = [];
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            visited = parsed.map((value) => (typeof value === 'string' ? value : '')).filter(Boolean);
+          }
+        } catch {}
+      }
+      const already = visited.includes(slug);
+      const previousCount = visited.length;
+      if (!already) {
+        const updated = [...visited, slug].slice(-50);
+        storage?.setItem(key, JSON.stringify(updated));
+        if (previousCount >= 1) {
+          vaTrack('x_multi_view_session', {
+            slug,
+            title,
+            previousCount,
+            totalViews: updated.length,
+            value: updated.length,
+          });
+        }
+      }
+    } catch {}
+    return undefined;
+  }, [slug, title]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !slug) return undefined;
+    const depthRef = { current: 0 };
+    let rafId = null;
+
+    const computeDepth = () => {
+      rafId = null;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const viewport = window.innerHeight || document.documentElement.clientHeight || 0;
+      const fullHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+      const denominator = Math.max(fullHeight - viewport, 1);
+      const ratio = Math.min(1, Math.max(0, scrollTop / denominator));
+      depthRef.current = Math.max(depthRef.current, ratio * 100);
+    };
+
+    const onScroll = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(computeDepth);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    const sendDepth = () => {
+      const depth = Math.round(depthRef.current);
+      if (!depth || depth <= 0) return;
+      const key = `laffy:scrollDepth:${slug}`;
+      try {
+        if (window.sessionStorage?.getItem(key) === '1') return;
+        window.sessionStorage?.setItem(key, '1');
+      } catch {}
+      try {
+        vaTrack('x_scroll_depth', { slug, title, depth, value: depth });
+      } catch {}
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        sendDepth();
+      }
+    };
+
+    window.addEventListener('beforeunload', sendDepth);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('beforeunload', sendDepth);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (rafId !== null) {
+        try { window.cancelAnimationFrame(rafId); } catch {}
+      }
+      sendDepth();
+    };
+  }, [slug, title]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !slug) return undefined;
+    const start = Date.now();
+
+    const getBucket = (seconds) => {
+      if (seconds < 30) return '0-30s';
+      if (seconds < 120) return '30-120s';
+      if (seconds < 300) return '2-5m';
+      if (seconds < 600) return '5-10m';
+      return '10m+';
+    };
+
+    const sendDuration = () => {
+      const durationSec = Math.max(0, Math.round((Date.now() - start) / 1000));
+      if (!durationSec) return;
+      const key = `laffy:sessionDuration:${slug}`;
+      try {
+        if (window.sessionStorage?.getItem(key) === '1') return;
+        window.sessionStorage?.setItem(key, '1');
+      } catch {}
+      try {
+        vaTrack('x_session_duration_bucket', {
+          slug,
+          title,
+          bucket: getBucket(durationSec),
+          durationSec,
+          value: durationSec,
+        });
+      } catch {}
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        sendDuration();
+      }
+    };
+
+    window.addEventListener('beforeunload', sendDuration);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('beforeunload', sendDuration);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      sendDuration();
+    };
+  }, [slug, title]);
+
   // Vercel Analytics: dwell / first scroll / any click / custom bounce
   useEffect(() => {
     const slugValue = slug;
@@ -168,6 +305,13 @@ export default function ImageDetail(props) {
         const title = props?.meme?.title || '';
         engagedRef.current = true;
         vaTrack('x_cta_click_unable_to_play', { slug, title });
+        vaTrack('x_cta_ready_state', {
+          slug,
+          title,
+          placement: 'fallback_button',
+          state: 'clicked_failure',
+          value: 1,
+        });
       }}
       hideDescription
       titleOverride={props?.meme?.description || props?.meme?.title || ''}

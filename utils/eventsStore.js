@@ -4,13 +4,47 @@ const DAILY_TTL_SECONDS = 60 * 60 * 24 * 45; // 45 days
 const TOTAL_TTL_SECONDS = 60 * 60 * 24 * 365; // 1 year
 const CATALOG_KEY = 'events:catalog';
 const GLOBAL_SLUG = '__global__';
+const KST_TIMEZONE = 'Asia/Seoul';
+const DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: KST_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-function toDateKey(ts) {
-  const date = new Date(ts);
-  if (Number.isNaN(date.getTime())) {
+function formatDateKey(date) {
+  try {
+    return DATE_FORMATTER.format(date);
+  } catch (error) {
+    console.warn('[events] failed to format KST date', error);
     return new Date().toISOString().slice(0, 10);
   }
-  return date.toISOString().slice(0, 10);
+}
+
+function toDateKey(value) {
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return formatDateKey(new Date());
+  }
+  return formatDateKey(date);
+}
+
+function startOfDayInKst(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return new Date();
+  }
+  const key = formatDateKey(date);
+  const [yearRaw, monthRaw, dayRaw] = key.split('-');
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return new Date();
+  }
+  const utcMillis = Date.UTC(year, month - 1, day);
+  return new Date(utcMillis - KST_OFFSET_MS);
 }
 
 function clampLimit(value, fallback = 50) {
@@ -21,26 +55,27 @@ function clampLimit(value, fallback = 50) {
 
 function parseDateInput(value) {
   if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return startOfDayInKst(value);
+  }
   if (typeof value === 'number' && Number.isFinite(value)) {
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
+    return Number.isNaN(date.getTime()) ? null : startOfDayInKst(date);
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return null;
-    const iso = trimmed.includes('T') ? trimmed : `${trimmed}T00:00:00Z`;
+    const iso = trimmed.includes('T') ? trimmed : `${trimmed}T00:00:00+09:00`;
     const parsed = new Date(iso);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
+    if (!Number.isNaN(parsed.getTime())) return startOfDayInKst(parsed);
   }
   return null;
 }
 
 function normalizeRange(startInput, endInput) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+  const now = startOfDayInKst(new Date());
   const defaultEnd = now;
-  const defaultStart = new Date(now.getTime() - DEFAULT_RANGE_DAYS * DAY_MS);
+  const defaultStart = startOfDayInKst(new Date(now.getTime() - DEFAULT_RANGE_DAYS * DAY_MS));
 
   const startDate = parseDateInput(startInput) || defaultStart;
   const endDate = parseDateInput(endInput) || defaultEnd;
@@ -49,19 +84,19 @@ function normalizeRange(startInput, endInput) {
     return { start: endDate, end: endDate };
   }
 
-  const start = new Date(startDate.getTime());
-  const end = new Date(endDate.getTime());
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+  const start = startOfDayInKst(startDate);
+  const end = startOfDayInKst(endDate);
   return { start, end };
 }
 
 function rangeToDateKeys(range) {
+  if (!range?.start || !range?.end) return [];
   const keys = [];
   const cursor = new Date(range.start.getTime());
-  while (cursor <= range.end) {
-    keys.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
+  const endTime = range.end.getTime();
+  while (cursor.getTime() <= endTime) {
+    keys.push(toDateKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return keys;
 }

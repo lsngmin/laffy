@@ -1,8 +1,12 @@
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
 function formatDateTime(value) {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  return `${date.toISOString().slice(0, 10)} ${date.toISOString().slice(11, 19)}`;
+  const kst = new Date(date.getTime() + KST_OFFSET_MS);
+  const iso = kst.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
 }
 
 export default function EventTable({ rows, loading, error, formatNumber }) {
