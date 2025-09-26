@@ -9,7 +9,13 @@ const DEFAULT_COLUMNS = {
   edit: true,
 };
 
-export default function useAnalyticsMetrics({ items, enabled }) {
+const DEFAULT_FILTERS = {
+  type: '',
+  orientation: '',
+  query: '',
+};
+
+export default function useAnalyticsMetrics({ items, enabled, initialFilters }) {
   const [metricsBySlug, setMetricsBySlug] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState(null);
@@ -17,8 +23,34 @@ export default function useAnalyticsMetrics({ items, enabled }) {
   const [sortDirection, setSortDirection] = useState('desc');
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
   const [metricsEditor, setMetricsEditor] = useState(null);
+  const [filters, setFilters] = useState(() => ({
+    ...DEFAULT_FILTERS,
+    ...(initialFilters || {}),
+  }));
 
   const pendingMetricsRef = useRef(new Set());
+
+  const normalizedInitialFilters = useMemo(
+    () => ({
+      ...DEFAULT_FILTERS,
+      ...(initialFilters || {}),
+    }),
+    [initialFilters?.orientation, initialFilters?.query, initialFilters?.type]
+  );
+
+  useEffect(() => {
+    setFilters((prev) => {
+      const next = normalizedInitialFilters;
+      if (
+        prev.type === next.type &&
+        prev.orientation === next.orientation &&
+        prev.query === next.query
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [normalizedInitialFilters]);
 
   useEffect(() => {
     setMetricsBySlug((prev) => {
@@ -92,15 +124,30 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     };
   }, [enabled, items, metricsBySlug]);
 
+  const filteredItems = useMemo(() => {
+    const activeType = filters.type || '';
+    const activeOrientation = filters.orientation || '';
+    const query = (filters.query || '').trim().toLowerCase();
+
+    return items.filter((item) => {
+      if (!item?.slug) return false;
+      if (activeType && item.type !== activeType) return false;
+      if (activeOrientation && item.orientation !== activeOrientation) return false;
+      if (query) {
+        const haystack = `${item.title || ''} ${item.slug || ''}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [filters.orientation, filters.query, filters.type, items]);
+
   const analyticsRows = useMemo(
     () =>
-      items
-        .filter((item) => item.slug)
-        .map((item) => ({
-          ...item,
-          metrics: metricsBySlug[item.slug] || null,
-        })),
-    [items, metricsBySlug]
+      filteredItems.map((item) => ({
+        ...item,
+        metrics: metricsBySlug[item.slug] || null,
+      })),
+    [filteredItems, metricsBySlug]
   );
 
   const sortedAnalyticsRows = useMemo(() => {
@@ -210,6 +257,25 @@ export default function useAnalyticsMetrics({ items, enabled }) {
 
   const buildCsv = useCallback(() => buildAnalyticsCsv(sortedAnalyticsRows), [sortedAnalyticsRows]);
 
+  const updateFilters = useCallback((nextFilters) => {
+    setFilters((prev) => {
+      const updates =
+        typeof nextFilters === 'function' ? nextFilters(prev) : { ...nextFilters };
+      if (!updates || typeof updates !== 'object') {
+        return prev;
+      }
+      const merged = { ...prev, ...updates };
+      if (
+        merged.type === prev.type &&
+        merged.orientation === prev.orientation &&
+        merged.query === prev.query
+      ) {
+        return prev;
+      }
+      return merged;
+    });
+  }, []);
+
   return {
     analyticsRows,
     sortedAnalyticsRows,
@@ -231,5 +297,8 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     setMetricsEditor,
     updateMetricsForSlug,
     buildCsv,
+    filters,
+    setFilters,
+    updateFilters,
   };
 }
