@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { appWithTranslation } from 'next-i18next';
 import { Analytics } from '@vercel/analytics/react';
 import { getAnalyticsBeforeSend } from '@/lib/analyticsBridge';
-import MonetagOnclick from "@/components/MoneTagOnClick";
 import { useRouter } from 'next/router';
 
 function MyApp({ Component, pageProps }) {
@@ -14,7 +13,6 @@ function MyApp({ Component, pageProps }) {
   return (
     <>
       <Analytics beforeSend={analyticsBeforeSend} />
-      {!disableAds && <MonetagOnclick />}
       <Component {...pageProps} />
     </>
   );
