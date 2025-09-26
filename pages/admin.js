@@ -101,7 +101,15 @@ export default function AdminPage() {
     error: itemsError,
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
   const { copiedSlug, copy } = useClipboard();
-  const analytics = useAnalyticsMetrics({ items, enabled: hasToken && view === 'analytics' });
+  const analyticsInitialFilters = useMemo(
+    () => ({ type: '', orientation: '', query: '' }),
+    []
+  );
+  const analytics = useAnalyticsMetrics({
+    items,
+    enabled: hasToken && view === 'analytics',
+    initialFilters: analyticsInitialFilters,
+  });
 
   const defaultAdsterraRange = useMemo(() => getDefaultAdsterraDateRange(), []);
   const adsterraEnvToken = useMemo(
@@ -480,6 +488,8 @@ export default function AdminPage() {
               visibleColumns={visibleColumns}
               onToggleColumn={analytics.toggleColumn}
               onExportCsv={handleExportCsv}
+              filters={analytics.filters}
+              onFilterChange={analytics.updateFilters}
             />
             <AnalyticsTable
               rows={analytics.sortedAnalyticsRows}
