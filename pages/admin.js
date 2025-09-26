@@ -108,9 +108,15 @@ export default function AdminPage() {
   const analytics = useAnalyticsMetrics({
     items,
     enabled: hasToken && view === 'analytics',
+    initialFilters: analyticsInitialFilters,
+
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
-  });
+  
+  const analyticsInitialFilters = useMemo(
+    () => ({ type: '', orientation: '', query: '' }),
+    []
+  );
 
   const defaultAdsterraRange = useMemo(() => getDefaultAdsterraDateRange(), []);
   const adsterraEnvToken = useMemo(
@@ -500,6 +506,8 @@ export default function AdminPage() {
               startDate={analyticsStartDate}
               endDate={analyticsEndDate}
               onDateChange={handleAnalyticsDateChange}
+              filters={analytics.filters}
+              onFilterChange={analytics.updateFilters}
             />
             {analytics.isRangeActive && analytics.trendHistory.length > 0 && (
               <AnalyticsTrendChart history={analytics.trendHistory} formatNumber={formatNumber} />
