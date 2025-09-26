@@ -84,8 +84,8 @@ export default function VideoCard({
         if (!imageSource || !imageVideoRef.current) return () => {};
 
         const player = videojs(imageVideoRef.current, {
-            controls: true,
-            bigPlayButton: false,
+            controls: false,
+            bigPlayButton: true,
             preload: "metadata",
             autoplay: false
         });
@@ -165,7 +165,7 @@ export default function VideoCard({
                         controls
                         preload="metadata"
                         poster={imageSource}
-                        data-setup='{"controls": true, "bigPlayButton": false}'
+                        data-setup='{"controls": true, "bigPlayButton": true}'
                     >
                         <source src="/1.mp4" type="video/mp4" />
                     </video>
@@ -198,23 +198,6 @@ export default function VideoCard({
                 </video>
             )}
 
-            <style jsx global>{`
-                .video-js.vjs-keep-controls .vjs-control-bar {
-                    opacity: 1 !important;
-                    visibility: visible !important;
-                    display: flex !important;
-                }
-
-                .video-js.vjs-keep-controls.vjs-user-inactive .vjs-control-bar {
-                    opacity: 1 !important;
-                    visibility: visible !important;
-                }
-
-                .video-js.vjs-keep-controls .vjs-poster {
-                    background-size: cover;
-                    background-position: center;
-                }
-            `}</style>
         </div>
     );
 }

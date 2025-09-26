@@ -3,12 +3,6 @@
 @tailwind components;
 @tailwind utilities;
 
-.vjs-poster {
-  z-index: 0 !important; /* 뒤로 보내기 */
-}
-.vjs-control-bar {
-  z-index: 1 !important; /* 항상 위에 */
-}
 
 body {
   @apply bg-slate-900 text-white;
