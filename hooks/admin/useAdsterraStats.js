@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function toKstLabel(raw) {
+  if (!raw) return '';
+  const value = typeof raw === 'string' ? raw.trim() : String(raw);
+  if (!value) return '';
+  const normalized = value.includes('T') || value.includes(':') ? value : `${value}T00:00:00Z`;
+  let parsed = new Date(normalized.endsWith('Z') ? normalized : `${normalized}Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    parsed = new Date(normalized);
+  }
+  if (Number.isNaN(parsed.getTime())) return value;
+  const kst = new Date(parsed.getTime() + KST_OFFSET_MS);
+  const iso = kst.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+}
+
 export const ADSTERRA_ALL_PLACEMENTS_VALUE = '__all__';
 
 export default function useAdsterraStats({
@@ -257,7 +274,15 @@ export default function useAdsterraStats({
       }
       if (statsRequestRef.current !== requestId) return;
       const items = Array.isArray(json?.items) ? json.items : [];
-      setStats(items);
+      const normalizedItems = items.map((item) => {
+        if (!item || typeof item !== 'object') return item;
+        const dateLabel = item.kstDate || item.date || item.day || item.Day || item.group;
+        return {
+          ...item,
+          kstDate: toKstLabel(dateLabel),
+        };
+      });
+      setStats(normalizedItems);
       setStatus(`총 ${items.length}건의 통계를 불러왔어요. (필터는 클라이언트에서 적용됩니다)`);
     } catch (err) {
       if (statsRequestRef.current === requestId) {

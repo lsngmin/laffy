@@ -280,7 +280,7 @@ export default function UploadsSection({
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Uploaded ({items.length})</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">업로드 ({items.length})</h2>
             <label className="flex items-center gap-2 rounded-full bg-slate-900/60 px-3 py-1 text-xs text-slate-300">
               <input
                 ref={selectAllRef}

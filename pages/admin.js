@@ -37,13 +37,15 @@ import { downloadAnalyticsCsv } from '../components/admin/analytics/export/Analy
 import useAdminCatalog from '../hooks/admin/useAdminCatalog';
 
 const NAV_ITEMS = [
-  { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
-  { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'events', label: '커스텀 이벤트', requiresToken: true },
-  { key: 'ads', label: '광고', requiresToken: true },
-  { key: 'insights', label: '통합 인사이트', requiresToken: true },
-  { key: 'heatmap', label: '히트맵 분석', requiresToken: true },
+  { key: 'uploads', label: '업로드', requiresToken: false },
+  { key: 'analytics', label: '목록', requiresToken: true },
+  { key: 'events', label: '분석', requiresToken: true },
+  { key: 'ads', label: '수익', requiresToken: true },
+  { key: 'insights', label: '인사이트', requiresToken: true },
+  { key: 'heatmap', label: '분석', requiresToken: true },
 ];
+
+const VIEW_STORAGE_KEY = 'laffy:admin:lastView';
 
 function getDefaultAdsterraDateRange() {
   const end = new Date();
@@ -78,6 +80,7 @@ export default function AdminPage() {
   const router = useRouter();
   const token = typeof router.query.token === 'string' ? router.query.token : '';
   const hasToken = Boolean(token);
+  const routeView = typeof router.query.view === 'string' ? router.query.view : '';
 
   const qs = useMemo(() => (hasToken ? `?token=${encodeURIComponent(token)}` : ''), [hasToken, token]);
   const [uploadFilters, setUploadFilters] = useState({
@@ -99,7 +102,18 @@ export default function AdminPage() {
     return serialized ? `?${serialized}` : '';
   }, [hasToken, token, uploadFilters]);
 
-  const [view, setView] = useState('uploads');
+  const [view, setView] = useState(() => {
+    if (routeView) return routeView;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.sessionStorage?.getItem(VIEW_STORAGE_KEY);
+        if (stored) return stored;
+      } catch (error) {
+        console.warn('[admin] failed to read stored view', error);
+      }
+    }
+    return 'uploads';
+  });
   const [heatmapSlug, setHeatmapSlug] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -131,6 +145,30 @@ export default function AdminPage() {
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
   const [eventFilters, setEventFilters] = useState({ eventName: '', slug: '' });
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (routeView && routeView !== view) {
+      setView(routeView);
+    }
+  }, [routeView, router.isReady, view]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage?.setItem(VIEW_STORAGE_KEY, view);
+      } catch (error) {
+        console.warn('[admin] failed to persist view', error);
+      }
+    }
+  }, [view]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (routeView === view) return;
+    const nextQuery = { ...router.query, view };
+    router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+  }, [router, router.isReady, router.pathname, router.query, routeView, view]);
 
   const analyticsInitialFilters = useMemo(
     () => ({ type: '', orientation: '', query: '' }),
@@ -754,9 +792,8 @@ export default function AdminPage() {
             <AnalyticsOverview
               itemCount={catalog.items.length}
               totals={analytics.analyticsTotals}
-              averageLikeRate={analytics.averageLikeRate}
+              averageViewsPerContent={analytics.averageViewsPerContent}
               formatNumber={formatNumber}
-              formatPercent={formatPercent}
             />
             {catalog.error && (
               <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100">
@@ -803,7 +840,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
+                <h2 className="text-2xl font-bold text-white">분석</h2>
                 <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
               </div>
               <button
@@ -825,7 +862,12 @@ export default function AdminPage() {
               loading={eventAnalytics.loading}
               onRefresh={eventAnalytics.refresh}
             />
-            <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+            <EventSummaryCards
+              totals={eventAnalytics.data.totals}
+              items={eventAnalytics.data.items}
+              formatNumber={formatNumber}
+              formatPercent={formatPercent}
+            />
             <EventKeyMetrics
               items={eventAnalytics.data.items}
               formatNumber={formatNumber}
@@ -895,21 +937,11 @@ export default function AdminPage() {
 
         {view === 'insights' && (
           <div className="space-y-6">
-            <EventSummaryCards totals={insightsEvents.data.totals} formatNumber={formatNumber} />
-            {insightsEvents.data.timeseries.length > 0 && (
-              <EventTrendChart series={insightsEvents.data.timeseries} formatNumber={formatNumber} />
-            )}
             <EventAdCorrelation
               eventSeries={insightsEvents.data.timeseries}
               adSeries={adCorrelationSeries}
               formatNumber={formatNumber}
               formatDecimal={formatDecimal}
-            />
-            <EventTable
-              rows={insightsEvents.data.items}
-              loading={insightsEvents.loading}
-              error={insightsEvents.error}
-              formatNumber={formatNumber}
             />
           </div>
         )}

@@ -38,11 +38,6 @@ export default function UploadedItemCard({
         ) : (
           <div className="grid h-full w-full place-items-center text-xs text-slate-400">No preview</div>
         )}
-        {item.type && (
-          <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold uppercase text-white">
-            {item.type}
-          </span>
-        )}
         {item._error && (
           <span className="absolute right-3 top-3 rounded-full bg-rose-600/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-lg">
             메타 오류

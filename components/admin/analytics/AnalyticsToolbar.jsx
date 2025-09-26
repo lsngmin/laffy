@@ -35,34 +35,37 @@ export default function AnalyticsToolbar({
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full bg-slate-950/60 px-3 py-1 text-slate-400">정렬 기준</span>
-        <button
-          type="button"
-          onClick={() => onSortChange('views')}
-          className={`rounded-full px-3 py-1 font-semibold transition ${
-            sortKey === 'views' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
-          }`}
-        >
-          조회수 {sortKey === 'views' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-        </button>
-        <button
-          type="button"
-          onClick={() => onSortChange('likes')}
-          className={`rounded-full px-3 py-1 font-semibold transition ${
-            sortKey === 'likes' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
-          }`}
-        >
-          좋아요 {sortKey === 'likes' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-        </button>
+      <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:gap-3">
+        <span className="inline-flex w-full items-center justify-center rounded-full bg-slate-950/60 px-3 py-1 text-slate-400 sm:w-auto">
+          정렬 기준
+        </span>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => onSortChange('views')}
+            className={`w-full rounded-full px-3 py-2 font-semibold transition sm:w-auto ${
+              sortKey === 'views' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            조회수 {sortKey === 'views' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+          </button>
+          <button
+            type="button"
+            onClick={() => onSortChange('likes')}
+            className={`w-full rounded-full px-3 py-2 font-semibold transition sm:w-auto ${
+              sortKey === 'likes' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            좋아요 {sortKey === 'likes' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+          </button>
+        </div>
       </div>
-      <div className="flex flex-col gap-3 text-xs text-slate-300 md:flex-row md:items-center md:justify-between">
-
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-3 text-xs text-slate-300 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
           {Object.entries(visibleColumns).map(([key, value]) => (
             <label
               key={key}
-              className="flex items-center gap-1 rounded-full bg-slate-950/50 px-3 py-1 capitalize"
+              className="flex w-full items-center gap-1 rounded-full bg-slate-950/50 px-3 py-1 capitalize sm:w-auto"
             >
               <input
                 type="checkbox"
@@ -74,41 +77,40 @@ export default function AnalyticsToolbar({
             </label>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-slate-950/50 px-3 py-1 text-slate-400">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <span className="inline-flex items-center justify-center rounded-full bg-slate-950/50 px-3 py-1 text-slate-400">
             선택 {selectedCount}개
           </span>
           <button
             type="button"
             onClick={onOpenBulkEditor}
             disabled={!selectedCount}
-            className="rounded-full border border-slate-700/60 px-4 py-2 font-semibold text-slate-200 transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-full border border-slate-700/60 px-4 py-2 font-semibold text-slate-200 transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             선택 항목 편집
           </button>
           <button
             type="button"
             onClick={onOpenHistory}
-            className="rounded-full border border-slate-700/60 px-4 py-2 font-semibold text-slate-200 transition hover:bg-slate-800"
+            className="w-full rounded-full border border-slate-700/60 px-4 py-2 font-semibold text-slate-200 transition hover:bg-slate-800 sm:w-auto"
           >
             변경 이력
           </button>
           <button
             type="button"
             onClick={onOpenCsvUpload}
-            className="rounded-full border border-indigo-500/60 px-4 py-2 font-semibold text-indigo-200 transition hover:bg-indigo-500/20"
+            className="w-full rounded-full border border-indigo-500/60 px-4 py-2 font-semibold text-indigo-200 transition hover:bg-indigo-500/20 sm:w-auto"
           >
             CSV 업로드
           </button>
           <button
             type="button"
             onClick={onExportCsv}
-            className="rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 px-4 py-2 font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110"
+            className="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 px-4 py-2 font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110 sm:w-auto"
           >
             CSV 다운로드
           </button>
         </div>
-
       </div>
     </div>
   );

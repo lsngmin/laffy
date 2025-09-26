@@ -44,7 +44,8 @@ export default function AdsterraStatsTable({
                   row?.cpm ??
                     (impressions > 0 && revenue >= 0 ? (revenue / impressions) * 1000 : 0)
                 ) || 0;
-              const dateLabel = row?.date || row?.day || row?.Day || row?.group || `#${index + 1}`;
+              const dateLabel =
+                row?.kstDate || row?.date || row?.day || row?.Day || row?.group || `#${index + 1}`;
               const countryLabel = row?.country ?? row?.Country ?? row?.geo ?? row?.Geo ?? '—';
               const osLabel = row?.os ?? row?.OS ?? row?.platform ?? row?.Platform ?? '—';
               const deviceLabel = row?.device ?? row?.Device ?? row?.device_type ?? row?.deviceType ?? '—';

@@ -1,4 +1,14 @@
 import { useMemo } from 'react';
+import {
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 function normalizeSeries(series) {
   if (!Array.isArray(series)) return [];
@@ -59,6 +69,19 @@ function combineSeries(eventSeries, adSeries) {
     });
 }
 
+function ScatterTooltip({ active, payload, label, formatNumber, formatDecimal }) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  return (
+    <div className="rounded-lg border border-slate-800/70 bg-slate-950/90 px-3 py-2 text-xs text-slate-200 shadow-lg">
+      <p className="font-semibold text-white">{label}</p>
+      <p className="mt-1">이벤트 수: {formatNumber(point?.eventCount || 0)}</p>
+      <p>클릭: {formatNumber(point?.clicks || 0)}</p>
+      <p>수익 (USD): {formatDecimal(point?.revenue || 0, 3)}</p>
+    </div>
+  );
+}
+
 export default function EventAdCorrelation({ eventSeries, adSeries, formatNumber, formatDecimal }) {
   const normalizedEvents = useMemo(() => normalizeSeries(eventSeries), [eventSeries]);
   const normalizedAds = useMemo(() => normalizeSeries(adSeries), [adSeries]);
@@ -87,41 +110,82 @@ export default function EventAdCorrelation({ eventSeries, adSeries, formatNumber
     );
   }
 
+  const totalEvents = combined.reduce((acc, row) => acc + row.eventCount, 0);
+  const totalClicks = combined.reduce((acc, row) => acc + row.clicks, 0);
+  const totalImpressions = combined.reduce((acc, row) => acc + row.impressions, 0);
+  const totalRevenue = combined.reduce((acc, row) => acc + row.revenue, 0);
+
+  const clicksPerEvent = totalEvents > 0 ? totalClicks / totalEvents : 0;
+  const impressionsPerEvent = totalEvents > 0 ? totalImpressions / totalEvents : 0;
+  const revenuePerEvent = totalEvents > 0 ? totalRevenue / totalEvents : 0;
+
+  const scatterData = combined.map((row) => ({
+    ...row,
+    label: row.date,
+  }));
+
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-800/60 bg-slate-900/70 p-6 shadow-inner shadow-black/30">
-      <div className="flex flex-col gap-2 text-sm text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-5 rounded-2xl border border-slate-800/60 bg-slate-900/70 p-6 shadow-inner shadow-black/30">
+      <div className="flex flex-col gap-2 text-sm text-slate-200 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">이벤트-광고 상관분석</p>
           <p className="text-lg font-semibold text-white">일자별 이벤트 수와 광고 지표 비교</p>
         </div>
-        <div className="flex gap-3 text-xs text-slate-300">
+        <div className="flex flex-wrap gap-2 text-xs text-slate-300">
           <span className="rounded-full bg-slate-950/60 px-3 py-1">수익 상관계수 {formatDecimal(revenueCorrelation, 3)}</span>
           <span className="rounded-full bg-slate-950/60 px-3 py-1">클릭 상관계수 {formatDecimal(clickCorrelation, 3)}</span>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-800/60 text-xs">
-          <thead className="bg-slate-900/60 uppercase tracking-[0.2em] text-slate-400">
-            <tr>
-              <th className="px-3 py-2 text-left">날짜</th>
-              <th className="px-3 py-2 text-right">이벤트 수</th>
-              <th className="px-3 py-2 text-right">광고 노출</th>
-              <th className="px-3 py-2 text-right">광고 클릭</th>
-              <th className="px-3 py-2 text-right">광고 수익</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/40 text-slate-200">
-            {combined.map((row) => (
-              <tr key={row.date} className="hover:bg-slate-900/50">
-                <td className="px-3 py-2 font-semibold text-white">{row.date}</td>
-                <td className="px-3 py-2 text-right">{formatNumber(row.eventCount)}</td>
-                <td className="px-3 py-2 text-right">{formatNumber(row.impressions)}</td>
-                <td className="px-3 py-2 text-right">{formatNumber(row.clicks)}</td>
-                <td className="px-3 py-2 text-right">{formatDecimal(row.revenue, 3)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      <div className="grid gap-3 text-sm text-slate-200 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">이벤트당 평균 클릭</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{formatDecimal(clicksPerEvent, 2)}</p>
+          <p className="mt-1 text-xs text-slate-500">Σ clicks ÷ Σ eventCount</p>
+        </div>
+        <div className="rounded-xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">이벤트당 평균 노출</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{formatDecimal(impressionsPerEvent, 2)}</p>
+          <p className="mt-1 text-xs text-slate-500">Σ impressions ÷ Σ eventCount</p>
+        </div>
+        <div className="rounded-xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">이벤트당 평균 수익</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{formatDecimal(revenuePerEvent, 3)}</p>
+          <p className="mt-1 text-xs text-slate-500">Σ revenue ÷ Σ eventCount</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 p-4 text-xs text-slate-300">
+        <p className="font-semibold text-white">해석 가이드</p>
+        <ul className="mt-2 space-y-1 list-disc pl-4">
+          <li>이벤트 1건이 만들어내는 클릭·노출·수익 기여도를 지표화했습니다.</li>
+          <li>상관계수가 0.5 이상이면 이벤트 집약도가 광고 성과에 뚜렷한 영향을 준다고 해석할 수 있습니다.</li>
+          <li>추가 이벤트 실험 시 Σ eventCount 대비 Σ clicks / Σ revenue 추세 변화를 관찰하세요.</li>
+        </ul>
+      </div>
+
+      <div className="h-80 w-full">
+        <ResponsiveContainer>
+          <ScatterChart margin={{ top: 16, right: 32, left: 0, bottom: 24 }}>
+            <CartesianGrid stroke="rgba(148, 163, 184, 0.15)" strokeDasharray="4 4" />
+            <XAxis
+              dataKey="eventCount"
+              stroke="rgba(148, 163, 184, 0.6)"
+              tickFormatter={(value) => formatNumber(Math.round(value))}
+              name="이벤트 수"
+            />
+            <YAxis
+              dataKey="revenue"
+              orientation="right"
+              stroke="rgba(148, 163, 184, 0.6)"
+              tickFormatter={(value) => formatDecimal(value, 2)}
+              name="수익 (USD)"
+            />
+            <Tooltip content={(props) => <ScatterTooltip {...props} formatNumber={formatNumber} formatDecimal={formatDecimal} />} />
+            <Legend wrapperStyle={{ color: 'rgba(226, 232, 240, 0.85)' }} />
+            <Scatter name="수익" data={scatterData} fill="rgb(168, 85, 247)" />
+          </ScatterChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

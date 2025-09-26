@@ -81,11 +81,13 @@ export default function HeatmapGrid({ grid, cells, maxCount, formatNumber }) {
 
   return (
     <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
-      <div
-        className="grid gap-[3px]"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-      >
-        {items}
+      <div className="max-h-[32rem] overflow-auto">
+        <div
+          className="grid gap-[3px]"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {items}
+        </div>
       </div>
     </div>
   );
