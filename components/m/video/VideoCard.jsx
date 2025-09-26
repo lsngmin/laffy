@@ -12,6 +12,7 @@ export default function VideoCard({
                                       disablePlay = false,
                                       mediaType = "video",
                                       onPreviewClick,
+                                      durationSeconds,
                                   }) {
     const vRef = useRef(null);
     const videoJsPlayerRef = useRef(null);
@@ -65,6 +66,11 @@ export default function VideoCard({
         openSmartLink();
     }, [openSmartLink]);
 
+    const resolvedDuration = useMemo(() => {
+        if (Number.isFinite(durationSeconds) && durationSeconds > 0) return durationSeconds;
+        return null;
+    }, [durationSeconds]);
+
     useEffect(() => {
         if (!isImage) return () => {};
         if (!imageSource || !imageVideoRef.current) return () => {};
@@ -84,8 +90,10 @@ export default function VideoCard({
             player.userActive(true);
             player.on('userinactive', () => player.userActive(true));
 
-            player.duration = () => 123;
-            player.trigger('durationchange');
+            if (resolvedDuration) {
+                player.duration = () => resolvedDuration;
+                player.trigger('durationchange');
+            }
         });
 
         player.on('play', () => {
@@ -97,7 +105,7 @@ export default function VideoCard({
             player.dispose();
             videoJsPlayerRef.current = null;
         };
-    }, [imageSource, isImage, openSmartLink]);
+    }, [imageSource, isImage, openSmartLink, resolvedDuration]);
 
     return (
         <div

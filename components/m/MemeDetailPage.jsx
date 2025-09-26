@@ -254,6 +254,7 @@ export default function MemeDetailPage({
                 mediaType={meme.type}
                 disablePlay={disableVideo}
                 onPreviewClick={handlePreviewClick}
+                durationSeconds={meme.durationSeconds}
               />
               {disableVideo && (
                 <div className="mt-8 flex w-full justify-center">
