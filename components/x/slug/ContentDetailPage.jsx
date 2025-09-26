@@ -10,23 +10,17 @@ import { loadFavorites, toggleFavoriteSlug } from "@/utils/storage";
 import VideoCard from "@/components/x/video/VideoCard";
 import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
-import RecommendedMemes from "@/components/m/RecommendedMemes";
-import dynamic from "next/dynamic";
 import CategoryNavigation from "./CategoryNavigation";
+import dynamic from "next/dynamic";
 
-const BannerRect = dynamic(() => import("@/components/ads/RelishAtOptionsFrame"), { ssr: false });
+const RelishInvokeAd = dynamic(() => import("@/components/x/ads/RelishInvokeAd"), { ssr: false });
 
 export default function ContentDetailPage({
   meme,
-  allMemes,
   disableVideo = false,
   hideBackToFeed = false,
   backSlot = null,
-  showRecommended = true,
-  recommendSlot = null,
   onPreviewClick,
-  belowVideoSlot = null,
-  afterArticleSlot = null,
   onCtaClick,
 }) {
   const { t, i18n } = useTranslation("common");
@@ -202,7 +196,7 @@ export default function ContentDetailPage({
           />
 
           <div className="mt-6 flex justify-center">
-            <BannerRect width={300} height={250} />
+            <RelishInvokeAd />
           </div>
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
@@ -240,7 +234,6 @@ export default function ContentDetailPage({
                   </a>
                 </div>
               )}
-              {belowVideoSlot}
             </div>
 
             <div className="flex flex-col gap-4">
@@ -268,14 +261,6 @@ export default function ContentDetailPage({
               </div>
             </div>
           </article>
-
-          {afterArticleSlot}
-
-          {showRecommended ? (
-            <RecommendedMemes t={t} locale={locale} allMemes={allMemes} meme={meme} />
-          ) : (
-            recommendSlot ?? null
-          )}
         </main>
       </div>
     </>

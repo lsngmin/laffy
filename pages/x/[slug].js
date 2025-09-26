@@ -1,16 +1,10 @@
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import ContentDetailPage from '@/components/x/slug/ContentDetailPage';
-import dynamic from 'next/dynamic';
-import QuadAdGrid from '@/components/ads/QuadAdGrid';
-const MonetagBanner = dynamic(() => import('@/components/x/ads/BannerAdsMonetag'), { ssr: false });
 import * as g from '@/lib/gtag';
 import { vaTrack } from '@/lib/va';
 import { useEffect, useRef, useCallback } from 'react';
 import usePageviewTracker from '@/hooks/usePageviewTracker';
-
-const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), { ssr: false });
-const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
 
 export default function ImageDetail(props) {
   if (typeof window !== "undefined" && props?.meme?.slug === "6fca6583443e837b") {
@@ -167,21 +161,6 @@ export default function ImageDetail(props) {
       disableVideo
       hideBackToFeed
       backSlot={null}
-      showRecommended={false}
-      recommendSlot={
-        <div className="mt-10 flex justify-center">
-        {/* todo: 여기에 만든 광고 배너 추가*/}
-        </div>
-      }
-      belowVideoSlot={null}
-      afterArticleSlot={
-        <div className="mt-6 flex w-full justify-center">
-          <MonetagBanner
-            containerId="container-423e3c0edc8f597be9c7991231d2dd57"
-            src="//relishsubsequentlytank.com/423e3c0edc8f597be9c7991231d2dd57/invoke.js"
-          />
-        </div>
-      }
       onPreviewClick={() => {
         const slug = props?.meme?.slug || '';
         const title = props?.meme?.title || '';
