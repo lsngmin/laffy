@@ -183,6 +183,7 @@ export default function VideoCard({
 
     return (
         <div
+            data-heatmap-zone="video_card"
             className={clsx(
                 "relative overflow-hidden rounded-3xl ring-1 ring-slate-800/70 shadow-[0_25px_60px_-35px_rgba(30,41,59,0.8)]",
                 aspect

@@ -3,6 +3,7 @@ import { useTranslation } from "next-i18next";
 
 import { LikeButton, ShareButton, BookmarkButton } from "@/components/x/button";
 import { useLikes } from "@/hooks/useLikes";
+import useHeatmapTracker from "@/hooks/useHeatmapTracker";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { loadFavorites } from "@/utils/storage";
 import VideoCard from "@/components/x/video/VideoCard";
@@ -26,6 +27,8 @@ export default function ContentDetailPage({
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, setLikedState, ready: likesReady } = useLikes();
+  const heatmapSlug = typeof meme?.slug === "string" ? meme.slug : "";
+  const { trackZoneEvent } = useHeatmapTracker({ slug: heatmapSlug, enabled: Boolean(heatmapSlug) });
   const [isFavorite, setIsFavorite] = useState(false);
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
 
@@ -80,12 +83,19 @@ export default function ContentDetailPage({
   }, [meme.slug, meme.views, meme.likes, setLikedState]);
 
   const handleCtaClick = useCallback(() => {
+    trackZoneEvent("cta_primary", "click");
     onCtaClick?.();
-  }, [onCtaClick]);
+  }, [onCtaClick, trackZoneEvent]);
 
   const openSmartLink = useCallback(() => {
+    trackZoneEvent("category_nav", "sponsor_redirect");
     try { window.location.href = SPONSOR_SMART_LINK_URL; } catch {}
-  }, []);
+  }, [trackZoneEvent]);
+
+  const handlePreviewEngaged = useCallback(() => {
+    trackZoneEvent("video_overlay", "engagement");
+    onPreviewEngaged?.();
+  }, [onPreviewEngaged, trackZoneEvent]);
 
   const navItems = useMemo(
     () => [
@@ -115,7 +125,10 @@ export default function ContentDetailPage({
       )}
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-        <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
+        <main
+          className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6"
+          data-heatmap-zone="detail_main"
+        >
           <div className="mt-6 mb-6 text-center">
             <LogoText size={"4xl"}/>
           </div>
@@ -127,7 +140,10 @@ export default function ContentDetailPage({
             ariaLabel={t("nav.label", "navigation")}
           />
 
-          <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
+          <article
+            className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9"
+            data-heatmap-zone="detail_article"
+          >
             <header className="space-y-4">
               <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.title}</h1>
               <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-slate-300/90">
@@ -137,14 +153,14 @@ export default function ContentDetailPage({
               </div>
             </header>
 
-            <div>
+            <div data-heatmap-zone="video_section">
               <VideoCard
                 poster={meme.poster}
                 title={meme.description}
                 aspect={mediaAspect}
                 slug={meme.slug}
                 disablePlay={disableVideo}
-                onEngagement={onPreviewEngaged}
+                onEngagement={handlePreviewEngaged}
                 durationSeconds={meme.durationSeconds}
               />
               <div className="mt-8 flex w-full justify-center">
@@ -153,6 +169,7 @@ export default function ContentDetailPage({
                   target="_blank"
                   rel="noopener"
                   onClick={handleCtaClick}
+                  data-heatmap-zone="cta_primary"
                   className="inline-flex items-center gap-3 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-7 py-3 text-base font-semibold text-white shadow-[0_16px_40px_rgba(79,70,229,0.45)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-200 hover:brightness-110 active:scale-95 sm:px-9 sm:py-3.5 sm:text-lg"
                   aria-label="스폰서 링크로 이동"
                 >
@@ -161,7 +178,7 @@ export default function ContentDetailPage({
               </div>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4" data-heatmap-zone="social_bar">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <LikeButton
@@ -189,17 +206,21 @@ export default function ContentDetailPage({
             </div>
           </article>
 
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex justify-center" data-heatmap-zone="sponsor_secondary">
             <RelishInvokeAd />
           </div>
-          <ElevatedNoticePanel />
+          <div data-heatmap-zone="notice_panel">
+            <ElevatedNoticePanel />
+          </div>
 
-          <RecommendedGrid
-            t={t}
-            locale={locale}
-            items={allMemes}
-            currentSlug={meme.slug}
-          />
+          <div data-heatmap-zone="recommended_grid">
+            <RecommendedGrid
+              t={t}
+              locale={locale}
+              items={allMemes}
+              currentSlug={meme.slug}
+            />
+          </div>
         </main>
       </div>
     </>

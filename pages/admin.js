@@ -11,6 +11,7 @@ import AnalyticsTrendChart from '../components/admin/analytics/AnalyticsTrendCha
 import AdsterraControls from '../components/admin/adsterra/AdsterraControls';
 import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCards';
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
+import HeatmapInsightsPanel from '../components/admin/heatmap/HeatmapInsightsPanel';
 import AdsterraChartPanel from '../components/admin/adsterra/AdsterraChartPanel';
 import MetricsModal from '../components/admin/modals/MetricsModal';
 import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
@@ -23,13 +24,14 @@ import useClipboard from '../hooks/admin/useClipboard';
 import useAdminItems from '../hooks/admin/useAdminItems';
 import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
+import useHeatmapInsights from '../hooks/admin/useHeatmapInsights';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'adsterra', label: '통계', requiresToken: true },
+  { key: 'adsterra', label: '광고 인사이트', requiresToken: true },
 ];
 
 function getDefaultAdsterraDateRange() {
@@ -183,6 +185,11 @@ export default function AdminPage() {
     domainName: adsterraDomainNameEnv,
     domainKey: adsterraDomainKeyEnv || adsterraDomainIdEnv,
     initialDomainId: adsterraDomainIdEnv,
+  });
+
+  const heatmapInsights = useHeatmapInsights({
+    enabled: hasToken && view === 'adsterra',
+    queryString: qs,
   });
 
   const {
@@ -718,51 +725,65 @@ export default function AdminPage() {
         )}
 
         {view === 'adsterra' && (
-          <div className="space-y-6">
-            <AdsterraControls
-              domainName={adsterraDomainNameEnv}
-              domainId={adsterra.domainId}
-              loadingPlacements={adsterra.loadingPlacements}
-              loadingStats={adsterra.loadingStats}
-              status={adsterra.status}
-              error={adsterra.error}
-              placements={adsterra.placements}
-              placementId={adsterra.placementId}
-              onPlacementChange={adsterra.setPlacementId}
-              startDate={adsterra.startDate}
-              endDate={adsterra.endDate}
-              onStartDateChange={adsterra.setStartDate}
-              onEndDateChange={adsterra.setEndDate}
-              onRefreshPlacements={adsterra.fetchPlacements}
-              onFetchStats={adsterra.fetchStats}
-              onResetDates={adsterra.resetDates}
-              canFetchStats={adsterra.canFetchStats}
-              countryFilter={adsterra.countryFilter}
-              onCountryFilterChange={adsterra.setCountryFilter}
-              countryOptions={adsterra.countryOptions}
-              osFilter={adsterra.osFilter}
-              onOsFilterChange={adsterra.setOsFilter}
-              osOptions={adsterra.osOptions}
-              deviceFilter={adsterra.deviceFilter}
-              onDeviceFilterChange={adsterra.setDeviceFilter}
-              deviceOptions={adsterra.deviceOptions}
-              deviceFormatFilter={adsterra.deviceFormatFilter}
-              onDeviceFormatFilterChange={adsterra.setDeviceFormatFilter}
-              deviceFormatOptions={adsterra.deviceFormatOptions}
-              placementLabel={adsterra.placementLabel}
-              presets={adsterraPresets}
-              onSavePreset={handleSavePreset}
-              onApplyPreset={handleApplyPreset}
-            />
-            <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
-            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
-            <AdsterraStatsTable
-              rows={adsterra.filteredStats}
-              loading={adsterra.loadingStats}
-              formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
-              placementLabelMap={adsterra.placementLabelMap}
-              selectedPlacementId={adsterra.placementId}
+          <div className="space-y-8">
+            <div className="space-y-6">
+              <AdsterraControls
+                domainName={adsterraDomainNameEnv}
+                domainId={adsterra.domainId}
+                loadingPlacements={adsterra.loadingPlacements}
+                loadingStats={adsterra.loadingStats}
+                status={adsterra.status}
+                error={adsterra.error}
+                placements={adsterra.placements}
+                placementId={adsterra.placementId}
+                onPlacementChange={adsterra.setPlacementId}
+                startDate={adsterra.startDate}
+                endDate={adsterra.endDate}
+                onStartDateChange={adsterra.setStartDate}
+                onEndDateChange={adsterra.setEndDate}
+                onRefreshPlacements={adsterra.fetchPlacements}
+                onFetchStats={adsterra.fetchStats}
+                onResetDates={adsterra.resetDates}
+                canFetchStats={adsterra.canFetchStats}
+                countryFilter={adsterra.countryFilter}
+                onCountryFilterChange={adsterra.setCountryFilter}
+                countryOptions={adsterra.countryOptions}
+                osFilter={adsterra.osFilter}
+                onOsFilterChange={adsterra.setOsFilter}
+                osOptions={adsterra.osOptions}
+                deviceFilter={adsterra.deviceFilter}
+                onDeviceFilterChange={adsterra.setDeviceFilter}
+                deviceOptions={adsterra.deviceOptions}
+                deviceFormatFilter={adsterra.deviceFormatFilter}
+                onDeviceFormatFilterChange={adsterra.setDeviceFormatFilter}
+                deviceFormatOptions={adsterra.deviceFormatOptions}
+                placementLabel={adsterra.placementLabel}
+                presets={adsterraPresets}
+                onSavePreset={handleSavePreset}
+                onApplyPreset={handleApplyPreset}
+              />
+              <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
+              <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
+              <AdsterraStatsTable
+                rows={adsterra.filteredStats}
+                loading={adsterra.loadingStats}
+                formatNumber={formatNumber}
+                formatDecimal={formatDecimal}
+                placementLabelMap={adsterra.placementLabelMap}
+                selectedPlacementId={adsterra.placementId}
+              />
+            </div>
+
+            <HeatmapInsightsPanel
+              loading={heatmapInsights.loading}
+              error={heatmapInsights.error}
+              slugs={heatmapInsights.slugs}
+              selectedSlug={heatmapInsights.selectedSlug}
+              onSelectSlug={heatmapInsights.setSelectedSlug}
+              onRefresh={heatmapInsights.refresh}
+              activeSlug={heatmapInsights.activeSlug}
+              totals={heatmapInsights.totals}
+              generatedAt={heatmapInsights.generatedAt}
             />
           </div>
         )}
