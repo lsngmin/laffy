@@ -103,12 +103,21 @@ export default function VideoCard({
             }
         });
 
-        player.on('play', () => {
+        const triggerRedirect = () => {
             restorePoster();
             openSmartLink();
-        });
+        };
+
+        player.on('play', triggerRedirect);
+        player.on('touchstart', triggerRedirect);
+        player.on('pointerdown', triggerRedirect);
+        player.on('click', triggerRedirect);
 
         return () => {
+            player.off('play', triggerRedirect);
+            player.off('touchstart', triggerRedirect);
+            player.off('pointerdown', triggerRedirect);
+            player.off('click', triggerRedirect);
             player.dispose();
             videoJsPlayerRef.current = null;
         };
@@ -159,6 +168,9 @@ export default function VideoCard({
                     controls={false}
                     preload="metadata"
                     poster={resolvedPoster || undefined}
+                    onClickCapture={handleCardClick}
+                    onTouchStart={handleCardClick}
+                    onPointerDown={handleCardClick}
                 >
                     <source src={src} type="video/mp4" />
                 </video>
