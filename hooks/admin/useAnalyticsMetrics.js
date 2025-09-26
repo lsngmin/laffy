@@ -15,6 +15,25 @@ const DEFAULT_FILTERS = {
   query: '',
 };
 
+const BATCH_FETCH_LIMIT = 25;
+
+function normalizeFilters(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_FILTERS };
+  }
+
+  const type = typeof raw.type === 'string' ? raw.type.trim() : DEFAULT_FILTERS.type;
+  const orientation =
+    typeof raw.orientation === 'string' ? raw.orientation.trim() : DEFAULT_FILTERS.orientation;
+  const query = typeof raw.query === 'string' ? raw.query.trim() : DEFAULT_FILTERS.query;
+
+  return {
+    type,
+    orientation,
+    query,
+  };
+}
+
 export default function useAnalyticsMetrics({ items, enabled, initialFilters }) {
   const [metricsBySlug, setMetricsBySlug] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
@@ -23,10 +42,8 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
   const [sortDirection, setSortDirection] = useState('desc');
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
   const [metricsEditor, setMetricsEditor] = useState(null);
-  const [filters, setFilters] = useState(() => ({
-    ...DEFAULT_FILTERS,
-    ...(initialFilters || {}),
-  }));
+  const [filtersState, setFiltersState] = useState(() => normalizeFilters(initialFilters));
+
 
   const pendingMetricsRef = useRef(new Set());
 
@@ -53,19 +70,57 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
   }, [normalizedInitialFilters]);
 
   useEffect(() => {
+    if (!initialFilters) return;
+    setFiltersState((prev) => {
+      const next = normalizeFilters(initialFilters);
+      const keys = Object.keys(next);
+      const changed = keys.some((key) => next[key] !== prev[key]);
+      return changed ? next : prev;
+    });
+  }, [initialFilters]);
+
+  const filters = useMemo(() => ({ ...filtersState }), [filtersState]);
+
+  const filteredItems = useMemo(() => {
+    if (!Array.isArray(items)) return [];
+    const normalizedQuery = filters.query.trim().toLowerCase();
+
+    return items.filter((item) => {
+      if (!item) return false;
+      if (filters.type && item.type !== filters.type) return false;
+      if (filters.orientation && item.orientation !== filters.orientation) return false;
+      if (normalizedQuery) {
+        const haystack = `${item.title || ''} ${item.slug || ''}`.toLowerCase();
+        if (!haystack.includes(normalizedQuery)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [items, filters]);
+
+  useEffect(() => {
     setMetricsBySlug((prev) => {
       if (!prev || typeof prev !== 'object') return {};
       const next = {};
-      items.forEach((item) => {
+      const allowedSlugs = new Set();
+      filteredItems.forEach((item) => {
         if (item.slug && prev[item.slug]) next[item.slug] = prev[item.slug];
+        if (item.slug) allowedSlugs.add(item.slug);
+      });
+      const pendingSet = pendingMetricsRef.current;
+      pendingSet.forEach((slug) => {
+        if (!allowedSlugs.has(slug)) {
+          pendingSet.delete(slug);
+        }
       });
       return next;
     });
-  }, [items]);
+  }, [filteredItems]);
 
   useEffect(() => {
     if (!enabled) return undefined;
-    const slugs = items.map((item) => item.slug).filter(Boolean);
+    const slugs = filteredItems.map((item) => item.slug).filter(Boolean);
     const pendingSet = pendingMetricsRef.current;
     const fetchTargets = slugs.filter((slug) => !metricsBySlug[slug] && !pendingSet.has(slug));
 
@@ -80,29 +135,69 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
     setMetricsLoading(true);
     setMetricsError(null);
 
+    const fetchBatch = async (chunkSlugs) => {
+      if (!chunkSlugs.length) return {};
+
+      const aggregated = {};
+      let cursor = 0;
+      let safetyCounter = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const params = new URLSearchParams();
+        chunkSlugs.forEach((slug) => params.append('slugs[]', slug));
+        params.set('limit', String(BATCH_FETCH_LIMIT));
+        if (cursor > 0) params.set('cursor', String(cursor));
+        const res = await fetch(`/api/metrics/batch?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error('metrics_error');
+        }
+        const data = await res.json();
+        if (data?.metrics && typeof data.metrics === 'object') {
+          Object.entries(data.metrics).forEach(([slug, metrics]) => {
+            aggregated[slug] = {
+              views: Number(metrics?.views) || 0,
+              likes: Math.max(0, Number(metrics?.likes) || 0),
+            };
+            if (typeof metrics?.liked === 'boolean') {
+              aggregated[slug].liked = metrics.liked;
+            }
+          });
+        }
+
+        if (data && data.nextCursor !== null && data.nextCursor !== undefined) {
+          const nextValue = Number(data.nextCursor);
+          hasMore = Number.isFinite(nextValue) && nextValue > cursor && nextValue < chunkSlugs.length;
+          cursor = hasMore ? nextValue : 0;
+        } else {
+          hasMore = false;
+        }
+
+        safetyCounter += 1;
+        if (safetyCounter > Math.ceil(chunkSlugs.length / BATCH_FETCH_LIMIT) + 1) {
+          throw new Error('metrics_batch_loop');
+        }
+      }
+
+      return aggregated;
+    };
+
     (async () => {
       try {
-        const results = await Promise.all(
-          fetchTargets.map(async (slug) => {
-            const res = await fetch(`/api/metrics/get?slug=${encodeURIComponent(slug)}`);
-            if (!res.ok) {
-              throw new Error('metrics_error');
-            }
-            const data = await res.json();
-            return {
-              slug,
-              metrics: {
-                views: Number(data?.views) || 0,
-                likes: Math.max(0, Number(data?.likes) || 0),
-              },
-            };
-          })
-        );
+        const chunks = [];
+        for (let index = 0; index < fetchTargets.length; index += BATCH_FETCH_LIMIT) {
+          chunks.push(fetchTargets.slice(index, index + BATCH_FETCH_LIMIT));
+        }
+
+        const batchResults = await Promise.all(chunks.map((chunk) => fetchBatch(chunk)));
+
         if (cancelled) return;
         setMetricsBySlug((prev) => {
           const next = { ...prev };
-          results.forEach(({ slug, metrics }) => {
-            next[slug] = metrics;
+          batchResults.forEach((batch) => {
+            Object.entries(batch).forEach(([slug, metrics]) => {
+              next[slug] = metrics;
+            });
           });
           return next;
         });
@@ -122,7 +217,7 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
       fetchTargets.forEach((slug) => pendingSet.delete(slug));
       setMetricsLoading(false);
     };
-  }, [enabled, items, metricsBySlug]);
+  }, [enabled, filteredItems, metricsBySlug]);
 
   const filteredItems = useMemo(() => {
     const activeType = filters.type || '';
@@ -143,10 +238,12 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
 
   const analyticsRows = useMemo(
     () =>
-      filteredItems.map((item) => ({
-        ...item,
-        metrics: metricsBySlug[item.slug] || null,
-      })),
+      filteredItems
+        .filter((item) => item.slug)
+        .map((item) => ({
+          ...item,
+          metrics: metricsBySlug[item.slug] || null,
+        })),
     [filteredItems, metricsBySlug]
   );
 
@@ -193,6 +290,27 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
       ...prev,
       [column]: !prev[column],
     }));
+  }, []);
+
+  const setFilters = useCallback((updater) => {
+    setFiltersState((prev) => {
+      const draft = { ...prev };
+      const patch = typeof updater === 'function' ? updater(draft) : updater;
+      const merged = { ...prev, ...(patch || {}) };
+      const normalized = normalizeFilters(merged);
+      const keys = Object.keys(normalized);
+      const changed = keys.some((key) => normalized[key] !== prev[key]);
+      return changed ? normalized : prev;
+    });
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setFiltersState((prev) => {
+      const next = { ...DEFAULT_FILTERS };
+      const keys = Object.keys(next);
+      const changed = keys.some((key) => next[key] !== prev[key]);
+      return changed ? next : prev;
+    });
   }, []);
 
   const setSort = useCallback((key) => {
@@ -281,6 +399,10 @@ export default function useAnalyticsMetrics({ items, enabled, initialFilters }) 
     sortedAnalyticsRows,
     analyticsTotals,
     averageLikeRate,
+    filteredItems,
+    filters,
+    setFilters,
+    resetFilters,
     metricsBySlug,
     metricsLoading,
     metricsError,
