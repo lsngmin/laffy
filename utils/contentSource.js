@@ -1,6 +1,7 @@
 import { list } from '@vercel/blob';
 import { getBlobReadToken } from './blobTokens';
 import localMemes from './localMemes';
+import { normalizeMeta } from './metaNormalizer';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -19,7 +20,7 @@ export async function listBlobContent() {
           const res = await fetch(b.url);
           if (!res.ok) return null;
           const m = await res.json();
-          return normalize(m);
+          return normalizeMeta(m);
         } catch {
           return null;
         }
@@ -48,29 +49,10 @@ export async function getContentBySlug(slug) {
 
 function getLocalFallback() {
   return {
-    items: localMemes.map((item) => ({ ...item })),
+    items: localMemes
+      .map((item) => normalizeMeta(item))
+      .filter(Boolean),
     source: 'local'
-  };
-}
-
-function normalize(meta) {
-  const normalizedPoster = meta.poster || meta.thumbnail || null;
-  const normalizedThumbnail = meta.thumbnail || normalizedPoster || '';
-
-  return {
-    slug: meta.slug,
-    type: meta.type || 'video',
-    src: meta.src || meta.url,
-    poster: normalizedPoster,
-    title: meta.title || '',
-    description: meta.description || '',
-    thumbnail: normalizedThumbnail,
-    orientation: meta.orientation || 'landscape',
-    durationSeconds: Number(meta.durationSeconds) || 0,
-    source: meta.source || 'Blob',
-    publishedAt: meta.publishedAt || new Date().toISOString(),
-    likes: Number(meta.likes) || 0,
-    views: Number(meta.views) || 0
   };
 }
 

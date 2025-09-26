@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import ClientBlobUploader from '../components/ClientBlobUploader';
+import { normalizeMeta } from '@/utils/metaNormalizer';
 
 function toDateInputValue(date) {
   if (!(date instanceof Date) || Number.isNaN(date.valueOf())) {
@@ -115,36 +116,37 @@ export default function Admin() {
             const metaRes = await fetch(metaFetchUrl, { cache: 'no-store' });
             if (!metaRes.ok) return { ...it, _error: true };
             const meta = await metaRes.json();
-            const slug = meta?.slug || it.pathname?.replace(/^content\//, '').replace(/\.json$/, '');
-            const type = (meta?.type || '').toLowerCase();
-            const preview = meta?.thumbnail || meta?.poster || '';
+            const normalized = normalizeMeta(meta);
+            if (!normalized) {
+              const slug = it.pathname?.replace(/^content\//, '').replace(/\.json$/, '');
+              return { ...it, slug, _error: true };
+            }
+            const slug = normalized.slug || it.pathname?.replace(/^content\//, '').replace(/\.json$/, '');
+            const type = (normalized.type || '').toLowerCase();
+            const preview = normalized.thumbnail || normalized.poster || normalized.src || '';
             const routePath = type === 'image' ? `/x/${slug}` : `/m/${slug}`;
-            const titleValue = meta?.title || slug;
-            const descriptionValue = meta?.description || '';
-            const sourceUrl = meta?.src || meta?.url || meta?.sourceUrl || '';
-            const poster = meta?.poster || '';
-            const thumbnail = meta?.thumbnail || '';
-            const orientationValue = meta?.orientation || 'landscape';
-            const durationSeconds = Number(meta?.durationSeconds) || 0;
-            const likes = Number(meta?.likes) || 0;
-            const views = Number(meta?.views) || 0;
-            const publishedAt = meta?.publishedAt || '';
+
             return {
               ...it,
               slug,
               type,
               preview,
               routePath,
-              title: titleValue,
-              description: descriptionValue,
-              src: sourceUrl,
-              poster,
-              thumbnail,
-              orientation: orientationValue,
-              durationSeconds,
-              likes,
-              views,
-              publishedAt,
+              title: normalized.title || slug,
+              description: normalized.description || '',
+              summary: normalized.summary || '',
+              src: normalized.src,
+              poster: normalized.poster || '',
+              thumbnail: normalized.thumbnail || '',
+              orientation: normalized.orientation || 'landscape',
+              durationSeconds: Number(normalized.durationSeconds) || 0,
+              likes: Number(normalized.likes) || 0,
+              views: Number(normalized.views) || 0,
+              publishedAt: normalized.publishedAt || '',
+              updatedAt: normalized.updatedAt || '',
+              metaSchemaVersion: normalized.schemaVersion || null,
+              source: normalized.source || 'Blob',
+              rawMeta: meta,
             };
           } catch {
             const slug = it.pathname?.replace(/^content\//, '').replace(/\.json$/, '');
