@@ -14,6 +14,7 @@ export default function AdminNav({ items, activeView, onChange }) {
               }}
               disabled={disabled}
               aria-pressed={active}
+              aria-label={item.ariaLabel || item.label}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
                 active
                   ? 'bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/30'

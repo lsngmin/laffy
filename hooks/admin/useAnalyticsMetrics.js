@@ -338,11 +338,13 @@ export default function useAnalyticsMetrics({
     [rowsWithDisplayMetrics]
   );
 
-  const averageLikeRate = useMemo(() => {
-    const withViews = rowsWithDisplayMetrics.filter((row) => row.displayMetrics && row.displayMetrics.views > 0);
-    if (!withViews.length) return 0;
-    const totalRate = withViews.reduce((acc, row) => acc + row.displayMetrics.likes / row.displayMetrics.views, 0);
-    return totalRate / withViews.length;
+  const averageViewsPerContent = useMemo(() => {
+    const withMetrics = rowsWithDisplayMetrics.filter((row) => row.displayMetrics);
+    if (!withMetrics.length) {
+      return 0;
+    }
+    const totalViews = withMetrics.reduce((acc, row) => acc + (row.displayMetrics.views || 0), 0);
+    return totalViews / withMetrics.length;
   }, [rowsWithDisplayMetrics]);
 
   const aggregatedRangeTotals = useMemo(() => {
@@ -614,7 +616,7 @@ export default function useAnalyticsMetrics({
     isRangeActive: rangeActive,
     trendHistory,
     exportRows,
-    averageLikeRate,
+    averageViewsPerContent,
     filteredItems,
     filters,
     setFilters,

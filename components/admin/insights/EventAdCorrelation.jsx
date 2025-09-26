@@ -82,7 +82,7 @@ export default function EventAdCorrelation({ eventSeries, adSeries, formatNumber
   if (!combined.length) {
     return (
       <div className="rounded-2xl border border-slate-800/60 bg-slate-900/70 p-6 text-sm text-slate-400">
-        기간 내 광고 데이터와 이벤트 데이터를 모두 불러오면 상관관계를 분석할 수 있어요.
+        기간 내 수익 데이터와 이벤트 데이터를 모두 불러오면 상관관계를 분석할 수 있어요.
       </div>
     );
   }
@@ -91,8 +91,8 @@ export default function EventAdCorrelation({ eventSeries, adSeries, formatNumber
     <div className="space-y-4 rounded-2xl border border-slate-800/60 bg-slate-900/70 p-6 shadow-inner shadow-black/30">
       <div className="flex flex-col gap-2 text-sm text-slate-200 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">이벤트-광고 상관분석</p>
-          <p className="text-lg font-semibold text-white">일자별 이벤트 수와 광고 지표 비교</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">이벤트-수익 상관분석</p>
+          <p className="text-lg font-semibold text-white">일자별 이벤트 수와 수익 지표 비교</p>
         </div>
         <div className="flex gap-3 text-xs text-slate-300">
           <span className="rounded-full bg-slate-950/60 px-3 py-1">수익 상관계수 {formatDecimal(revenueCorrelation, 3)}</span>
@@ -105,9 +105,9 @@ export default function EventAdCorrelation({ eventSeries, adSeries, formatNumber
             <tr>
               <th className="px-3 py-2 text-left">날짜</th>
               <th className="px-3 py-2 text-right">이벤트 수</th>
-              <th className="px-3 py-2 text-right">광고 노출</th>
-              <th className="px-3 py-2 text-right">광고 클릭</th>
-              <th className="px-3 py-2 text-right">광고 수익</th>
+              <th className="px-3 py-2 text-right">노출(수익)</th>
+              <th className="px-3 py-2 text-right">클릭(수익)</th>
+              <th className="px-3 py-2 text-right">수익 (USD)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/40 text-slate-200">

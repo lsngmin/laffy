@@ -114,7 +114,7 @@ export default function HeatmapPanel({
       <div className="rounded-3xl border border-indigo-500/40 bg-slate-950/80 p-6 shadow-inner shadow-indigo-500/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white">히트맵 분석</h2>
+            <h2 className="text-2xl font-bold text-white">분석</h2>
             <p className="mt-1 text-sm text-slate-400">
               콘텐츠 상세 페이지에서 수집한 좌표 기반 이벤트를 시각화하고, 섹션/이벤트 유형별 분포를 분석할 수 있어요.
             </p>

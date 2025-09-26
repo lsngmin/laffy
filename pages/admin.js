@@ -19,6 +19,7 @@ import EventTable from '../components/admin/events/EventTable';
 import EventTrendChart from '../components/admin/events/EventTrendChart';
 import EventAdCorrelation from '../components/admin/insights/EventAdCorrelation';
 import EventKeyMetrics from '../components/admin/events/EventKeyMetrics';
+import IntegratedInsightHighlights from '../components/admin/insights/IntegratedInsightHighlights';
 import MetricsModal from '../components/admin/modals/MetricsModal';
 import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
 import AnalyticsCsvUploadModal from '../components/admin/modals/AnalyticsCsvUploadModal';
@@ -37,13 +38,15 @@ import { downloadAnalyticsCsv } from '../components/admin/analytics/export/Analy
 import useAdminCatalog from '../hooks/admin/useAdminCatalog';
 
 const NAV_ITEMS = [
-  { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
-  { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'events', label: '커스텀 이벤트', requiresToken: true },
-  { key: 'ads', label: '광고', requiresToken: true },
-  { key: 'insights', label: '통합 인사이트', requiresToken: true },
-  { key: 'heatmap', label: '히트맵 분석', requiresToken: true },
+  { key: 'uploads', label: '업로드', ariaLabel: '업로드 관리', requiresToken: false },
+  { key: 'analytics', label: '목록', ariaLabel: '콘텐츠 목록', requiresToken: true },
+  { key: 'events', label: '분석', ariaLabel: '커스텀 이벤트 분석', requiresToken: true },
+  { key: 'ads', label: '수익', ariaLabel: '수익 분석', requiresToken: true },
+  { key: 'insights', label: '인사이트', ariaLabel: '통합 인사이트', requiresToken: true },
+  { key: 'heatmap', label: '분석', ariaLabel: '히트맵 분석', requiresToken: true },
 ];
+
+const NAV_KEYS = new Set(NAV_ITEMS.map((item) => item.key));
 
 function getDefaultAdsterraDateRange() {
   const end = new Date();
@@ -99,7 +102,11 @@ export default function AdminPage() {
     return serialized ? `?${serialized}` : '';
   }, [hasToken, token, uploadFilters]);
 
-  const [view, setView] = useState('uploads');
+  const [view, setView] = useState(() => {
+    if (typeof window === 'undefined') return 'uploads';
+    const stored = window.localStorage.getItem('laffy-admin-view');
+    return stored && NAV_KEYS.has(stored) ? stored : 'uploads';
+  });
   const [heatmapSlug, setHeatmapSlug] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -158,6 +165,17 @@ export default function AdminPage() {
     token,
     slug: heatmapSlug.trim(),
   });
+
+  useEffect(() => {
+    if (view !== 'heatmap') return;
+    if (heatmapSlug) return;
+    const nextItem = Array.isArray(catalog.items)
+      ? catalog.items.find((item) => item?.slug)
+      : null;
+    if (nextItem?.slug) {
+      setHeatmapSlug(nextItem.slug);
+    }
+  }, [catalog.items, heatmapSlug, view]);
 
   const fetchHistory = useCallback(
     async (options = {}) => {
@@ -232,20 +250,27 @@ export default function AdminPage() {
     const seriesMap = new Map();
     adsterra.filteredStats.forEach((row) => {
       if (!row || typeof row !== 'object') return;
-      const dateLabel = row.date || row.day || row.Day || row.group;
-      if (!dateLabel) return;
+      const rawLabel = row.localDate || row.date || row.day || row.Day || row.group;
+      const key = row.localDateIso || rawLabel;
+      if (!key || !rawLabel) return;
       const impressions = Number(row?.impression ?? row?.impressions ?? 0) || 0;
       const clicks = Number(row?.clicks ?? row?.click ?? 0) || 0;
       const revenue = Number(row?.revenue ?? 0) || 0;
-      const current = seriesMap.get(dateLabel) || { impressions: 0, clicks: 0, revenue: 0 };
+      const current = seriesMap.get(key) || {
+        label: rawLabel,
+        impressions: 0,
+        clicks: 0,
+        revenue: 0,
+      };
+      current.label = rawLabel;
       current.impressions += impressions;
       current.clicks += clicks;
       current.revenue += revenue;
-      seriesMap.set(dateLabel, current);
+      seriesMap.set(key, current);
     });
     return Array.from(seriesMap.entries())
       .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-      .map(([date, value]) => ({ date, ...value }));
+      .map(([key, value]) => ({ date: value.label, ...value, key }));
   }, [adsterra.filteredStats]);
 
   const {
@@ -286,6 +311,12 @@ export default function AdminPage() {
       setView('uploads');
     }
   }, [hasToken, view]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!NAV_KEYS.has(view)) return;
+    window.localStorage.setItem('laffy-admin-view', view);
+  }, [view]);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat('ko-KR'), []);
   const decimalFormatterTwo = useMemo(
@@ -754,9 +785,8 @@ export default function AdminPage() {
             <AnalyticsOverview
               itemCount={catalog.items.length}
               totals={analytics.analyticsTotals}
-              averageLikeRate={analytics.averageLikeRate}
+              averageViews={analytics.averageViewsPerContent}
               formatNumber={formatNumber}
-              formatPercent={formatPercent}
             />
             {catalog.error && (
               <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100">
@@ -803,7 +833,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
+                <h2 className="text-2xl font-bold text-white">분석</h2>
                 <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
               </div>
               <button
@@ -825,7 +855,11 @@ export default function AdminPage() {
               loading={eventAnalytics.loading}
               onRefresh={eventAnalytics.refresh}
             />
-            <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+            <EventSummaryCards
+              totals={eventAnalytics.data.totals}
+              formatNumber={formatNumber}
+              formatPercent={formatPercent}
+            />
             <EventKeyMetrics
               items={eventAnalytics.data.items}
               formatNumber={formatNumber}
@@ -895,21 +929,18 @@ export default function AdminPage() {
 
         {view === 'insights' && (
           <div className="space-y-6">
-            <EventSummaryCards totals={insightsEvents.data.totals} formatNumber={formatNumber} />
-            {insightsEvents.data.timeseries.length > 0 && (
-              <EventTrendChart series={insightsEvents.data.timeseries} formatNumber={formatNumber} />
-            )}
+            <IntegratedInsightHighlights
+              eventTotals={insightsEvents.data.totals}
+              adTotals={adsterra.totals}
+              formatNumber={formatNumber}
+              formatDecimal={formatDecimal}
+              formatPercent={formatPercent}
+            />
             <EventAdCorrelation
               eventSeries={insightsEvents.data.timeseries}
               adSeries={adCorrelationSeries}
               formatNumber={formatNumber}
               formatDecimal={formatDecimal}
-            />
-            <EventTable
-              rows={insightsEvents.data.items}
-              loading={insightsEvents.loading}
-              error={insightsEvents.error}
-              formatNumber={formatNumber}
             />
           </div>
         )}

@@ -2,6 +2,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export const ADSTERRA_ALL_PLACEMENTS_VALUE = '__all__';
 
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function parseUtcDateLike(value) {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T00:00:00Z`);
+  }
+  if (/Z$/i.test(raw)) {
+    return new Date(raw);
+  }
+  return new Date(`${raw}Z`);
+}
+
+function toKstDateParts(input) {
+  const parsed = parseUtcDateLike(input);
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return { dateOnly: '', label: '', iso: '' };
+  }
+  const kst = new Date(parsed.getTime() + KST_OFFSET_MS);
+  const iso = kst.toISOString();
+  const dateOnly = iso.slice(0, 10);
+  const time = iso.slice(11, 16);
+  return { dateOnly, label: `${dateOnly} ${time}`, iso };
+}
+
 export default function useAdsterraStats({
   enabled,
   defaultRange,
@@ -215,7 +242,7 @@ export default function useAdsterraStats({
       return;
     }
     if (placementId !== ADSTERRA_ALL_PLACEMENTS_VALUE && !placementId) {
-      setError('광고 포맷(플레이스먼트)을 선택해 주세요.');
+      setError('수익 포맷(플레이스먼트)을 선택해 주세요.');
       return;
     }
     if (!startDate || !endDate) {
@@ -257,7 +284,19 @@ export default function useAdsterraStats({
       }
       if (statsRequestRef.current !== requestId) return;
       const items = Array.isArray(json?.items) ? json.items : [];
-      setStats(items);
+      const normalizedItems = items.map((entry) => {
+        if (!entry || typeof entry !== 'object') return entry;
+        const source = entry.date ?? entry.day ?? entry.Day ?? entry.group ?? '';
+        const { dateOnly, label, iso } = toKstDateParts(source);
+        return {
+          ...entry,
+          rawDate: source,
+          localDate: dateOnly || (typeof source === 'string' ? source : ''),
+          localDateLabel: label || (typeof source === 'string' ? source : ''),
+          localDateIso: iso || '',
+        };
+      });
+      setStats(normalizedItems);
       setStatus(`총 ${items.length}건의 통계를 불러왔어요. (필터는 클라이언트에서 적용됩니다)`);
     } catch (err) {
       if (statsRequestRef.current === requestId) {
