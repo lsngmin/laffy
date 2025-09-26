@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import Head from "next/head";
 import { useTranslation } from "next-i18next";
 
-import { LikeButton, ShareButton, BookmarkButton } from "@/components/button";
+import { LikeButton, ShareButton, BookmarkButton } from "@/components/x/button";
 import { useLikes } from "@/hooks/useLikes";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { loadFavorites } from "@/utils/storage";
@@ -12,14 +11,18 @@ import LogoText from "@/components/LogoText";
 import CategoryNavigation from "./CategoryNavigation";
 import dynamic from "next/dynamic";
 import { SPONSOR_SMART_LINK_URL } from "@/components/x/ads/constants";
+import { ImageSocialMeta } from "@/components/x/meta/SocialMeta";
+import ElevatedNoticePanel from "./ElevatedNoticePanel";
+import CuratedHighlights from "@/components/x/collections/CuratedHighlights";
 
 const RelishInvokeAd = dynamic(() => import("@/components/x/ads/RelishInvokeAd"), { ssr: false });
 
 export default function ContentDetailPage({
   meme,
   disableVideo = false,
-  onPreviewClick,
+  onPreviewEngaged,
   onCtaClick,
+  allMemes,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, setLikedState, ready: likesReady } = useLikes();
@@ -76,10 +79,6 @@ export default function ContentDetailPage({
     return () => { cancelled = true; };
   }, [meme.slug, meme.views, meme.likes, setLikedState]);
 
-  const handlePreviewClick = useCallback(() => {
-    onPreviewClick?.();
-  }, [onPreviewClick]);
-
   const handleCtaClick = useCallback(() => {
     onCtaClick?.();
   }, [onCtaClick]);
@@ -112,30 +111,7 @@ export default function ContentDetailPage({
       <TitleNameHead title={meme.title} description={meme.description} />
       {/* SEO: canonical, hreflang, JSON-LD (injected by pages via props if present) */}
       {meme.__seo && (
-        <Head>
-          {meme.__seo.canonicalUrl && (
-            <link rel="canonical" href={meme.__seo.canonicalUrl} />
-          )}
-          {Array.isArray(meme.__seo.hreflangs) &&
-            meme.__seo.hreflangs.map((alt) => (
-              <link key={alt.hrefLang} rel="alternate" hrefLang={alt.hrefLang} href={alt.href} />
-            ))}
-          {meme.__seo.jsonLd && (
-            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(meme.__seo.jsonLd) }} />
-          )}
-          {/* Minimal OpenGraph/Twitter for stable image preview on Twitter */}
-          {meme.__seo.metaImage && (
-            <>
-              <meta property="og:image" content={meme.__seo.metaImage} />
-              <meta property="og:title" content={safeTitle} />
-              {safeDesc && <meta property="og:description" content={safeDesc} />}
-              <meta name="twitter:card" content="summary_large_image" />
-              <meta name="twitter:image" content={meme.__seo.metaImage} />
-              <meta name="twitter:title" content={safeTitle} />
-              {safeDesc && <meta name="twitter:description" content={safeDesc} />}
-            </>
-          )}
-        </Head>
+        <ImageSocialMeta seo={meme.__seo} title={safeTitle} description={safeDesc} />
       )}
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -155,6 +131,8 @@ export default function ContentDetailPage({
             <RelishInvokeAd />
           </div>
 
+          <ElevatedNoticePanel />
+
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
             <header className="space-y-4">
               <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.description}</h1>
@@ -168,12 +146,11 @@ export default function ContentDetailPage({
             <div>
               <VideoCard
                 poster={meme.poster}
-                src={meme.src}
                 title={meme.title}
                 aspect={mediaAspect}
-                mediaType={meme.type}
+                slug={meme.slug}
                 disablePlay={disableVideo}
-                onPreviewClick={handlePreviewClick}
+                onEngagement={onPreviewEngaged}
                 durationSeconds={meme.durationSeconds}
               />
               <div className="mt-8 flex w-full justify-center">
@@ -217,6 +194,13 @@ export default function ContentDetailPage({
               </div>
             </div>
           </article>
+
+          <CuratedHighlights
+            t={t}
+            locale={locale}
+            items={allMemes}
+            currentSlug={meme.slug}
+          />
         </main>
       </div>
     </>
