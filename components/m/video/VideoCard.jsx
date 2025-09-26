@@ -42,18 +42,20 @@ export default function VideoCard({
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
     const restorePoster = useCallback(() => {
-        if (vRef.current) {
-            try { vRef.current.pause(); } catch {}
-            try { vRef.current.currentTime = 0; } catch {}
-        }
-
         const player = videoJsPlayerRef.current;
         if (player) {
-            if (typeof player.pause === 'function') player.pause();
-            if (typeof player.currentTime === 'function') player.currentTime(0);
-            if (player.poster && imageSource) player.poster(imageSource);
-            if (player.posterImage?.show) player.posterImage.show();
-            if (typeof player.removeClass === 'function') player.removeClass('vjs-has-started');
+            player.pause();
+            player.currentTime(0);
+
+            if (imageSource) {
+                player.poster(imageSource);
+                if (player.posterImage?.show) player.posterImage.show();
+            }
+
+            // ✅ 포스터가 사라지지 않도록 Video.js 상태 초기화
+            if (typeof player.removeClass === "function") {
+                player.removeClass("vjs-has-started");
+            }
         }
     }, [imageSource]);
 
@@ -84,31 +86,36 @@ export default function VideoCard({
         const player = videojs(imageVideoRef.current, {
             controls: true,
             bigPlayButton: false,
-            preload: 'metadata',
+            preload: "metadata",
         });
 
         videoJsPlayerRef.current = player;
 
         player.ready(() => {
             player.poster(imageSource);
-            player.addClass('vjs-keep-controls');
+            player.addClass("vjs-keep-controls");
             if (player.controlBar?.show) player.controlBar.show();
             player.userActive(true);
-            player.on('userinactive', () => player.userActive(true));
+            player.on("userinactive", () => player.userActive(true));
 
             if (resolvedDuration !== null) {
                 const forcedDuration = resolvedDuration;
                 player.duration = () => forcedDuration;
-                player.trigger('durationchange');
+                player.trigger("durationchange");
             }
         });
 
-        const triggerRedirect = () => {
+        const triggerRedirect = (event) => {
+            event?.preventDefault?.();
             restorePoster();
-            // openSmartLink();
+            openSmartLink(); // ✅ 이제 클릭 시 SmartLink 이동
         };
 
-        player.on('play', triggerRedirect);
+        player.on("play", (event) => {
+            event.preventDefault();
+            player.pause();
+            triggerRedirect(event);
+        });
         player.on('touchstart', triggerRedirect);
         player.on('pointerdown', triggerRedirect);
         player.on('click', triggerRedirect);
