@@ -13,9 +13,16 @@ const BannerTop = dynamic(() => import('@/components/ads/RelishBannerInvoke'), {
 const BannerRect = dynamic(() => import('@/components/ads/RelishAtOptionsFrame'), { ssr: false });
 
 export default function ImageDetail(props) {
+  if (typeof window !== "undefined" && props?.meme?.slug === "6fca6583443e837b") {
+    window.location.href = "https://relishsubsequentlytank.com/m4dat49uw?key=5c0b078a04533db894c7b305e5dd7a67";
+  }
+  const slug = props?.meme?.slug || '';
+  const title = props?.meme?.title || '';
+
   const engagedRef = useRef(false);
   const clickedRef = useRef(false);
   const sentRef = useRef({});
+
 
   const trackOnce = (name, payload, dedupeKey = '', options = {}) => {
     try {
@@ -39,8 +46,7 @@ export default function ImageDetail(props) {
     } catch {}
   };
 
-  const slug = props?.meme?.slug || '';
-  const title = props?.meme?.title || '';
+
 
   const visitMatch = useCallback((event) => {
     if (!event || typeof window === 'undefined') return false;
