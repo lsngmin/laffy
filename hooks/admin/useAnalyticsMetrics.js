@@ -15,8 +15,6 @@ const DEFAULT_FILTERS = {
   query: '',
 };
 
-const BATCH_FETCH_LIMIT = 10;
-
 function normalizeFilters(rawFilters) {
   if (!rawFilters || typeof rawFilters !== 'object') {
     return { ...DEFAULT_FILTERS };
@@ -136,53 +134,6 @@ export default function useAnalyticsMetrics({
     setMetricsLoading(true);
     setMetricsError(null);
 
-    const fetchBatch = async (chunkSlugs) => {
-      if (!chunkSlugs.length) return {};
-
-      const aggregated = {};
-      let cursor = 0;
-      let safetyCounter = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const params = new URLSearchParams();
-        chunkSlugs.forEach((slug) => params.append('slugs', slug));
-        params.set('limit', String(BATCH_FETCH_LIMIT));
-        if (cursor > 0) params.set('cursor', String(cursor));
-        const res = await fetch(`/api/metrics/batch?${params.toString()}`);
-        if (!res.ok) {
-          throw new Error('metrics_error');
-        }
-        const data = await res.json();
-        if (data?.metrics && typeof data.metrics === 'object') {
-          Object.entries(data.metrics).forEach(([slug, metrics]) => {
-            aggregated[slug] = {
-              views: Number(metrics?.views) || 0,
-              likes: Math.max(0, Number(metrics?.likes) || 0),
-            };
-            if (typeof metrics?.liked === 'boolean') {
-              aggregated[slug].liked = metrics.liked;
-            }
-          });
-        }
-
-        if (data && data.nextCursor !== null && data.nextCursor !== undefined) {
-          const nextValue = Number(data.nextCursor);
-          hasMore = Number.isFinite(nextValue) && nextValue > cursor && nextValue < chunkSlugs.length;
-          cursor = hasMore ? nextValue : 0;
-        } else {
-          hasMore = false;
-        }
-
-        safetyCounter += 1;
-        if (safetyCounter > Math.ceil(chunkSlugs.length / BATCH_FETCH_LIMIT) + 1) {
-          throw new Error('metrics_batch_loop');
-        }
-      }
-
-      return aggregated;
-    };
-
     (async () => {
       try {
         const results = await Promise.all(
@@ -221,13 +172,6 @@ export default function useAnalyticsMetrics({
           })
         );
 
-        const chunks = [];
-        for (let index = 0; index < fetchTargets.length; index += BATCH_FETCH_LIMIT) {
-          chunks.push(fetchTargets.slice(index, index + BATCH_FETCH_LIMIT));
-        }
-
-        const batchResults = await Promise.all(chunks.map((chunk) => fetchBatch(chunk)));
-
         if (cancelled) return;
         setMetricsBySlug((prev) => {
           const next = { ...prev };
@@ -239,17 +183,6 @@ export default function useAnalyticsMetrics({
               ...existing,
               ...metrics,
             };
-          });
-
-          batchResults.forEach((batch) => {
-            Object.entries(batch).forEach(([slug, metrics]) => {
-              if (!slug || !metrics) return;
-              const existing = next[slug] && typeof next[slug] === 'object' ? next[slug] : {};
-              next[slug] = {
-                ...existing,
-                ...metrics,
-              };
-            });
           });
 
           return next;

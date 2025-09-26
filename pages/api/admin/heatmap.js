@@ -1,5 +1,7 @@
 import { assertAdmin } from './_auth';
 import { getHeatmapSnapshot } from '../../../utils/heatmapStore';
+import { applyRateLimit, setRateLimitHeaders } from '../../../utils/apiRateLimit';
+import { resolveWithCache } from '../../../utils/serverCache';
 
 const DEFAULT_GRID_COLS = 12;
 
@@ -129,21 +131,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    const snapshot = await getHeatmapSnapshot(slug);
-    const buckets = Array.isArray(snapshot?.buckets)
-      ? snapshot.buckets.map((bucket) => transformBucket(bucket))
-      : [];
+    const rate = applyRateLimit(req, `admin:heatmap:${slug}`, { limit: 12, windowMs: 60_000 });
+    setRateLimitHeaders(res, rate);
+    if (!rate.ok) {
+      return res.status(429).json({ error: '히트맵 요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.' });
+    }
 
-    const totalSamples = buckets.reduce((acc, bucket) => acc + (bucket.totalCount || 0), 0);
+    const payload = await resolveWithCache('admin:heatmap', slug, 60_000, async () => {
+      const snapshot = await getHeatmapSnapshot(slug);
+      const buckets = Array.isArray(snapshot?.buckets)
+        ? snapshot.buckets.map((bucket) => transformBucket(bucket))
+        : [];
 
-    return res.status(200).json({
-      ok: true,
-      slug: snapshot?.slug || slug,
-      generatedAt: new Date().toISOString(),
-      buckets,
-      bucketCount: buckets.length,
-      totalSamples,
+      const totalSamples = buckets.reduce((acc, bucket) => acc + (bucket.totalCount || 0), 0);
+
+      return {
+        ok: true,
+        slug: snapshot?.slug || slug,
+        generatedAt: new Date().toISOString(),
+        buckets,
+        bucketCount: buckets.length,
+        totalSamples,
+      };
     });
+
+    return res.status(200).json(payload);
   } catch (error) {
     console.error('[admin][heatmap] failed to load snapshot', error);
     return res.status(500).json({ error: 'Failed to load heatmap snapshot' });

@@ -106,13 +106,17 @@ function ensureMemoryState() {
 }
 
 export async function getMetrics(slug, options = {}) {
-  const { viewerId } = options;
-  const startDate = normalizeDateInput(options.startDate);
-  const endDate = normalizeDateInput(options.endDate);
+  const { viewerId, includeHistory = true } = options;
+  const startDate = includeHistory ? normalizeDateInput(options.startDate) : null;
+  const endDate = includeHistory ? normalizeDateInput(options.endDate) : null;
   const { hasUpstash } = await import('./redisClient');
   if (hasUpstash()) {
     try {
-      return await getMetricsFromRedis(slug, viewerId, { startDate, endDate });
+      return await getMetricsFromRedis(slug, viewerId, {
+        startDate,
+        endDate,
+        includeHistory,
+      });
     } catch (error) {
       console.warn('[metrics] Redis get failed, falling back to store', error);
     }
@@ -124,7 +128,10 @@ export async function getMetrics(slug, options = {}) {
     views: parseCount(base.views),
     likes: parseCount(base.likes),
   };
-  const { history, rangeTotals } = prepareHistoryPayload(base.history, startDate, endDate);
+  const historyPayload = includeHistory
+    ? prepareHistoryPayload(base.history, startDate, endDate)
+    : { history: [], rangeTotals: null };
+  const { history, rangeTotals } = historyPayload;
 
   if (!viewerId) {
     return { ...counts, history, rangeTotals };
@@ -262,23 +269,31 @@ export async function overwriteMetrics(slug, metrics = {}) {
 async function getMetricsFromRedis(slug, viewerId, rangeOptions = {}) {
   const { redisCommand } = await import('./redisClient');
   const key = metricsKey(slug);
-  const result = await redisCommand(['HGETALL', key]);
-  const counts = parseRedisCounts(result);
+  const [viewsRaw, likesRaw] = await redisCommand(['HMGET', key, 'views', 'likes'], { allowReadOnly: true });
+  const counts = {
+    views: parseCount(viewsRaw),
+    likes: parseCount(likesRaw),
+  };
 
-  const { startDate, endDate } = rangeOptions;
-  const { rangeTotals } = prepareHistoryPayload([], startDate, endDate);
-  const hasRangeRequest = Boolean(normalizeDateInput(startDate) || normalizeDateInput(endDate));
-
-  if (!viewerId) {
-    return { ...counts, history: [], rangeTotals: hasRangeRequest ? rangeTotals : null };
+  let rangeTotals = null;
+  if (rangeOptions.includeHistory) {
+    const { startDate = null, endDate = null } = rangeOptions;
+    const hasRangeRequest = Boolean(startDate || endDate);
+    if (hasRangeRequest) {
+      rangeTotals = prepareHistoryPayload([], startDate, endDate).rangeTotals;
+    }
   }
 
-  const member = await redisCommand(['SISMEMBER', likeSetKey(slug), viewerId]);
+  if (!viewerId) {
+    return { ...counts, history: [], rangeTotals };
+  }
+
+  const member = await redisCommand(['SISMEMBER', likeSetKey(slug), viewerId], { allowReadOnly: true });
   return {
     ...counts,
     liked: redisBool(member),
     history: [],
-    rangeTotals: hasRangeRequest ? rangeTotals : null,
+    rangeTotals,
   };
 }
 
@@ -357,20 +372,6 @@ async function setLikeStateWithRedis(slug, viewerId, desiredState) {
     views: parseCount(viewsValue),
     likes: parseCount(likesValue),
     liked: nextLiked,
-  };
-}
-
-function parseRedisCounts(result) {
-  if (!Array.isArray(result) || result.length === 0) {
-    return { views: 0, likes: 0 };
-  }
-  const obj = {};
-  for (let i = 0; i < result.length; i += 2) {
-    obj[result[i]] = result[i + 1];
-  }
-  return {
-    views: parseCount(obj.views),
-    likes: parseCount(obj.likes),
   };
 }
 
