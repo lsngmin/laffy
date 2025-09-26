@@ -146,7 +146,7 @@ export default function useAnalyticsMetrics({
 
       while (hasMore) {
         const params = new URLSearchParams();
-        chunkSlugs.forEach((slug) => params.append('slugs[]', slug));
+        chunkSlugs.forEach((slug) => params.append('slugs', slug));
         params.set('limit', String(BATCH_FETCH_LIMIT));
         if (cursor > 0) params.set('cursor', String(cursor));
         const res = await fetch(`/api/metrics/batch?${params.toString()}`);
@@ -231,11 +231,27 @@ export default function useAnalyticsMetrics({
         if (cancelled) return;
         setMetricsBySlug((prev) => {
           const next = { ...prev };
+
+          results.forEach(({ slug, metrics }) => {
+            if (!slug || !metrics) return;
+            const existing = next[slug] && typeof next[slug] === 'object' ? next[slug] : {};
+            next[slug] = {
+              ...existing,
+              ...metrics,
+            };
+          });
+
           batchResults.forEach((batch) => {
             Object.entries(batch).forEach(([slug, metrics]) => {
-              next[slug] = metrics;
+              if (!slug || !metrics) return;
+              const existing = next[slug] && typeof next[slug] === 'object' ? next[slug] : {};
+              next[slug] = {
+                ...existing,
+                ...metrics,
+              };
             });
           });
+
           return next;
         });
       } catch (error) {
