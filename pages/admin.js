@@ -768,7 +768,10 @@ export default function Admin() {
         title,
         description,
         url: blob.url,
-        durationSeconds: isImage ? 0 : Number(duration) || 0,
+        durationSeconds: (() => {
+          const parsed = Number(duration);
+          return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 0;
+        })(),
         orientation,
         type: normalizedType,
         poster: isImage ? blob.url : null,
