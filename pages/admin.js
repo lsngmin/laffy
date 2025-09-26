@@ -17,6 +17,7 @@ import EventFilters from '../components/admin/events/EventFilters';
 import EventTable from '../components/admin/events/EventTable';
 import EventTrendChart from '../components/admin/events/EventTrendChart';
 import EventAdCorrelation from '../components/admin/insights/EventAdCorrelation';
+import EventKeyMetrics from '../components/admin/events/EventKeyMetrics';
 import MetricsModal from '../components/admin/modals/MetricsModal';
 import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
 import AnalyticsCsvUploadModal from '../components/admin/modals/AnalyticsCsvUploadModal';
@@ -779,6 +780,11 @@ export default function AdminPage() {
                 onRefresh={eventAnalytics.refresh}
               />
               <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+              <EventKeyMetrics
+                items={eventAnalytics.data.items}
+                formatNumber={formatNumber}
+                formatPercent={formatPercent}
+              />
               {eventAnalytics.data.timeseries.length > 0 && (
                 <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
               )}

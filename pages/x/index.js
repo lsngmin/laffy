@@ -1,12 +1,76 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
 import { getAllContent } from '@/utils/contentSource';
 import { getOrientationClass } from '@/lib/formatters';
 import TitleNameHead from "@/components/x/TitleNameHead";
+import { vaTrack } from '@/lib/va';
+
+function GalleryCard({ item, index, locale, t }) {
+  const cardRef = useRef(null);
+  const sentRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (!cardRef.current) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting || sentRef.current) return;
+          sentRef.current = true;
+          try {
+            vaTrack('x_feed_impression', {
+              slug: item.slug,
+              title: item.title,
+              index,
+              value: index + 1,
+            });
+          } catch {}
+        });
+      },
+      { threshold: 0.6 }
+    );
+
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [index, item.slug, item.title]);
+
+  return (
+    <Link
+      ref={cardRef}
+      href={`/x/${item.slug}`}
+      className="group relative overflow-hidden rounded-2xl bg-slate-900/70 ring-1 ring-slate-800/60 transition hover:-translate-y-1 hover:ring-indigo-400/50"
+    >
+      <div className={`relative w-full ${item.aspect} overflow-hidden bg-slate-950/60`}>
+        {item.poster || item.thumbnail ? (
+          <img
+            src={item.poster || item.thumbnail}
+            alt={item.title}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-xs font-semibold text-slate-100">
+            {t('gallery.noPreview', 'Ready?')}
+          </div>
+        )}
+        <span className="absolute left-3 top-3 rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100">
+          {locale === 'ko' ? 'VIEWS : 679,513' : 'VIEWS : 679,513'}
+        </span>
+      </div>
+      <div className="space-y-2 p-4">
+        <h2 className="text-base font-semibold leading-snug text-white line-clamp-2">{item.title}</h2>
+        {item.description && (
+          <p className="text-sm text-slate-300 line-clamp-2">{item.description}</p>
+        )}
+      </div>
+    </Link>
+  );
+}
 
 export default function ImageGallery({ items }) {
   const { t, i18n } = useTranslation('common');
@@ -44,36 +108,8 @@ export default function ImageGallery({ items }) {
             </div>
           ) : (
             <section className="grid gap-5 sm:grid-cols-2">
-              {galleryItems.map((item) => (
-                <Link
-                  key={item.slug}
-                  href={`/x/${item.slug}`}
-                  className="group relative overflow-hidden rounded-2xl bg-slate-900/70 ring-1 ring-slate-800/60 transition hover:-translate-y-1 hover:ring-indigo-400/50"
-                >
-                  <div className={`relative w-full ${item.aspect} overflow-hidden bg-slate-950/60`}>
-                    {item.poster || item.thumbnail ? (
-                      <img
-                        src={item.poster || item.thumbnail}
-                        alt={item.title}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-xs font-semibold text-slate-100">
-                        {t('gallery.noPreview', 'Ready?')}
-                      </div>
-                    )}
-                    <span className="absolute left-3 top-3 rounded-full bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100">
-                      {locale === 'ko' ? 'VIEWS : 679,513' : 'VIEWS : 679,513'}
-                    </span>
-                  </div>
-                  <div className="space-y-2 p-4">
-                    <h2 className="text-base font-semibold leading-snug text-white line-clamp-2">{item.title}</h2>
-                    {item.description && (
-                      <p className="text-sm text-slate-300 line-clamp-2">{item.description}</p>
-                    )}
-                  </div>
-                </Link>
+              {galleryItems.map((item, index) => (
+                <GalleryCard key={item.slug} item={item} index={index} locale={locale} t={t} />
               ))}
             </section>
           )}

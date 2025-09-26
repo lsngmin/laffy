@@ -6,6 +6,12 @@ import "video.js/dist/video-js.css";
 import * as g from "@/lib/gtag";
 import { vaTrack } from "@/lib/va";
 import { VIDEO_PREVIEW_SPONSOR_URL } from "@/components/x/constants";
+import {
+    buildSmartLinkUrl,
+    getSponsorSessionToken,
+    incrementSponsorClickCount,
+    markReadyStateOnce,
+} from "@/lib/sponsorTracking";
 
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
 import DEFAULT_VIDEOJS_OPTIONS from "./videoPlayerOptions";
@@ -28,6 +34,7 @@ export default function VideoCard({
     trackingRoute = "x",
     trackingPlacement = "overlay",
 }) {
+    const containerRef = useRef(null);
     const videoElementRef = useRef(null);
     const videoJsPlayerRef = useRef(null);
     const videoJsId = useMemo(() => `video-card-${Math.random().toString(36).slice(2)}`, []);
@@ -72,11 +79,35 @@ export default function VideoCard({
     const interactivePreview = typeof onEngagement === "function";
 
     const triggerAnalytics = useCallback(() => {
+        const placement = trackingPlacement || "overlay";
+        const token = getSponsorSessionToken();
+        const sponsorUrl = buildSmartLinkUrl(resolvedSponsorUrl, token);
+        const repeatCount = incrementSponsorClickCount(analyticsSlug);
+
         if (analyticsSlug || analyticsTitle) {
             try {
-                vaTrack("x_overlay_click", { slug: analyticsSlug, title: analyticsTitle });
+                vaTrack("x_overlay_click", { slug: analyticsSlug, title: analyticsTitle, placement });
             } catch {}
         }
+
+        try {
+            vaTrack("x_smart_link_open", {
+                slug: analyticsSlug,
+                title: analyticsTitle,
+                placement,
+                token,
+            });
+        } catch {}
+
+        try {
+            vaTrack("x_sponsor_repeat_click", {
+                slug: analyticsSlug,
+                title: analyticsTitle,
+                placement,
+                count: repeatCount,
+                value: repeatCount,
+            });
+        } catch {}
 
         try {
             g.event("video_overlay_click", {
@@ -84,13 +115,13 @@ export default function VideoCard({
                 action_type: "sponsored",
                 slug: analyticsSlug,
                 title: analyticsTitle,
-                placement: trackingPlacement,
+                placement,
             });
         } catch {}
 
         if (typeof window !== "undefined") {
             try {
-                window.open(resolvedSponsorUrl, "_blank", "noopener");
+                window.open(sponsorUrl || resolvedSponsorUrl, "_blank", "noopener");
             } catch {}
         }
     }, [analyticsSlug, analyticsTitle, resolvedSponsorUrl, trackingPlacement, trackingRoute]);
@@ -174,6 +205,44 @@ export default function VideoCard({
         };
     }, [handleInteraction, resolvedDuration, resolvedPoster]);
 
+    useEffect(() => {
+        if (typeof window === "undefined") return undefined;
+        if (!containerRef.current) return undefined;
+
+        const placement = trackingPlacement || "overlay";
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    observer.disconnect();
+                    try {
+                        vaTrack("x_sponsor_impression", {
+                            slug: analyticsSlug,
+                            title: analyticsTitle,
+                            placement,
+                        });
+                    } catch {}
+                });
+            },
+            { threshold: 0.6 }
+        );
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, [analyticsSlug, analyticsTitle, trackingPlacement]);
+
+    useEffect(() => {
+        if (!markReadyStateOnce(analyticsSlug, trackingPlacement)) return;
+        try {
+            vaTrack("x_cta_ready_state", {
+                slug: analyticsSlug,
+                title: analyticsTitle,
+                placement: trackingPlacement || "overlay",
+                state: "rendered",
+            });
+        } catch {}
+    }, [analyticsSlug, analyticsTitle, trackingPlacement]);
+
     const shouldShowFallback = !resolvedPoster;
 
     const handleFallbackClick = shouldShowFallback ? handleInteraction : undefined;
@@ -183,6 +252,7 @@ export default function VideoCard({
 
     return (
         <div
+            ref={containerRef}
             className={clsx(
                 "relative overflow-hidden rounded-3xl ring-1 ring-slate-800/70 shadow-[0_25px_60px_-35px_rgba(30,41,59,0.8)]",
                 aspect
