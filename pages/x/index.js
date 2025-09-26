@@ -6,7 +6,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
 import { getAllContent } from '@/utils/contentSource';
 import { getOrientationClass } from '@/lib/formatters';
-import TitleNameHead from "@/components/m/TitleNameHead";
+import TitleNameHead from "@/components/x/TitleNameHead";
 
 export default function ImageGallery({ items }) {
   const { t, i18n } = useTranslation('common');

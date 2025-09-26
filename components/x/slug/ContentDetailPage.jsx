@@ -2,13 +2,12 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
 import { useTranslation } from "next-i18next";
 
-import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/components/button";
-import { BookmarkLink, BackToFeedLink } from "@/components/link";
+import { LikeButton, ShareButton, BookmarkButton } from "@/components/button";
 import { useLikes } from "@/hooks/useLikes";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { loadFavorites } from "@/utils/storage";
 import VideoCard from "@/components/x/video/VideoCard";
-import TitleNameHead from "@/components/m/TitleNameHead";
+import TitleNameHead from "@/components/x/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import CategoryNavigation from "./CategoryNavigation";
 import dynamic from "next/dynamic";
@@ -141,11 +140,6 @@ export default function ContentDetailPage({
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
-          {/*<div className="flex items-center justify-between text-xs text-slate-300">*/}
-          {/*  <BookmarkLink label={t("favorites.cta")} />*/}
-          {/*  <LocaleSwitchButton locale={locale} />*/}
-          {/*</div>*/}
-
           <div className="mt-6 mb-6 text-center">
             <LogoText size={"4xl"}/>
           </div>
