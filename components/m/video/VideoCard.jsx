@@ -123,6 +123,23 @@ export default function VideoCard({
         };
     }, [imageSource, isImage, openSmartLink, resolvedDuration, restorePoster]);
 
+    useEffect(() => {
+        if (isImage || disablePlay) return () => {};
+        const videoEl = vRef.current;
+        if (!videoEl) return () => {};
+        const handler = (event) => {
+            handleCardClick(event);
+        };
+        videoEl.addEventListener('click', handler, true);
+        videoEl.addEventListener('touchstart', handler, true);
+        videoEl.addEventListener('pointerdown', handler, true);
+        return () => {
+            videoEl.removeEventListener('click', handler, true);
+            videoEl.removeEventListener('touchstart', handler, true);
+            videoEl.removeEventListener('pointerdown', handler, true);
+        };
+    }, [disablePlay, handleCardClick, isImage]);
+
     return (
         <div
             className={clsx(
@@ -168,9 +185,6 @@ export default function VideoCard({
                     controls={false}
                     preload="metadata"
                     poster={resolvedPoster || undefined}
-                    onClickCapture={handleCardClick}
-                    onTouchStart={handleCardClick}
-                    onPointerDown={handleCardClick}
                 >
                     <source src={src} type="video/mp4" />
                 </video>
