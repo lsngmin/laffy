@@ -207,10 +207,13 @@ async function ingestWithRedis(events, context = {}) {
     if (!normalized) continue;
     const comboKey = serializeCombo(normalized.name, normalized.slug || GLOBAL_SLUG);
     const dateKey = toDateKey(normalized.timestamp);
-    const aggKey = `events:agg:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const totalKey = `events:total:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const totalSessionKey = `events:totaluniq:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
+    const slugKey = normalized.slug || GLOBAL_SLUG;
+    const aggKey = `events:agg:${dateKey}:${normalized.name}:${slugKey}`;
+    const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${slugKey}`;
+    const totalKey = `events:total:${normalized.name}:${slugKey}`;
+    const totalSessionKey = `events:totaluniq:${normalized.name}:${slugKey}`;
+    const dateIndexKey = `events:index:${normalized.name}:${slugKey}`;
+    const sessionIndexKey = `events:sessions:index:${normalized.name}:${slugKey}`;
 
     tasks.push(
       redisCommand(['SADD', CATALOG_KEY, comboKey]),
@@ -220,6 +223,8 @@ async function ingestWithRedis(events, context = {}) {
       redisCommand(['HINCRBY', totalKey, 'count', 1]),
       redisCommand(['HSET', totalKey, 'last_ts', String(normalized.timestamp)]),
       redisCommand(['EXPIRE', totalKey, String(TOTAL_TTL_SECONDS)]),
+      redisCommand(['SADD', dateIndexKey, dateKey]),
+      redisCommand(['EXPIRE', dateIndexKey, String(DAILY_TTL_SECONDS)]),
     );
 
     if (normalized.value) {
@@ -235,6 +240,10 @@ async function ingestWithRedis(events, context = {}) {
         redisCommand(['EXPIRE', sessionKey, String(DAILY_TTL_SECONDS)]),
         redisCommand(['PFADD', totalSessionKey, normalized.sessionId]),
         redisCommand(['EXPIRE', totalSessionKey, String(TOTAL_TTL_SECONDS)]),
+        redisCommand(['SADD', sessionIndexKey, dateKey]),
+        redisCommand(['EXPIRE', sessionIndexKey, String(DAILY_TTL_SECONDS)]),
+        redisCommand(['HINCRBY', aggKey, 'session_events', 1]),
+        redisCommand(['HINCRBY', totalKey, 'session_events', 1]),
       );
     }
   }
@@ -341,6 +350,7 @@ function entriesToObject(entries) {
 async function getSummaryFromRedis(options = {}) {
   const range = normalizeRange(options.startDate, options.endDate);
   const dateKeys = rangeToDateKeys(range);
+  const dateKeySet = new Set(dateKeys);
   const limit = clampLimit(options.limit, 50);
   const combosRaw = await fetchCatalogFromRedis();
   const catalog = buildCatalogFromCombos(combosRaw);
@@ -366,13 +376,63 @@ async function getSummaryFromRedis(options = {}) {
     let comboValue = 0;
     let lastTs = 0;
 
+    const dateIndexKey = `events:index:${combo.name}:${slugKey}`;
+    const sessionIndexKey = `events:sessions:index:${combo.name}:${slugKey}`;
+    let indexedDates = null;
+    let rawDateIndex = null;
+    let sessionIndexedDates = null;
+    let rawSessionIndex = null;
+    try {
+      const result = await redisCommand(['SMEMBERS', dateIndexKey], { allowReadOnly: true });
+      if (Array.isArray(result)) {
+        rawDateIndex = result;
+        if (result.length) {
+          indexedDates = result.filter((value) => dateKeySet.has(value));
+          if (!indexedDates.length) indexedDates = [];
+        }
+      }
+    } catch (error) {
+      console.warn('[events] failed to read daily index', { combo: combo.name, slug: slugKey }, error);
+    }
+
+    try {
+      const result = await redisCommand(['SMEMBERS', sessionIndexKey], { allowReadOnly: true });
+      if (Array.isArray(result)) {
+        rawSessionIndex = result;
+        if (result.length) {
+          sessionIndexedDates = result.filter((value) => dateKeySet.has(value));
+          if (!sessionIndexedDates.length) sessionIndexedDates = [];
+        }
+      }
+    } catch (error) {
+      console.warn('[events] failed to read session index', { combo: combo.name, slug: slugKey }, error);
+    }
+
+    const hasDateIndex = Array.isArray(rawDateIndex) && rawDateIndex.length > 0;
+    const hasSessionIndex = Array.isArray(rawSessionIndex) && rawSessionIndex.length > 0;
+    const indexedSourceDates = Array.isArray(indexedDates) ? indexedDates : [];
+    const indexedDateSet = hasDateIndex ? new Set(indexedSourceDates) : null;
+    const availableDateKeys = hasDateIndex && indexedDateSet
+      ? dateKeys.filter((key) => indexedDateSet.has(key))
+      : dateKeys;
+    const availableDateSet = new Set(availableDateKeys);
+
+    if (hasDateIndex && availableDateKeys.length === 0) {
+      continue;
+    }
+
     const dailyResults = await Promise.all(
-      dateKeys.map((dateKey) =>
+      availableDateKeys.map((dateKey) =>
         redisCommand(['HGETALL', `events:agg:${dateKey}:${combo.name}:${slugKey}`], {
           allowReadOnly: true,
         })
       )
     );
+
+    const sessionSourceDates = Array.isArray(sessionIndexedDates) ? sessionIndexedDates : [];
+    const sessionDateSet = hasSessionIndex
+      ? new Set(sessionSourceDates.filter((key) => availableDateSet.has(key)))
+      : null;
 
     dailyResults.forEach((raw, index) => {
       if (!Array.isArray(raw) || raw.length === 0) return;
@@ -384,12 +444,20 @@ async function getSummaryFromRedis(options = {}) {
       comboCount += count;
       comboValue += Number.isFinite(valueSum) ? valueSum : 0;
       lastTs = Math.max(lastTs, last);
-      const dateKey = dateKeys[index];
+      const dateKey = availableDateKeys[index];
       const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
       dateEntry.count += count;
       dateEntry.value += Number.isFinite(valueSum) ? valueSum : 0;
       timeseriesMap.set(dateKey, dateEntry);
-      sessionKeys.push(`events:sessions:${dateKey}:${combo.name}:${slugKey}`);
+      const sessionEventsRaw = data.session_events;
+      const hasSessionEventsField = Object.prototype.hasOwnProperty.call(data, 'session_events');
+      const sessionEvents = Number(sessionEventsRaw) || 0;
+      const shouldCountSessions =
+        (hasSessionIndex && sessionDateSet && sessionDateSet.has(dateKey) && sessionEvents > 0) ||
+        (!hasSessionIndex && (!hasSessionEventsField ? count > 0 : sessionEvents > 0));
+      if (shouldCountSessions) {
+        sessionKeys.push(`events:sessions:${dateKey}:${combo.name}:${slugKey}`);
+      }
     });
 
     if (!comboCount) continue;
