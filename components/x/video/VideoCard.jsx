@@ -8,6 +8,7 @@ import { openSmartLink } from "@/components/x/ads/smartLink";
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
 import DEFAULT_VIDEOJS_OPTIONS from "./videoPlayerOptions";
 
+
 function sanitizeString(value) {
     if (typeof value !== "string") return null;
     const trimmed = value.trim();
@@ -57,6 +58,7 @@ export default function VideoCard({
         }
     }, [resolvedPoster]);
 
+
     const interactivePreview = typeof onPreviewClick === "function";
 
     const handleInteraction = useCallback(
@@ -77,6 +79,7 @@ export default function VideoCard({
             openSmartLink();
         },
         [interactivePreview, onPreviewClick, restorePoster]
+
     );
 
     useEffect(() => {
@@ -86,6 +89,7 @@ export default function VideoCard({
         }
 
         const player = videojs(videoElement, DEFAULT_VIDEOJS_OPTIONS);
+
 
         videoJsPlayerRef.current = player;
 
@@ -144,6 +148,7 @@ export default function VideoCard({
 
     const showPlayOverlay = !shouldShowFallback;
 
+
     return (
         <div
             className={clsx(
@@ -158,6 +163,7 @@ export default function VideoCard({
                 </div>
             ) : (
                 <VideoPreviewPlayer
+
                     videoId={videoJsId}
                     ref={videoElementRef}
                     poster={resolvedPoster}
@@ -178,6 +184,7 @@ export default function VideoCard({
                     </span>
                 </button>
             )}
+
         </div>
     );
 }
