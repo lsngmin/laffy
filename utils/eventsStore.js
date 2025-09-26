@@ -169,55 +169,76 @@ async function hasRedis() {
 
 const INGEST_LUA_SCRIPT = `
 local catalogKey = KEYS[1]
-local aggKey = KEYS[2]
-local totalKey = KEYS[3]
-local sessionKey = KEYS[4]
-local totalSessionKey = KEYS[5]
+local dailyTtl = tonumber(ARGV[1] or '0')
+local totalTtl = tonumber(ARGV[2] or '0')
+local encoded = ARGV[3]
 
-local comboValue = ARGV[1]
-local timestamp = ARGV[2]
-local hasValue = ARGV[3]
-local value = tonumber(ARGV[4] or '0')
-local hasSession = ARGV[5]
-local sessionId = ARGV[6]
-local dailyTtl = tonumber(ARGV[7] or '0')
-local totalTtl = tonumber(ARGV[8] or '0')
-
-redis.call('SADD', catalogKey, comboValue)
-
-local aggExists = redis.call('EXISTS', aggKey)
-redis.call('HINCRBY', aggKey, 'count', 1)
-redis.call('HSET', aggKey, 'last_ts', timestamp)
-if hasValue == '1' then
-  redis.call('HINCRBYFLOAT', aggKey, 'sum_value', value)
-end
-if aggExists == 0 and dailyTtl > 0 then
-  redis.call('EXPIRE', aggKey, dailyTtl)
+if not encoded then
+  return 0
 end
 
-redis.call('HINCRBY', totalKey, 'count', 1)
-redis.call('HSET', totalKey, 'last_ts', timestamp)
-if hasValue == '1' then
-  redis.call('HINCRBYFLOAT', totalKey, 'sum_value', value)
-end
-if totalTtl > 0 then
-  redis.call('EXPIRE', totalKey, totalTtl)
+local ok, events = pcall(cjson.decode, encoded)
+if not ok or type(events) ~= 'table' then
+  return 0
 end
 
-if hasSession == '1' and sessionId and sessionId ~= '' then
-  local sessionExists = redis.call('EXISTS', sessionKey)
-  redis.call('PFADD', sessionKey, sessionId)
-  if sessionExists == 0 and dailyTtl > 0 then
-    redis.call('EXPIRE', sessionKey, dailyTtl)
+local ingested = 0
+
+for i = 1, #events do
+  local event = events[i]
+  if type(event) == 'table' then
+    local comboValue = event['combo']
+    local timestamp = tonumber(event['timestamp'])
+    local aggKey = event['aggKey']
+    local totalKey = event['totalKey']
+    local sessionKey = event['sessionKey']
+    local totalSessionKey = event['totalSessionKey']
+    local hasValue = event['hasValue']
+    local value = tonumber(event['value']) or 0
+    local hasSession = event['hasSession']
+    local sessionId = event['sessionId']
+
+    if comboValue and aggKey and totalKey and timestamp then
+      ingested = ingested + 1
+
+      redis.call('SADD', catalogKey, comboValue)
+
+      local aggExists = redis.call('EXISTS', aggKey)
+      redis.call('HINCRBY', aggKey, 'count', 1)
+      redis.call('HSET', aggKey, 'last_ts', timestamp)
+      if hasValue == 1 or hasValue == '1' then
+        redis.call('HINCRBYFLOAT', aggKey, 'sum_value', value)
+      end
+      if aggExists == 0 and dailyTtl > 0 then
+        redis.call('EXPIRE', aggKey, dailyTtl)
+      end
+
+      redis.call('HINCRBY', totalKey, 'count', 1)
+      redis.call('HSET', totalKey, 'last_ts', timestamp)
+      if hasValue == 1 or hasValue == '1' then
+        redis.call('HINCRBYFLOAT', totalKey, 'sum_value', value)
+      end
+      if totalTtl > 0 then
+        redis.call('EXPIRE', totalKey, totalTtl)
+      end
+
+      if (hasSession == 1 or hasSession == '1') and sessionId and sessionId ~= '' and sessionKey and totalSessionKey then
+        local sessionExists = redis.call('EXISTS', sessionKey)
+        redis.call('PFADD', sessionKey, sessionId)
+        if sessionExists == 0 and dailyTtl > 0 then
+          redis.call('EXPIRE', sessionKey, dailyTtl)
+        end
+
+        redis.call('PFADD', totalSessionKey, sessionId)
+        if totalTtl > 0 then
+          redis.call('EXPIRE', totalSessionKey, totalTtl)
+        end
+      end
+    end
   end
-
-  redis.call('PFADD', totalSessionKey, sessionId)
-  if totalTtl > 0 then
-    redis.call('EXPIRE', totalSessionKey, totalTtl)
-  end
 end
 
-return 1
+return ingested
 `;
 
 function ensureMemoryStore() {
@@ -259,42 +280,50 @@ function aggregateCatalogFromMemory() {
 }
 
 async function ingestWithRedis(events, context = {}) {
-  const tasks = [];
+  const payload = [];
   for (const rawEvent of events) {
     const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
     if (!normalized) continue;
-    const comboKey = serializeCombo(normalized.name, normalized.slug || GLOBAL_SLUG);
+    const slugKey = normalized.slug || GLOBAL_SLUG;
+    const comboKey = serializeCombo(normalized.name, slugKey);
     const dateKey = toDateKey(normalized.timestamp);
-    const aggKey = `events:agg:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const totalKey = `events:total:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const totalSessionKey = `events:totaluniq:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
-    const hasValue = normalized.value ? '1' : '0';
-    const valueArg = hasValue === '1' ? String(normalized.value) : '0';
-    const hasSession = normalized.sessionId ? '1' : '0';
+    const aggKey = `events:agg:${dateKey}:${normalized.name}:${slugKey}`;
+    const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${slugKey}`;
+    const totalKey = `events:total:${normalized.name}:${slugKey}`;
+    const totalSessionKey = `events:totaluniq:${normalized.name}:${slugKey}`;
+    const hasValue = normalized.value ? 1 : 0;
+    const hasSession = normalized.sessionId ? 1 : 0;
 
-    tasks.push(
-      redisEvalScript(
-        INGEST_LUA_SCRIPT,
-        [CATALOG_KEY, aggKey, totalKey, sessionKey, totalSessionKey],
-        [
-          comboKey,
-          String(normalized.timestamp),
-          hasValue,
-          valueArg,
-          hasSession,
-          normalized.sessionId || '',
-          String(DAILY_TTL_SECONDS),
-          String(TOTAL_TTL_SECONDS),
-        ],
-      ),
-    );
+    payload.push({
+      combo: comboKey,
+      timestamp: normalized.timestamp,
+      aggKey,
+      totalKey,
+      sessionKey,
+      totalSessionKey,
+      hasValue,
+      value: normalized.value || 0,
+      hasSession,
+      sessionId: normalized.sessionId || '',
+    });
   }
 
-  if (!tasks.length) return { ingested: 0 };
+  if (!payload.length) return { ingested: 0 };
+
   try {
-    await Promise.all(tasks);
-    return { ingested: events.length };
+    const encodedPayload = JSON.stringify(payload);
+    const result = await redisEvalScript(
+      INGEST_LUA_SCRIPT,
+      [CATALOG_KEY],
+      [
+        String(DAILY_TTL_SECONDS),
+        String(TOTAL_TTL_SECONDS),
+        encodedPayload,
+      ],
+    );
+    const ingested = Number(result);
+    const count = Number.isFinite(ingested) ? ingested : payload.length;
+    return { ingested: count };
   } catch (error) {
     console.warn('[events] redis ingest failed, falling back to memory', error);
     return ingestWithMemory(events, context);
