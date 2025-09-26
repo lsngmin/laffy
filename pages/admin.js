@@ -520,6 +520,9 @@ export default function Admin() {
       }
 
       setEditStatus('success');
+      setItems((prev) => prev.map((it) => (it.slug === editingItem.slug
+        ? { ...it, durationSeconds: resolvedDurationSeconds }
+        : it)));
       setEditForm((prev) => ({
         ...prev,
         durationSeconds: String(resolvedDurationSeconds),

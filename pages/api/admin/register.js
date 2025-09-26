@@ -81,17 +81,17 @@ export default async function handler(req, res) {
         ? thumbnailInput || resolvedPoster || resolvedSrc
         : thumbnailInput || resolvedPoster || thumbnailExisting || posterExisting || '';
 
-    const resolveDurationValue = (value) => {
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed) || parsed < 0) return null;
-      return Math.max(0, Math.round(parsed));
-    };
-
     const resolvedDuration = (() => {
-      const fromPayload = resolveDurationValue(durationSeconds);
-      if (fromPayload !== null) return fromPayload;
-      const fromExisting = resolveDurationValue(existingMeta?.durationSeconds);
-      return fromExisting !== null ? fromExisting : 0;
+      if (durationSeconds !== undefined && durationSeconds !== null && durationSeconds !== '') {
+        if (typeof durationSeconds === 'number') return durationSeconds;
+        const parsed = Number(durationSeconds);
+        if (Number.isFinite(parsed)) return parsed;
+        return durationSeconds;
+      }
+      if (existingMeta && Object.prototype.hasOwnProperty.call(existingMeta, 'durationSeconds')) {
+        return existingMeta.durationSeconds;
+      }
+      return 0;
     })();
 
     const likesNumber = Number(likes);
