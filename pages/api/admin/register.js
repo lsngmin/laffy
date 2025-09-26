@@ -159,14 +159,8 @@ export default async function handler(req, res) {
       allowOverwrite: true
     });
 
-    const revalidateTargets = new Set();
-    revalidateTargets.add('/m');
-    revalidateTargets.add('/x');
-    if (effectiveType === 'image') {
-      revalidateTargets.add(`/x/${resolvedSlug}`);
-    } else {
-      revalidateTargets.add(`/m/${resolvedSlug}`);
-    }
+    const revalidateTargets = new Set(['/x']);
+    revalidateTargets.add(`/x/${resolvedSlug}`);
 
     if (typeof res.revalidate === 'function') {
       await Promise.all(

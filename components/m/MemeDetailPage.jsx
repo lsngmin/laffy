@@ -133,12 +133,12 @@ export default function MemeDetailPage({
 
   const navItems = useMemo(
     () => [
-      { key: "spotlight", label: t("nav.spotlight", "한국야동"), href: "/m" },
-      { key: "trending", label: t("nav.trending", "트위터야동"), href: "/m?filter=trending" },
-      { key: "fresh", label: t("nav.fresh", "BJ야동"), href: "/m?filter=fresh" },
-      { key: "feelgood", label: t("nav.feelgood", "일본야동"), href: "/m?filter=feelgood" },
-      { key: "loops", label: t("nav.loops", "중국야동"), href: "/m?filter=loops" },
-      { key: "random", label: t("nav.random", "인기순"), href: "/m?filter=random" },
+      { key: "spotlight", label: t("nav.spotlight", "한국야동"), href: "/x" },
+      { key: "trending", label: t("nav.trending", "트위터야동"), href: "/x?filter=trending" },
+      { key: "fresh", label: t("nav.fresh", "BJ야동"), href: "/x?filter=fresh" },
+      { key: "feelgood", label: t("nav.feelgood", "일본야동"), href: "/x?filter=feelgood" },
+      { key: "loops", label: t("nav.loops", "중국야동"), href: "/x?filter=loops" },
+      { key: "random", label: t("nav.random", "인기순"), href: "/x?filter=random" },
     ],
     [t]
   );
@@ -236,7 +236,7 @@ export default function MemeDetailPage({
           <BannerAdsMonetag />
 
           {hideBackToFeed ? (backSlot ?? null) : (
-            <BackToFeedLink href="/m" label={t("backToFeed")} />
+            <BackToFeedLink href="/x" label={t("backToFeed")} />
           )}
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">

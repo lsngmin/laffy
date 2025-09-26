@@ -118,7 +118,7 @@ export default function Admin() {
             const slug = meta?.slug || it.pathname?.replace(/^content\//, '').replace(/\.json$/, '');
             const type = (meta?.type || '').toLowerCase();
             const preview = meta?.thumbnail || meta?.poster || '';
-            const routePath = type === 'image' ? `/x/${slug}` : `/m/${slug}`;
+            const routePath = `/x/${slug}`;
             const titleValue = meta?.title || slug;
             const descriptionValue = meta?.description || '';
             const sourceUrl = meta?.src || meta?.url || meta?.sourceUrl || '';
