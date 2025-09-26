@@ -3,6 +3,55 @@ import { getHeatmapSnapshot } from '../../../utils/heatmapStore';
 
 const DEFAULT_GRID_COLS = 12;
 
+function normalizeSlugInput(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/^\/+/, '');
+}
+
+function buildSlugVariants(value) {
+  const normalized = normalizeSlugInput(value);
+  if (!normalized) return [];
+  const base = normalized.startsWith('x/') ? normalized.slice(2) : normalized;
+  const variants = new Set();
+  variants.add(normalized);
+  if (base) {
+    variants.add(base);
+    variants.add(`x/${base}`);
+  }
+  return Array.from(variants);
+}
+
+function mergeSnapshots(snapshots) {
+  const bucketMap = new Map();
+  snapshots.forEach((snapshot) => {
+    if (!snapshot || !Array.isArray(snapshot.buckets)) return;
+    snapshot.buckets.forEach((bucket) => {
+      if (!bucket) return;
+      const bucketName =
+        typeof bucket.bucket === 'string' && bucket.bucket ? bucket.bucket : 'default';
+      const cells = Array.isArray(bucket.cells) ? bucket.cells : [];
+      const cellMap = bucketMap.get(bucketName) || new Map();
+      cells.forEach((cell) => {
+        const index = Number(cell?.cell);
+        if (!Number.isFinite(index) || index < 0) return;
+        const count = Number(cell?.count);
+        if (!Number.isFinite(count) || count <= 0) return;
+        const section = typeof cell?.section === 'string' && cell.section ? cell.section : 'root';
+        const type = typeof cell?.type === 'string' && cell.type ? cell.type : 'generic';
+        const key = `${section}|${type}|${index}`;
+        const current = cellMap.get(key) || { cell: index, section, type, count: 0 };
+        current.count += Math.round(count);
+        cellMap.set(key, current);
+      });
+      bucketMap.set(bucketName, cellMap);
+    });
+  });
+  return Array.from(bucketMap.entries()).map(([bucket, cellMap]) => ({
+    bucket,
+    cells: Array.from(cellMap.values()),
+  }));
+}
+
 function transformBucket(rawBucket) {
   const bucketName = typeof rawBucket?.bucket === 'string' && rawBucket.bucket ? rawBucket.bucket : 'default';
   const rawCells = Array.isArray(rawBucket?.cells) ? rawBucket.cells : [];
@@ -122,23 +171,38 @@ export default async function handler(req, res) {
     return;
   }
 
-  const rawSlug = req.query.slug;
-  const slug = typeof rawSlug === 'string' ? rawSlug.trim() : Array.isArray(rawSlug) ? rawSlug[0]?.trim() : '';
-  if (!slug) {
+  const rawSlug = Array.isArray(req.query.slug) ? req.query.slug[0] : req.query.slug;
+  const normalizedSlug = normalizeSlugInput(rawSlug);
+  if (!normalizedSlug) {
     return res.status(400).json({ error: 'Missing slug' });
   }
 
   try {
-    const snapshot = await getHeatmapSnapshot(slug);
-    const buckets = Array.isArray(snapshot?.buckets)
-      ? snapshot.buckets.map((bucket) => transformBucket(bucket))
-      : [];
+    const variants = buildSlugVariants(normalizedSlug);
+    if (!variants.length) {
+      return res.status(400).json({ error: 'Missing slug' });
+    }
+
+    const snapshots = await Promise.all(
+      variants.map(async (variant) => {
+        try {
+          return await getHeatmapSnapshot(variant);
+        } catch (error) {
+          console.warn(`[admin][heatmap] failed to load variant ${variant}`, error);
+          return { slug: variant, buckets: [] };
+        }
+      })
+    );
+
+    const merged = mergeSnapshots(snapshots);
+    const buckets = merged.map((bucket) => transformBucket(bucket));
 
     const totalSamples = buckets.reduce((acc, bucket) => acc + (bucket.totalCount || 0), 0);
 
     return res.status(200).json({
       ok: true,
-      slug: snapshot?.slug || slug,
+      slug: normalizedSlug,
+      sources: variants,
       generatedAt: new Date().toISOString(),
       buckets,
       bucketCount: buckets.length,

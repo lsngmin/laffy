@@ -28,6 +28,7 @@ import TimestampsEditorModal from '../components/admin/modals/TimestampsEditorMo
 import UndoToast from '../components/admin/feedback/UndoToast';
 import useClipboard from '../hooks/admin/useClipboard';
 import useAdminItems from '../hooks/admin/useAdminItems';
+import useAdminContentIndex from '../hooks/admin/useAdminContentIndex';
 import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
 import useEventAnalytics from '../hooks/admin/useEventAnalytics';
@@ -38,7 +39,9 @@ import { downloadAnalyticsCsv } from '../components/admin/analytics/export/Analy
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'insights', label: '광고 통합 인사이트', requiresToken: true },
+  { key: 'events', label: '커스텀 이벤트', requiresToken: true },
+  { key: 'ads', label: '광고', requiresToken: true },
+  { key: 'insights', label: '통합 인사이트', requiresToken: true },
   { key: 'heatmap', label: '히트맵 분석', requiresToken: true },
 ];
 
@@ -106,7 +109,7 @@ export default function AdminPage() {
   const {
     items,
     setItems,
-    refresh,
+    refresh: refreshUploads,
     loadMore,
     hasMore,
     isLoading,
@@ -114,10 +117,24 @@ export default function AdminPage() {
     isRefreshing,
     error: itemsError,
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
+  const {
+    items: contentIndexItems,
+    setItems: setContentIndexItems,
+    loading: contentIndexLoading,
+    error: contentIndexError,
+    refresh: refreshContentIndex,
+  } = useAdminContentIndex({ enabled: hasToken, token });
   const { copiedSlug, copy } = useClipboard();
   const [historyState, setHistoryState] = useState({ logs: [], loading: false, error: '' });
   const [isHistoryOpen, setHistoryOpen] = useState(false);
   const [isCsvModalOpen, setCsvModalOpen] = useState(false);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.allSettled([
+      Promise.resolve(refreshUploads()),
+      Promise.resolve(refreshContentIndex()),
+    ]);
+  }, [refreshContentIndex, refreshUploads]);
 
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
@@ -129,7 +146,7 @@ export default function AdminPage() {
   );
 
   const analytics = useAnalyticsMetrics({
-    items,
+    items: contentIndexItems,
     enabled: hasToken && view === 'analytics',
     initialFilters: analyticsInitialFilters,
     startDate: analyticsStartDate,
@@ -137,7 +154,7 @@ export default function AdminPage() {
   });
 
   const eventAnalytics = useEventAnalytics({
-    enabled: hasToken && view === 'analytics',
+    enabled: hasToken && view === 'events',
     token,
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
@@ -203,7 +220,7 @@ export default function AdminPage() {
   }, []);
 
   const adsterra = useAdsterraStats({
-    enabled: hasToken && view === 'insights',
+    enabled: hasToken && (view === 'ads' || view === 'insights'),
     defaultRange: defaultAdsterraRange,
     envToken: adsterraEnvToken,
     domainName: adsterraDomainNameEnv,
@@ -270,10 +287,10 @@ export default function AdminPage() {
     handleAddTimestamp,
     handleRemoveTimestamp,
     handleSaveTimestamps,
-  } = useAdminModals({ hasToken, queryString: qs, setItems, refresh });
+  } = useAdminModals({ hasToken, queryString: qs, setItems, refresh: refreshAll, setContentItems: setContentIndexItems });
 
   useEffect(() => {
-    if (!hasToken && (view === 'analytics' || view === 'insights' || view === 'heatmap')) {
+    if (!hasToken && view !== 'uploads') {
       setView('uploads');
     }
   }, [hasToken, view]);
@@ -397,12 +414,12 @@ export default function AdminPage() {
         setTitle('');
         setDescription('');
         setDuration('0');
-        refresh();
+        refreshAll();
       } catch (error) {
         console.error('Meta register failed', error);
       }
     },
-    [description, duration, hasToken, orientation, qs, refresh, title]
+    [description, duration, hasToken, orientation, qs, refreshAll, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {
@@ -412,12 +429,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (view !== 'heatmap') return;
     if (heatmapSlug && heatmapSlug.trim()) return;
-    const source = Array.isArray(items) ? items : [];
+    const source = Array.isArray(contentIndexItems) ? contentIndexItems : [];
     const firstSlug = source.find((item) => item?.slug)?.slug;
     if (firstSlug) {
       setHeatmapSlug(firstSlug);
     }
-  }, [heatmapSlug, items, view]);
+  }, [contentIndexItems, heatmapSlug, view]);
 
   const handleEventFilterChange = useCallback((next) => {
     setEventFilters((prev) => ({ ...prev, ...next }));
@@ -508,6 +525,17 @@ export default function AdminPage() {
               : item
           )
         );
+        setContentIndexItems((prev) =>
+          prev.map((item) =>
+            resultMap.has(item.slug)
+              ? {
+                  ...item,
+                  views: resultMap.get(item.slug).views ?? item.views ?? 0,
+                  likes: resultMap.get(item.slug).likes ?? item.likes ?? 0,
+                }
+              : item
+          )
+        );
       }
 
       analytics.setMetricsEditor((prev) => {
@@ -569,7 +597,7 @@ export default function AdminPage() {
           : prev
       );
     }
-  }, [analytics, fetchHistory, hasToken, isHistoryOpen, qs, setItems]);
+  }, [analytics, fetchHistory, hasToken, isHistoryOpen, qs, setContentIndexItems, setItems]);
 
   const handleOpenHistory = useCallback(() => {
     setHistoryOpen(true);
@@ -621,6 +649,17 @@ export default function AdminPage() {
               : item
           )
         );
+        setContentIndexItems((prev) =>
+          prev.map((item) =>
+            resultMap.has(item.slug)
+              ? {
+                  ...item,
+                  views: resultMap.get(item.slug).views ?? item.views ?? 0,
+                  likes: resultMap.get(item.slug).likes ?? item.likes ?? 0,
+                }
+              : item
+          )
+        );
       }
 
       if (isHistoryOpen) {
@@ -630,7 +669,7 @@ export default function AdminPage() {
 
       return data;
     },
-    [analytics, fetchHistory, hasToken, isHistoryOpen, qs, setItems]
+    [analytics, fetchHistory, hasToken, isHistoryOpen, qs, setContentIndexItems, setItems]
   );
 
   const [adsterraPresets, setAdsterraPresets] = useState([]);
@@ -727,7 +766,7 @@ export default function AdminPage() {
             onDelete={openDeleteModal}
             registerMeta={registerMeta}
             uploadFormState={uploadFormState}
-            onRefresh={refresh}
+            onRefresh={refreshAll}
             onLoadMore={loadMore}
             hasMore={hasMore}
             isLoading={isLoading}
@@ -742,8 +781,18 @@ export default function AdminPage() {
 
         {view === 'analytics' && (
           <div className="space-y-6">
+            {contentIndexError && (
+              <div className="rounded-3xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+                {contentIndexError}
+              </div>
+            )}
+            {contentIndexLoading && !contentIndexError && contentIndexItems.length === 0 && (
+              <div className="rounded-3xl border border-slate-700/40 bg-slate-900/60 p-4 text-sm text-slate-300">
+                전체 콘텐츠를 불러오는 중이에요…
+              </div>
+            )}
             <AnalyticsOverview
-              itemCount={items.length}
+              itemCount={contentIndexItems.length}
               totals={analytics.analyticsTotals}
               averageLikeRate={analytics.averageLikeRate}
               formatNumber={formatNumber}
@@ -760,12 +809,10 @@ export default function AdminPage() {
               onOpenBulkEditor={() => analytics.openMetricsEditor()}
               onOpenHistory={handleOpenHistory}
               onOpenCsvUpload={() => setCsvModalOpen(true)}
-
               startDate={analyticsStartDate}
               endDate={analyticsEndDate}
               onDateChange={handleAnalyticsDateChange}
               filters={analytics.filters}
-
             />
             {analytics.isRangeActive && analytics.trendHistory.length > 0 && (
               <AnalyticsTrendChart history={analytics.trendHistory} formatNumber={formatNumber} />
@@ -782,43 +829,48 @@ export default function AdminPage() {
               onToggleRow={analytics.toggleRowSelection}
               onToggleAll={(selectAll) => (selectAll ? analytics.selectAllRows() : analytics.clearSelection())}
             />
-            <div className="mt-12 space-y-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
-                  <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
-                </div>
-              </div>
-              <EventFilters
-                startDate={analyticsStartDate}
-                endDate={analyticsEndDate}
-                onDateChange={handleAnalyticsDateChange}
-                filters={eventFilters}
-                onFilterChange={handleEventFilterChange}
-                catalog={eventAnalytics.data.catalog}
-                loading={eventAnalytics.loading}
-                onRefresh={eventAnalytics.refresh}
-              />
-              <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
-              <EventKeyMetrics
-                items={eventAnalytics.data.items}
-                formatNumber={formatNumber}
-                formatPercent={formatPercent}
-              />
-              {eventAnalytics.data.timeseries.length > 0 && (
-                <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
-              )}
-              <EventTable
-                rows={eventAnalytics.data.items}
-                loading={eventAnalytics.loading}
-                error={eventAnalytics.error}
-                formatNumber={formatNumber}
-              />
-            </div>
           </div>
         )}
 
-        {view === 'insights' && (
+        {view === 'events' && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
+                <p className="text-sm text-slate-400">
+                  Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.
+                </p>
+              </div>
+            </div>
+            <EventFilters
+              startDate={analyticsStartDate}
+              endDate={analyticsEndDate}
+              onDateChange={handleAnalyticsDateChange}
+              filters={eventFilters}
+              onFilterChange={handleEventFilterChange}
+              catalog={eventAnalytics.data.catalog}
+              loading={eventAnalytics.loading}
+              onRefresh={eventAnalytics.refresh}
+            />
+            <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+            <EventKeyMetrics
+              items={eventAnalytics.data.items}
+              formatNumber={formatNumber}
+              formatPercent={formatPercent}
+            />
+            {eventAnalytics.data.timeseries.length > 0 && (
+              <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
+            )}
+            <EventTable
+              rows={eventAnalytics.data.items}
+              loading={eventAnalytics.loading}
+              error={eventAnalytics.error}
+              formatNumber={formatNumber}
+            />
+          </div>
+        )}
+
+        {view === 'ads' && (
           <div className="space-y-6">
             <AdsterraControls
               domainName={adsterraDomainNameEnv}
@@ -856,6 +908,27 @@ export default function AdminPage() {
               onApplyPreset={handleApplyPreset}
             />
             <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
+            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
+            <AdsterraStatsTable
+              rows={adsterra.filteredStats}
+              loading={adsterra.loadingStats}
+              formatNumber={formatNumber}
+              formatDecimal={formatDecimal}
+              placementLabelMap={adsterra.placementLabelMap}
+              selectedPlacementId={adsterra.placementId}
+            />
+          </div>
+        )}
+
+        {view === 'insights' && (
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-700/40 bg-slate-900/60 p-4 text-sm text-slate-300">
+              <p>
+                선택한 기간: {adsterra.startDate || '—'} ~ {adsterra.endDate || '—'}
+              </p>
+              <p>선택한 지면: {adsterra.placementLabel || '전체'}</p>
+            </div>
+            <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
             <EventSummaryCards totals={insightsEvents.data.totals} formatNumber={formatNumber} />
             {insightsEvents.data.timeseries.length > 0 && (
               <EventTrendChart series={insightsEvents.data.timeseries} formatNumber={formatNumber} />
@@ -872,30 +945,28 @@ export default function AdminPage() {
               error={insightsEvents.error}
               formatNumber={formatNumber}
             />
-            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
-            <AdsterraStatsTable
-              rows={adsterra.filteredStats}
-              loading={adsterra.loadingStats}
-              formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
-              placementLabelMap={adsterra.placementLabelMap}
-              selectedPlacementId={adsterra.placementId}
-            />
           </div>
         )}
 
         {view === 'heatmap' && (
-          <HeatmapPanel
-            slug={heatmapSlug}
-            onSlugChange={setHeatmapSlug}
-            items={items}
-            data={heatmapAnalytics.data}
-            loading={heatmapAnalytics.loading}
-            error={heatmapAnalytics.error}
-            onRefresh={heatmapAnalytics.refresh}
-            formatNumber={formatNumber}
-            formatPercent={formatPercent}
-          />
+          <div className="space-y-4">
+            {contentIndexError && (
+              <div className="rounded-3xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+                {contentIndexError}
+              </div>
+            )}
+            <HeatmapPanel
+              slug={heatmapSlug}
+              onSlugChange={setHeatmapSlug}
+              items={contentIndexItems}
+              data={heatmapAnalytics.data}
+              loading={heatmapAnalytics.loading}
+              error={heatmapAnalytics.error}
+              onRefresh={heatmapAnalytics.refresh}
+              formatNumber={formatNumber}
+              formatPercent={formatPercent}
+            />
+          </div>
         )}
       </div>
 

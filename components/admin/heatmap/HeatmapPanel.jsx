@@ -21,12 +21,15 @@ export default function HeatmapPanel({
   const [activeBucket, setActiveBucket] = useState('');
   const slugOptions = useMemo(() => {
     if (!Array.isArray(items)) return [];
-    return items
-      .filter((item) => item?.slug)
-      .map((item) => ({
-        slug: item.slug,
-        label: item.display?.socialTitle || item.display?.cardTitle || item.slug,
-      }));
+    const seen = new Set();
+    return items.reduce((acc, item) => {
+      if (!item || !item.slug || seen.has(item.slug)) return acc;
+      seen.add(item.slug);
+      const label =
+        item.title || item.display?.socialTitle || item.display?.cardTitle || item.slug;
+      acc.push({ slug: item.slug, label: label || item.slug });
+      return acc;
+    }, []);
   }, [items]);
 
   const buckets = Array.isArray(data?.buckets) ? data.buckets : [];
@@ -99,13 +102,14 @@ export default function HeatmapPanel({
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    const exportSlug = (data?.slug || slug || 'content').replace(/[^a-z0-9-_]/gi, '-');
     link.href = url;
-    link.download = `heatmap-${slug || 'content'}-${activeBucketData.bucket}.csv`;
+    link.download = `heatmap-${exportSlug}-${activeBucketData.bucket}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [activeBucketData, slug]);
+  }, [activeBucketData, data?.slug, slug]);
 
   const isEmpty = !loading && !error && (!activeBucketData || activeBucketData.totalCount === 0);
 
@@ -116,8 +120,13 @@ export default function HeatmapPanel({
           <div>
             <h2 className="text-2xl font-bold text-white">히트맵 분석</h2>
             <p className="mt-1 text-sm text-slate-400">
-              콘텐츠 상세 페이지에서 수집한 좌표 기반 이벤트를 시각화하고, 섹션/이벤트 유형별 분포를 분석할 수 있어요.
+              콘텐츠 상세 페이지(`/x/[slug]`)에서 수집한 좌표 기반 이벤트를 통합해 섹션·이벤트 유형별 분포를 분석할 수 있어요.
             </p>
+            {Array.isArray(data?.sources) && data.sources.length > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                데이터 소스: {data.sources.map((source) => `/${String(source).replace(/^\/+/, '')}`).join(', ')}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -161,7 +170,7 @@ export default function HeatmapPanel({
               ))}
             </datalist>
             <p className="mt-2 text-xs text-slate-500">
-              업로드 목록과 연동된 슬러그를 자동 완성으로 선택하거나 직접 입력할 수 있어요.
+              전체 콘텐츠 인덱스에서 불러온 슬러그를 자동 완성으로 선택하거나 직접 입력할 수 있어요.
             </p>
           </div>
 

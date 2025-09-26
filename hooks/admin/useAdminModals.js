@@ -2,7 +2,13 @@ import { upload } from '@vercel/blob/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import buildRegisterPayload from '@/lib/admin/buildRegisterPayload';
 
-export default function useAdminModals({ hasToken, queryString, setItems, refresh }) {
+export default function useAdminModals({
+  hasToken,
+  queryString,
+  setItems,
+  refresh,
+  setContentItems,
+}) {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({
     title: '',
@@ -30,6 +36,15 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
   const undoTimeoutRef = useRef(null);
 
   const qs = useMemo(() => queryString || '', [queryString]);
+
+  const syncContentItems = useCallback(
+    (updater) => {
+      if (typeof setContentItems === 'function') {
+        setContentItems(updater);
+      }
+    },
+    [setContentItems]
+  );
 
   const openEditModal = useCallback((item) => {
     if (!item) return;
@@ -267,13 +282,14 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       }
 
       setEditStatus('success');
-      setItems((prev) =>
+      const updateDuration = (prev) =>
         prev.map((it) =>
           it.slug === editingItem.slug
             ? { ...it, durationSeconds: resolvedDurationSeconds }
             : it
-        )
-      );
+        );
+      setItems(updateDuration);
+      syncContentItems(updateDuration);
       setEditForm((prev) => ({
         ...prev,
         durationSeconds: String(resolvedDurationSeconds),
@@ -311,6 +327,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     qs,
     refresh,
     setItems,
+    syncContentItems,
   ]);
 
   const openDeleteModal = useCallback((item) => {
@@ -497,7 +514,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       });
       if (!res.ok) throw new Error('save_failed');
       await refresh();
-      setItems((prev) =>
+      const updateTimestamps = (prev) =>
         prev.map((item) =>
           item.slug === timestampsEditor.slug
             ? {
@@ -505,8 +522,9 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
                 timestamps: normalized,
               }
             : item
-        )
-      );
+        );
+      setItems(updateTimestamps);
+      syncContentItems(updateTimestamps);
       setEditingItem((prev) =>
         prev && prev.slug === timestampsEditor.slug
           ? {
@@ -535,7 +553,15 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       console.error('Timestamps save failed', error);
       setTimestampsEditor((prev) => (prev ? { ...prev, status: 'error', error: '타임스탬프 저장에 실패했어요. 잠시 후 다시 시도해 주세요.' } : prev));
     }
-  }, [closeTimestampsEditor, hasToken, qs, refresh, setItems, timestampsEditor]);
+  }, [
+    closeTimestampsEditor,
+    hasToken,
+    qs,
+    refresh,
+    setItems,
+    syncContentItems,
+    timestampsEditor,
+  ]);
 
   return {
     editingItem,
