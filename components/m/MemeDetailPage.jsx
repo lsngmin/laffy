@@ -12,7 +12,9 @@ import VideoCard from "@/components/x/video/VideoCard";
 import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import RecommendedMemes from "@/components/m/RecommendedMemes";
-import BannerAdsMonetag from "@/components/ads/BannerAdsMonetag";
+import dynamic from "next/dynamic";
+
+const BannerRect = dynamic(() => import("@/components/ads/RelishAtOptionsFrame"), { ssr: false });
 
 export default function MemeDetailPage({
   meme,
@@ -188,8 +190,8 @@ export default function MemeDetailPage({
           {/*  <LocaleSwitchButton locale={locale} />*/}
           {/*</div>*/}
 
-          <div className="mt-6 mb-3 text-center">
-            <LogoText size={'3xl'} />
+          <div className="mt-6 mb-6 text-center">
+            <LogoText size={'5xl'} className="tracking-[0.4em]" />
           </div>
 
           {navItems.length > 0 && (
@@ -233,7 +235,9 @@ export default function MemeDetailPage({
              </nav>
           )}
 
-          <BannerAdsMonetag />
+          <div className="mt-6 flex justify-center">
+            <BannerRect width={300} height={250} />
+          </div>
 
           {hideBackToFeed ? (backSlot ?? null) : (
             <BackToFeedLink href="/x" label={t("backToFeed")} />

@@ -10,9 +10,28 @@ export default function RelishAtOptionsFrame({
 }) {
   const slotRef = useRef(null);
   useEffect(() => {
+    const slotEl = slotRef.current;
+    if (slotEl) {
+      slotEl.innerHTML = '';
+    }
+
+    let previousAtOptions;
+    let restored = false;
+    const restoreAtOptions = () => {
+      if (restored) return;
+      restored = true;
+      try {
+        if (typeof previousAtOptions === 'undefined') {
+          delete window.atOptions;
+        } else {
+          window.atOptions = previousAtOptions;
+        }
+      } catch {}
+    };
+
     // Set global atOptions required by the network
     try {
-      // eslint-disable-next-line no-undef
+      previousAtOptions = window.atOptions;
       window.atOptions = {
         key: keyId,
         format: 'iframe',
@@ -25,9 +44,12 @@ export default function RelishAtOptionsFrame({
     const s = document.createElement('script');
     s.type = 'text/javascript';
     s.src = `${srcBase}/${keyId}/invoke.js`;
+    s.onload = restoreAtOptions;
+    s.onerror = restoreAtOptions;
     const parent = slotRef.current || document.body;
     parent.appendChild(s);
     return () => {
+      restoreAtOptions();
       try { parent.removeChild(s); } catch {}
     };
   }, [height, keyId, params, srcBase, width]);
