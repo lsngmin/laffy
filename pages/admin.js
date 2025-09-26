@@ -15,7 +15,7 @@ export default function Admin() {
   const [items, setItems] = useState([]);
   const [copiedSlug, setCopiedSlug] = useState('');
   const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({ title: '', description: '', imageUrl: '', previewUrl: '' });
+  const [editForm, setEditForm] = useState({ title: '', description: '', imageUrl: '', previewUrl: '', durationSeconds: '' });
   const [editInitialPreview, setEditInitialPreview] = useState('');
   const [editError, setEditError] = useState('');
   const [editStatus, setEditStatus] = useState('idle');
@@ -277,6 +277,14 @@ export default function Admin() {
       description: item.description || '',
       imageUrl: '',
       previewUrl: initialPreview,
+      durationSeconds: item.type === 'image'
+        ? '0'
+        : (() => {
+          const parsedDuration = Number(item.durationSeconds);
+          return Number.isFinite(parsedDuration) && parsedDuration > 0
+            ? String(Math.round(parsedDuration))
+            : '';
+        })(),
     });
     setEditInitialPreview(initialPreview);
     setEditUploadMessage('');
@@ -289,7 +297,7 @@ export default function Admin() {
 
   const closeEditModal = useCallback(() => {
     setEditingItem(null);
-    setEditForm({ title: '', description: '', imageUrl: '', previewUrl: '' });
+    setEditForm({ title: '', description: '', imageUrl: '', previewUrl: '', durationSeconds: '' });
     setEditInitialPreview('');
     setEditUploadMessage('');
     setEditUploadState('idle');
@@ -300,7 +308,7 @@ export default function Admin() {
 
   const handleEditFieldChange = useCallback((field, value) => {
     setEditForm((prev) => ({ ...prev, [field]: value }));
-    if (field === 'title' && editError) setEditError('');
+    if ((field === 'title' || field === 'durationSeconds') && editError) setEditError('');
   }, [editError]);
 
   const handleEditImageUpload = useCallback(async (event) => {
@@ -376,12 +384,15 @@ export default function Admin() {
     const likesNumber = Number(item.likes);
     const viewsNumber = Number(item.views);
 
+    const rawDuration = Number(item.durationSeconds);
+    const durationSeconds = isImage ? 0 : (Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0);
+
     return {
       slug: item.slug,
       title: item.title || item.slug,
       description: item.description || '',
       url: assetUrl,
-      durationSeconds: isImage ? 0 : Number(item.durationSeconds) || 0,
+      durationSeconds,
       orientation: item.orientation || 'landscape',
       type: isImage ? 'image' : (typeValue || 'video'),
       poster: posterUrl || null,
@@ -426,6 +437,27 @@ export default function Admin() {
 
     const trimmedDescription = (editForm.description || '').trim();
     const isImageType = editingItem.type === 'image';
+    const rawDurationInput = typeof editForm.durationSeconds === 'string'
+      ? editForm.durationSeconds.trim()
+      : String(editForm.durationSeconds || '').trim();
+
+    let resolvedDurationSeconds;
+    if (isImageType) {
+      resolvedDurationSeconds = 0;
+    } else if (!rawDurationInput) {
+      const currentDuration = Number(editingItem.durationSeconds);
+      resolvedDurationSeconds = Number.isFinite(currentDuration)
+        ? Math.max(0, Math.round(currentDuration))
+        : 0;
+    } else {
+      const parsed = Number(rawDurationInput);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setEditError('재생 시간을 올바른 숫자로 입력해 주세요.');
+        return;
+      }
+      resolvedDurationSeconds = Math.round(parsed);
+    }
+
     const newImageUrl = editForm.imageUrl;
     const basePreview = editInitialPreview || editingItem.preview || '';
 
@@ -469,7 +501,7 @@ export default function Admin() {
           title: trimmedTitle,
           description: trimmedDescription,
           url: assetUrl,
-          durationSeconds: editingItem.durationSeconds,
+          durationSeconds: resolvedDurationSeconds,
           orientation: editingItem.orientation,
           type: editingItem.type,
           poster: posterUrl,
@@ -488,6 +520,14 @@ export default function Admin() {
       }
 
       setEditStatus('success');
+      setEditForm((prev) => ({
+        ...prev,
+        durationSeconds: String(resolvedDurationSeconds),
+      }));
+      setEditingItem((prev) => (prev ? {
+        ...prev,
+        durationSeconds: resolvedDurationSeconds,
+      } : prev));
       await refresh();
       setTimeout(() => {
         closeEditModal();
@@ -499,7 +539,7 @@ export default function Admin() {
         ? '저장에 실패했어요. 잠시 후 다시 시도해 주세요.'
         : error?.message || '저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
     }
-  }, [closeEditModal, editForm.description, editForm.imageUrl, editForm.title, editInitialPreview, editingItem, hasToken, qs, refresh]);
+  }, [closeEditModal, editForm.description, editForm.durationSeconds, editForm.imageUrl, editForm.title, editInitialPreview, editingItem, hasToken, qs, refresh, setEditingItem]);
 
   const handleConfirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
@@ -1259,6 +1299,21 @@ export default function Admin() {
                     rows={4}
                     className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                     placeholder="간단한 설명을 입력해 주세요."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">Duration (seconds)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={editForm.durationSeconds}
+                    onChange={(e) => handleEditFieldChange('durationSeconds', e.target.value)}
+                    disabled={editingItem.type === 'image'}
+                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder={editingItem.type === 'image' ? '이미지 콘텐츠는 0초로 고정됩니다.' : '예: 123'}
                   />
                 </div>
 

@@ -81,12 +81,21 @@ export default async function handler(req, res) {
         ? thumbnailInput || resolvedPoster || resolvedSrc
         : thumbnailInput || resolvedPoster || thumbnailExisting || posterExisting || '';
 
+    const resolveDurationValue = (value) => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) return null;
+      return Math.max(0, Math.round(parsed));
+    };
+
     const resolvedDuration =
       effectiveType === 'image'
         ? 0
-        : Number.isFinite(Number(durationSeconds))
-          ? Number(durationSeconds)
-          : Number(existingMeta?.durationSeconds) || 0;
+        : (() => {
+          const fromPayload = resolveDurationValue(durationSeconds);
+          if (fromPayload !== null) return fromPayload;
+          const fromExisting = resolveDurationValue(existingMeta?.durationSeconds);
+          return fromExisting !== null ? fromExisting : 0;
+        })();
 
     const likesNumber = Number(likes);
     const viewsNumber = Number(views);
