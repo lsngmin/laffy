@@ -12,6 +12,7 @@ import AdsterraControls from '../components/admin/adsterra/AdsterraControls';
 import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCards';
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
 import AdsterraChartPanel from '../components/admin/adsterra/AdsterraChartPanel';
+import HeatmapInsightsPanel from '../components/admin/adsterra/HeatmapInsightsPanel';
 import MetricsModal from '../components/admin/modals/MetricsModal';
 import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
 import AnalyticsCsvUploadModal from '../components/admin/modals/AnalyticsCsvUploadModal';
@@ -23,13 +24,14 @@ import useClipboard from '../hooks/admin/useClipboard';
 import useAdminItems from '../hooks/admin/useAdminItems';
 import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
+import useAdminHeatmapInsights from '../hooks/admin/useAdminHeatmapInsights';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'adsterra', label: '통계', requiresToken: true },
+  { key: 'adsterra', label: '광고 통합 인사이트', requiresToken: true },
 ];
 
 function getDefaultAdsterraDateRange() {
@@ -183,6 +185,11 @@ export default function AdminPage() {
     domainName: adsterraDomainNameEnv,
     domainKey: adsterraDomainKeyEnv || adsterraDomainIdEnv,
     initialDomainId: adsterraDomainIdEnv,
+  });
+
+  const heatmapInsights = useAdminHeatmapInsights({
+    enabled: hasToken && view === 'adsterra',
+    token,
   });
 
   const {
@@ -718,7 +725,7 @@ export default function AdminPage() {
         )}
 
         {view === 'adsterra' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <AdsterraControls
               domainName={adsterraDomainNameEnv}
               domainId={adsterra.domainId}
@@ -754,16 +761,34 @@ export default function AdminPage() {
               onSavePreset={handleSavePreset}
               onApplyPreset={handleApplyPreset}
             />
-            <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
-            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
-            <AdsterraStatsTable
-              rows={adsterra.filteredStats}
-              loading={adsterra.loadingStats}
-              formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
-              placementLabelMap={adsterra.placementLabelMap}
-              selectedPlacementId={adsterra.placementId}
-            />
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-white">광고 통합 인사이트</h2>
+                <p className="text-sm text-slate-400">
+                  Adsterra 노출 지표와 히트맵 행동 데이터를 한 화면에서 비교해 보세요.
+                </p>
+              </div>
+              <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
+              <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
+              <AdsterraStatsTable
+                rows={adsterra.filteredStats}
+                loading={adsterra.loadingStats}
+                formatNumber={formatNumber}
+                formatDecimal={formatDecimal}
+                placementLabelMap={adsterra.placementLabelMap}
+                selectedPlacementId={adsterra.placementId}
+              />
+              <HeatmapInsightsPanel
+                insights={heatmapInsights.insights}
+                loading={heatmapInsights.loading}
+                error={heatmapInsights.error}
+                slugFilter={heatmapInsights.slugFilter}
+                setSlugFilter={heatmapInsights.setSlugFilter}
+                refresh={heatmapInsights.refresh}
+                formatNumber={formatNumber}
+                formatPercent={formatPercent}
+              />
+            </div>
           </div>
         )}
       </div>
