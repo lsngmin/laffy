@@ -62,6 +62,8 @@ export default function Admin() {
   const adsterraPlacementsRequestRef = useRef(0);
   const adsterraPlacementsInitializedRef = useRef(false);
   const adsterraStatsRequestRef = useRef(0);
+  const adsterraDomainRequestRef = useRef(0);
+  const adsterraDomainResolvingRef = useRef(false);
 
   const hasToken = Boolean(token);
   const qs = useMemo(() => (hasToken ? `?token=${encodeURIComponent(token)}` : ''), [token, hasToken]);
@@ -79,14 +81,14 @@ export default function Admin() {
     () => (process.env.NEXT_PUBLIC_ADSTERRA_API_TOKEN || process.env.NEXT_PUBLIC_ADSTERRA_TOKEN || '').trim(),
     []
   );
-  const adsterraDomainId = useMemo(() => {
+  const [adsterraDomainId, setAdsterraDomainId] = useState(() => {
     const raw = process.env.NEXT_PUBLIC_ADSTERRA_DOMAIN_ID;
     if (typeof raw === 'string') {
       const trimmed = raw.trim();
       if (trimmed) return trimmed;
     }
-    return '5609169';
-  }, []);
+    return '';
+  });
   const adsterraDomainName = useMemo(() => {
     const raw = process.env.NEXT_PUBLIC_ADSTERRA_DOMAIN_NAME;
     if (typeof raw === 'string') {
@@ -94,6 +96,14 @@ export default function Admin() {
       if (trimmed) return trimmed;
     }
     return 'laffy.org';
+  }, []);
+  const adsterraDomainKey = useMemo(() => {
+    const raw = process.env.NEXT_PUBLIC_ADSTERRA_DOMAIN_KEY;
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (trimmed) return trimmed;
+    }
+    return '';
   }, []);
   const [adsterraActiveToken, setAdsterraActiveToken] = useState(adsterraEnvToken);
   const [adsterraPlacements, setAdsterraPlacements] = useState([]);
@@ -474,6 +484,78 @@ export default function Admin() {
     }
   }, [adsterraActiveToken, adsterraEnvToken]);
 
+  const resolveAdsterraDomainId = useCallback(async () => {
+    if (!adsterraActiveToken) {
+      return;
+    }
+    if (adsterraDomainId) {
+      return;
+    }
+    if (adsterraDomainResolvingRef.current) {
+      return;
+    }
+
+    const requestId = adsterraDomainRequestRef.current + 1;
+    adsterraDomainRequestRef.current = requestId;
+    adsterraDomainResolvingRef.current = true;
+    setAdsterraStatus('도메인 정보를 불러오는 중이에요.');
+    setAdsterraError('');
+
+    try {
+      const res = await fetch('/api/adsterra/domains', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: adsterraActiveToken }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error || '도메인 목록을 불러오지 못했어요.');
+      }
+      if (adsterraDomainRequestRef.current !== requestId) return;
+
+      const domains = Array.isArray(json?.domains) ? json.domains : [];
+      const normalizedName = adsterraDomainName.trim().toLowerCase();
+      const normalizedKey = adsterraDomainKey.trim().toLowerCase();
+      const matched = domains.find((domain) => {
+        if (!domain || typeof domain !== 'object') return false;
+        const domainIdValue = (domain.id ?? '').toString().trim();
+        const domainTitleValue = (domain.title ?? '').toString().trim();
+        const normalizedTitle = domainTitleValue.toLowerCase();
+        if (normalizedName && normalizedTitle === normalizedName) {
+          return true;
+        }
+        if (!normalizedKey) {
+          return false;
+        }
+        return normalizedTitle === normalizedKey || domainIdValue.toLowerCase() === normalizedKey;
+      });
+
+      if (matched && matched.id) {
+        setAdsterraDomainId(String(matched.id));
+        setAdsterraStatus(`도메인 ${matched.title || matched.id}을(를) 사용해요.`);
+        setAdsterraError('');
+      } else {
+        setAdsterraStatus('');
+        setAdsterraError('도메인 목록에서 일치하는 항목을 찾지 못했어요. 환경 변수를 확인해 주세요.');
+      }
+    } catch (error) {
+      if (adsterraDomainRequestRef.current === requestId) {
+        setAdsterraStatus('');
+        setAdsterraError(error.message || '도메인 목록을 불러오지 못했어요.');
+      }
+    } finally {
+      if (adsterraDomainRequestRef.current === requestId) {
+        adsterraDomainResolvingRef.current = false;
+      }
+    }
+  }, [adsterraActiveToken, adsterraDomainId, adsterraDomainKey, adsterraDomainName]);
+
+  useEffect(() => {
+    if (!adsterraActiveToken) return;
+    if (adsterraDomainId) return;
+    resolveAdsterraDomainId();
+  }, [adsterraActiveToken, adsterraDomainId, resolveAdsterraDomainId]);
+
   const fetchAdsterraPlacements = useCallback(async () => {
     if (adsterraLoadingPlacements) {
       return;
@@ -551,11 +633,17 @@ export default function Admin() {
       setAdsterraError('통계 API 토큰이 설정되지 않았어요.');
       return;
     }
+    if (!adsterraDomainId) {
+      resolveAdsterraDomainId();
+      return;
+    }
     fetchAdsterraPlacements();
   }, [
     adsterraVisible,
     adsterraActiveToken,
     fetchAdsterraPlacements,
+    adsterraDomainId,
+    resolveAdsterraDomainId,
   ]);
 
   const handleAdsterraPlacementChange = useCallback((value) => {
