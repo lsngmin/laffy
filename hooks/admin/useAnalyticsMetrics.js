@@ -17,6 +17,7 @@ export default function useAnalyticsMetrics({ items, enabled }) {
   const [sortDirection, setSortDirection] = useState('desc');
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
   const [metricsEditor, setMetricsEditor] = useState(null);
+  const [selectedSlugs, setSelectedSlugs] = useState([]);
 
   const pendingMetricsRef = useRef(new Set());
 
@@ -92,6 +93,8 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     };
   }, [enabled, items, metricsBySlug]);
 
+  const selectedSlugSet = useMemo(() => new Set(selectedSlugs), [selectedSlugs]);
+
   const analyticsRows = useMemo(
     () =>
       items
@@ -99,8 +102,9 @@ export default function useAnalyticsMetrics({ items, enabled }) {
         .map((item) => ({
           ...item,
           metrics: metricsBySlug[item.slug] || null,
+          isSelected: selectedSlugSet.has(item.slug),
         })),
-    [items, metricsBySlug]
+    [items, metricsBySlug, selectedSlugSet]
   );
 
   const sortedAnalyticsRows = useMemo(() => {
@@ -159,31 +163,104 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     });
   }, []);
 
-  const openMetricsEditor = useCallback((row) => {
-    if (!row?.slug) return;
-    const baseViews =
-      typeof row.metrics?.views === 'number'
-        ? row.metrics.views
-        : typeof row.views === 'number'
-          ? row.views
-          : null;
-    const baseLikes =
-      typeof row.metrics?.likes === 'number'
-        ? row.metrics.likes
-        : typeof row.likes === 'number'
-          ? row.likes
-          : null;
-    const views = baseViews === null ? '' : String(baseViews);
-    const likes = baseLikes === null ? '' : String(baseLikes);
-    setMetricsEditor({
-      slug: row.slug,
-      title: row.title || row.slug,
-      views,
-      likes,
-      status: 'idle',
-      error: '',
+  const toggleRowSelection = useCallback((slug) => {
+    if (typeof slug !== 'string' || !slug) return;
+    setSelectedSlugs((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) {
+        next.delete(slug);
+      } else {
+        next.add(slug);
+      }
+      return Array.from(next);
     });
   }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedSlugs([]);
+  }, []);
+
+  const selectAllRows = useCallback(() => {
+    setSelectedSlugs(analyticsRows.map((row) => row.slug));
+  }, [analyticsRows]);
+
+  const getBaseMetricValue = useCallback((row, key) => {
+    if (!row) return null;
+    if (typeof row.metrics?.[key] === 'number') return row.metrics[key];
+    if (typeof row[key] === 'number') return row[key];
+    return null;
+  }, []);
+
+  const openMetricsEditor = useCallback(
+    (input) => {
+      const candidates = (() => {
+        if (Array.isArray(input)) return input;
+        if (input && typeof input === 'object') return [input];
+        return analyticsRows.filter((row) => selectedSlugSet.has(row.slug));
+      })();
+
+      const deduped = [];
+      const seen = new Set();
+      candidates.forEach((candidate) => {
+        if (!candidate?.slug || seen.has(candidate.slug)) return;
+        seen.add(candidate.slug);
+        deduped.push(candidate);
+      });
+
+      if (!deduped.length) return;
+
+      const rows = deduped.map((row) => {
+        const metrics = metricsBySlug[row.slug] || row.metrics || null;
+        return { ...row, metrics };
+      });
+
+      const slugs = rows.map((row) => row.slug);
+      const first = rows[0];
+
+      const viewsValues = rows.map((row) => getBaseMetricValue(row, 'views'));
+      const likesValues = rows.map((row) => getBaseMetricValue(row, 'likes'));
+
+      const allViewsFilled = viewsValues.every((value) => typeof value === 'number');
+      const allLikesFilled = likesValues.every((value) => typeof value === 'number');
+
+      const allViewsEqual =
+        rows.length > 1 && allViewsFilled
+          ? viewsValues.every((value) => value === viewsValues[0])
+          : allViewsFilled;
+      const allLikesEqual =
+        rows.length > 1 && allLikesFilled
+          ? likesValues.every((value) => value === likesValues[0])
+          : allLikesFilled;
+
+      const views = allViewsEqual && allViewsFilled ? String(viewsValues[0]) : '';
+      const likes = allLikesEqual && allLikesFilled ? String(likesValues[0]) : '';
+
+      const placeholders = {
+        views: allViewsEqual && allViewsFilled ? viewsValues[0] : null,
+        likes: allLikesEqual && allLikesFilled ? likesValues[0] : null,
+      };
+
+      const selectionPreview = rows.slice(0, 5).map((row) => ({
+        slug: row.slug,
+        title: row.title || row.slug,
+      }));
+
+      setMetricsEditor({
+        slugs,
+        slug: rows.length === 1 ? first.slug : '',
+        title: rows.length === 1 ? first.title || first.slug : '선택된 메트릭 일괄 편집',
+        subtitle: rows.length === 1 ? `Slug · ${first.slug}` : `${rows.length}개 항목 선택됨`,
+        selectionPreview,
+        views,
+        likes,
+        placeholders,
+        status: 'idle',
+        error: '',
+        isBulk: rows.length > 1,
+      });
+    },
+    [analyticsRows, getBaseMetricValue, metricsBySlug, selectedSlugSet]
+  );
 
   const closeMetricsEditor = useCallback(() => {
     setMetricsEditor(null);
@@ -201,11 +278,19 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     });
   }, []);
 
-  const updateMetricsForSlug = useCallback((slug, views, likes) => {
-    setMetricsBySlug((prev) => ({
-      ...prev,
-      [slug]: { views, likes },
-    }));
+  const updateMetricsForSlug = useCallback((updates) => {
+    const list = Array.isArray(updates) ? updates : [updates];
+    setMetricsBySlug((prev) => {
+      const next = { ...prev };
+      list.forEach((update) => {
+        if (!update || typeof update.slug !== 'string') return;
+        const slug = update.slug;
+        const views = Number(update.views) || 0;
+        const likes = Number(update.likes) || 0;
+        next[slug] = { views, likes };
+      });
+      return next;
+    });
   }, []);
 
   const buildCsv = useCallback(() => buildAnalyticsCsv(sortedAnalyticsRows), [sortedAnalyticsRows]);
@@ -230,6 +315,10 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     handleMetricsFieldChange,
     setMetricsEditor,
     updateMetricsForSlug,
+    selectedSlugs,
+    toggleRowSelection,
+    clearSelection,
+    selectAllRows,
     buildCsv,
   };
 }

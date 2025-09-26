@@ -12,6 +12,8 @@ import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCa
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
 import AdsterraChartPanel from '../components/admin/adsterra/AdsterraChartPanel';
 import MetricsModal from '../components/admin/modals/MetricsModal';
+import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
+import AnalyticsCsvUploadModal from '../components/admin/modals/AnalyticsCsvUploadModal';
 import DeleteModal from '../components/admin/modals/DeleteModal';
 import EditContentModal from '../components/admin/modals/EditContentModal';
 import TimestampsEditorModal from '../components/admin/modals/TimestampsEditorModal';
@@ -102,6 +104,43 @@ export default function AdminPage() {
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
   const { copiedSlug, copy } = useClipboard();
   const analytics = useAnalyticsMetrics({ items, enabled: hasToken && view === 'analytics' });
+  const [historyState, setHistoryState] = useState({ logs: [], loading: false, error: '' });
+  const [isHistoryOpen, setHistoryOpen] = useState(false);
+  const [isCsvModalOpen, setCsvModalOpen] = useState(false);
+
+  const fetchHistory = useCallback(
+    async (options = {}) => {
+      if (!hasToken) return;
+      const params = new URLSearchParams();
+      params.set('token', token);
+      const limit = options.limit || 100;
+      if (limit) params.set('limit', String(limit));
+      const targetSlugs = Array.isArray(options.slugs) ? options.slugs : analytics.selectedSlugs;
+      targetSlugs.filter(Boolean).forEach((slug) => params.append('slug', slug));
+
+      setHistoryState((prev) => ({ ...prev, loading: true, error: '' }));
+
+      try {
+        const res = await fetch(`/api/admin/metrics?${params.toString()}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || '변경 이력을 불러오지 못했어요.');
+        }
+        setHistoryState({
+          logs: Array.isArray(data?.logs) ? data.logs : [],
+          loading: false,
+          error: '',
+        });
+      } catch (error) {
+        setHistoryState((prev) => ({
+          ...prev,
+          loading: false,
+          error: error?.message || '변경 이력을 불러오지 못했어요.',
+        }));
+      }
+    },
+    [analytics.selectedSlugs, hasToken, token]
+  );
 
   const defaultAdsterraRange = useMemo(() => getDefaultAdsterraDateRange(), []);
   const adsterraEnvToken = useMemo(
@@ -296,8 +335,10 @@ export default function AdminPage() {
 
     const parsedViews = parseValue(editor.views);
     const parsedLikes = parseValue(editor.likes);
+    const wantsViewsUpdate = editor.views !== '' && parsedViews !== null;
+    const wantsLikesUpdate = editor.likes !== '' && parsedLikes !== null;
 
-    if ((editor.views && parsedViews === null) || (editor.likes && parsedLikes === null)) {
+    if ((editor.views !== '' && parsedViews === null) || (editor.likes !== '' && parsedLikes === null)) {
       analytics.setMetricsEditor((prev) =>
         prev
           ? {
@@ -310,45 +351,100 @@ export default function AdminPage() {
       return;
     }
 
-    analytics.setMetricsEditor((prev) => (prev ? { ...prev, status: 'saving', error: '' } : prev));
+    if (!wantsViewsUpdate && !wantsLikesUpdate) {
+      analytics.setMetricsEditor((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'error',
+              error: '변경할 값을 입력해 주세요.',
+            }
+          : prev
+      );
+      return;
+    }
 
-    const payload = { slug: editor.slug };
-    if (parsedViews !== null) payload.views = parsedViews;
-    if (parsedLikes !== null) payload.likes = parsedLikes;
+    analytics.setMetricsEditor((prev) => (prev ? { ...prev, status: 'saving', error: '' } : prev));
+    const updates = editor.slugs.map((slug) => {
+      const update = { slug };
+      if (wantsViewsUpdate) update.views = parsedViews;
+      if (wantsLikesUpdate) update.likes = parsedLikes;
+      return update;
+    });
 
     try {
       const res = await fetch(`/api/admin/metrics${qs}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ updates, actor: 'admin-ui' }),
       });
-      if (!res.ok) throw new Error('save_failed');
-      const data = await res.json();
-      const nextViews = Number(data?.views) || 0;
-      const nextLikes = Number(data?.likes) || 0;
-      analytics.updateMetricsForSlug(editor.slug, nextViews, nextLikes);
-      setItems((prev) =>
-        prev.map((item) =>
-          item.slug === editor.slug
-            ? {
-                ...item,
-                views: nextViews,
-                likes: nextLikes,
-              }
-            : item
-        )
-      );
-      analytics.setMetricsEditor((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'success',
-              views: String(nextViews),
-              likes: String(nextLikes),
-              error: '',
-            }
-          : prev
-      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const firstError = Array.isArray(data?.details) && data.details.length ? data.details[0]?.message : null;
+        throw new Error(firstError || data?.error || '메트릭 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      }
+      const results = Array.isArray(data?.results) ? data.results : [];
+      const resultMap = new Map(results.map((entry) => [entry.slug, entry]));
+      analytics.updateMetricsForSlug(results);
+      if (results.length) {
+        setItems((prev) =>
+          prev.map((item) =>
+            resultMap.has(item.slug)
+              ? {
+                  ...item,
+                  views: resultMap.get(item.slug).views ?? item.views ?? 0,
+                  likes: resultMap.get(item.slug).likes ?? item.likes ?? 0,
+                }
+              : item
+          )
+        );
+      }
+
+      analytics.setMetricsEditor((prev) => {
+        if (!prev) return prev;
+        const primarySlug = prev.slugs?.[0];
+        const primaryResult = primarySlug ? resultMap.get(primarySlug) : null;
+        return {
+          ...prev,
+          status: 'success',
+          error: '',
+          views:
+            wantsViewsUpdate && parsedViews !== null
+              ? String(parsedViews)
+              : typeof primaryResult?.views === 'number'
+                ? String(primaryResult.views)
+                : prev.views,
+          likes:
+            wantsLikesUpdate && parsedLikes !== null
+              ? String(parsedLikes)
+              : typeof primaryResult?.likes === 'number'
+                ? String(primaryResult.likes)
+                : prev.likes,
+          placeholders: {
+            views:
+              typeof primaryResult?.views === 'number'
+                ? primaryResult.views
+                : wantsViewsUpdate && parsedViews !== null
+                  ? parsedViews
+                  : prev.placeholders?.views ?? null,
+            likes:
+              typeof primaryResult?.likes === 'number'
+                ? primaryResult.likes
+                : wantsLikesUpdate && parsedLikes !== null
+                  ? parsedLikes
+                  : prev.placeholders?.likes ?? null,
+          },
+        };
+      });
+
+      if (isHistoryOpen) {
+        fetchHistory({ slugs: editor.slugs });
+      }
+
+      if (editor.isBulk) {
+        analytics.clearSelection();
+      }
+
       setTimeout(() => {
         analytics.closeMetricsEditor();
       }, 900);
@@ -358,12 +454,74 @@ export default function AdminPage() {
           ? {
               ...prev,
               status: 'error',
-              error: '메트릭 저장에 실패했어요. 잠시 후 다시 시도해 주세요.',
+              error: error?.message || '메트릭 저장에 실패했어요. 잠시 후 다시 시도해 주세요.',
             }
           : prev
       );
     }
-  }, [analytics, hasToken, qs, setItems]);
+  }, [analytics, fetchHistory, hasToken, isHistoryOpen, qs, setItems]);
+
+  const handleOpenHistory = useCallback(() => {
+    setHistoryOpen(true);
+    fetchHistory({ slugs: analytics.selectedSlugs });
+  }, [analytics.selectedSlugs, fetchHistory]);
+
+  const handleHistoryRetry = useCallback(() => {
+    fetchHistory({ slugs: analytics.selectedSlugs });
+  }, [analytics.selectedSlugs, fetchHistory]);
+
+  useEffect(() => {
+    if (isHistoryOpen) {
+      fetchHistory({ slugs: analytics.selectedSlugs });
+    }
+  }, [analytics.selectedSlugs, fetchHistory, isHistoryOpen]);
+
+  const handleCsvUpload = useCallback(
+    async ({ csvText }) => {
+      if (!hasToken) {
+        throw new Error('인증 토큰이 필요합니다.');
+      }
+      if (typeof csvText !== 'string' || !csvText.trim()) {
+        throw new Error('CSV 데이터가 비어 있어요.');
+      }
+
+      const res = await fetch(`/api/admin/metrics/import${qs}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ csv: csvText, actor: 'admin-ui' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const firstError = Array.isArray(data?.details) && data.details.length ? data.details[0]?.message : null;
+        throw new Error(firstError || data?.error || 'CSV 업로드 처리에 실패했어요.');
+      }
+
+      const results = Array.isArray(data?.results) ? data.results : [];
+      analytics.updateMetricsForSlug(results);
+      if (results.length) {
+        const resultMap = new Map(results.map((entry) => [entry.slug, entry]));
+        setItems((prev) =>
+          prev.map((item) =>
+            resultMap.has(item.slug)
+              ? {
+                  ...item,
+                  views: resultMap.get(item.slug).views ?? item.views ?? 0,
+                  likes: resultMap.get(item.slug).likes ?? item.likes ?? 0,
+                }
+              : item
+          )
+        );
+      }
+
+      if (isHistoryOpen) {
+        const targetSlugs = results.map((entry) => entry.slug);
+        fetchHistory({ slugs: targetSlugs.length ? targetSlugs : analytics.selectedSlugs });
+      }
+
+      return data;
+    },
+    [analytics, fetchHistory, hasToken, isHistoryOpen, qs, setItems]
+  );
 
   const [adsterraPresets, setAdsterraPresets] = useState([]);
   useEffect(() => {
@@ -480,6 +638,10 @@ export default function AdminPage() {
               visibleColumns={visibleColumns}
               onToggleColumn={analytics.toggleColumn}
               onExportCsv={handleExportCsv}
+              selectedCount={analytics.selectedSlugs.length}
+              onOpenBulkEditor={() => analytics.openMetricsEditor()}
+              onOpenHistory={handleOpenHistory}
+              onOpenCsvUpload={() => setCsvModalOpen(true)}
             />
             <AnalyticsTable
               rows={analytics.sortedAnalyticsRows}
@@ -489,6 +651,9 @@ export default function AdminPage() {
               formatPercent={formatPercent}
               onEdit={analytics.openMetricsEditor}
               visibleColumns={visibleColumns}
+              selectedSlugs={analytics.selectedSlugs}
+              onToggleRow={analytics.toggleRowSelection}
+              onToggleAll={(selectAll) => (selectAll ? analytics.selectAllRows() : analytics.clearSelection())}
             />
           </div>
         )}
@@ -549,6 +714,20 @@ export default function AdminPage() {
         onClose={analytics.closeMetricsEditor}
         onChange={analytics.handleMetricsFieldChange}
         onSave={handleMetricsSave}
+      />
+      <AnalyticsHistoryPanel
+        open={isHistoryOpen}
+        onClose={() => setHistoryOpen(false)}
+        logs={historyState.logs}
+        loading={historyState.loading}
+        error={historyState.error}
+        onRetry={handleHistoryRetry}
+        focusSlugs={isHistoryOpen ? analytics.selectedSlugs : []}
+      />
+      <AnalyticsCsvUploadModal
+        open={isCsvModalOpen}
+        onClose={() => setCsvModalOpen(false)}
+        onUpload={handleCsvUpload}
       />
       <DeleteModal
         pendingDelete={pendingDelete}

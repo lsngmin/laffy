@@ -5,9 +5,13 @@ export default function AnalyticsToolbar({
   visibleColumns,
   onToggleColumn,
   onExportCsv,
+  selectedCount,
+  onOpenBulkEditor,
+  onOpenHistory,
+  onOpenCsvUpload,
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60 md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-4 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-slate-950/60 px-3 py-1 text-slate-400">정렬 기준</span>
         <button
@@ -29,7 +33,7 @@ export default function AnalyticsToolbar({
           좋아요 {sortKey === 'likes' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+      <div className="flex flex-col gap-3 text-xs text-slate-300 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {Object.entries(visibleColumns).map(([key, value]) => (
             <label
@@ -46,13 +50,40 @@ export default function AnalyticsToolbar({
             </label>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={onExportCsv}
-          className="rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 px-4 py-2 text-xs font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110"
-        >
-          CSV 다운로드
-        </button>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-slate-950/50 px-3 py-1 text-slate-400">
+            선택 {selectedCount}개
+          </span>
+          <button
+            type="button"
+            onClick={onOpenBulkEditor}
+            disabled={!selectedCount}
+            className="rounded-full border border-slate-700/60 px-4 py-2 font-semibold text-slate-200 transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            선택 항목 편집
+          </button>
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="rounded-full border border-slate-700/60 px-4 py-2 font-semibold text-slate-200 transition hover:bg-slate-800"
+          >
+            변경 이력
+          </button>
+          <button
+            type="button"
+            onClick={onOpenCsvUpload}
+            className="rounded-full border border-indigo-500/60 px-4 py-2 font-semibold text-indigo-200 transition hover:bg-indigo-500/20"
+          >
+            CSV 업로드
+          </button>
+          <button
+            type="button"
+            onClick={onExportCsv}
+            className="rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 px-4 py-2 font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:brightness-110"
+          >
+            CSV 다운로드
+          </button>
+        </div>
       </div>
     </div>
   );
