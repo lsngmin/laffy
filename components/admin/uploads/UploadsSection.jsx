@@ -231,7 +231,10 @@ export default function UploadsSection({
           const payload = buildRegisterPayload(item);
           if (!payload) continue;
           if (type) payload.type = type;
-          if (orientation) payload.orientation = orientation;
+          if (orientation) {
+            payload.media = payload.media || {};
+            payload.media.orientation = orientation;
+          }
           if (item.url) payload.metaUrl = item.url;
 
           const res = await fetch(`/api/admin/register${queryString}`, {

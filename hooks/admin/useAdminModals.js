@@ -203,24 +203,61 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     setEditError('');
 
     try {
+      const normalizedOrientation = (() => {
+        const raw = (editingItem.orientation || '').toLowerCase();
+        return ['landscape', 'portrait', 'square'].includes(raw) ? raw : 'landscape';
+      })();
+
+      const likesNumber = Number(editingItem.likes);
+      const viewsNumber = Number(editingItem.views);
+      const resolvedSummary = editingItem.summary || trimmedDescription || trimmedTitle;
+
+      const payload = {
+        schemaVersion: '2024-05',
+        slug: editingItem.slug,
+        type: editingItem.type === 'image' ? 'image' : 'video',
+        display: {
+          socialTitle: trimmedTitle,
+          cardTitle: trimmedDescription || trimmedTitle,
+          summary: resolvedSummary,
+          runtimeSec: resolvedDurationSeconds,
+        },
+        media: {
+          assetUrl,
+          orientation: normalizedOrientation,
+        },
+        timestamps: {
+          publishedAt: editingItem.publishedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        metrics: {
+          likes: Number.isFinite(likesNumber) && likesNumber >= 0 ? Math.round(likesNumber) : 0,
+          views: Number.isFinite(viewsNumber) && viewsNumber >= 0 ? Math.round(viewsNumber) : 0,
+        },
+        metaUrl: editingItem.url,
+      };
+
+      const previewForImage = editingItem.type === 'image' ? posterUrl || assetUrl : null;
+      if (posterUrl || previewForImage) {
+        payload.media.previewUrl = posterUrl || previewForImage;
+      }
+      if (thumbnailUrl || previewForImage) {
+        payload.media.thumbUrl = thumbnailUrl || previewForImage || posterUrl || assetUrl;
+      }
+
+      if (editingItem.source) {
+        if (typeof editingItem.source === 'string') {
+          const origin = editingItem.source.trim();
+          if (origin) payload.source = { origin };
+        } else if (typeof editingItem.source === 'object') {
+          payload.source = { ...editingItem.source };
+        }
+      }
+
       const res = await fetch(`/api/admin/register${qs}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          slug: editingItem.slug,
-          title: trimmedTitle,
-          description: trimmedDescription,
-          url: assetUrl,
-          durationSeconds: resolvedDurationSeconds,
-          orientation: editingItem.orientation,
-          type: editingItem.type,
-          poster: posterUrl,
-          thumbnail: thumbnailUrl,
-          likes: editingItem.likes,
-          views: editingItem.views,
-          publishedAt: editingItem.publishedAt,
-          metaUrl: editingItem.url,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -313,7 +350,11 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
         setUndoInfo({
           payload,
           metaUrl,
-          title: payload.title,
+          title:
+            payload.display?.socialTitle ||
+            payload.display?.cardTitle ||
+            payload.slug ||
+            item.slug,
           slug: item.slug,
         });
         setUndoStatus('idle');
@@ -451,7 +492,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
         body: JSON.stringify({
           slug: timestampsEditor.slug,
           metaUrl: timestampsEditor.metaUrl,
-          timestamps: normalized,
+          timeline: normalized,
         }),
       });
       if (!res.ok) throw new Error('save_failed');
