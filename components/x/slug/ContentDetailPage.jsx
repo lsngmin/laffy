@@ -127,8 +127,6 @@ export default function ContentDetailPage({
             ariaLabel={t("nav.label", "navigation")}
           />
 
-          <ElevatedNoticePanel />
-
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
             <header className="space-y-4">
               <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.title}</h1>
@@ -194,6 +192,7 @@ export default function ContentDetailPage({
           <div className="mt-8 flex justify-center">
             <RelishInvokeAd />
           </div>
+          <ElevatedNoticePanel />
 
           <RecommendedGrid
             t={t}
