@@ -1,6 +1,6 @@
 import { fetchAdsterraJson } from '@/utils/adsterraClient';
 
-function buildStatsEndpoint({ domainId, placementId, startDate, endDate, groupBy = ['date'] }) {
+function buildStatsEndpoint({ domainId, placementId, includeAllPlacements = false, startDate, endDate, groupBy = ['date'] }) {
   const params = new URLSearchParams();
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('finish_date', endDate);
@@ -11,7 +11,7 @@ function buildStatsEndpoint({ domainId, placementId, startDate, endDate, groupBy
     if (value) params.append('group_by[]', value);
   });
 
-  if (placementId) {
+  if (!includeAllPlacements && placementId) {
     params.append('placement_ids[]', placementId);
   }
 
@@ -27,6 +27,7 @@ export default async function handler(req, res) {
 
   const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
   const domainId = typeof req.body?.domainId === 'string' ? req.body.domainId.trim() : '';
+  const includeAllPlacements = req.body?.allPlacements === true;
   const placementId = typeof req.body?.placementId === 'string' ? req.body.placementId.trim() : '';
   const startDate = typeof req.body?.startDate === 'string' ? req.body.startDate.trim() : '';
   const endDate = typeof req.body?.endDate === 'string' ? req.body.endDate.trim() : '';
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
   if (!domainId) {
     return res.status(400).json({ error: 'Missing domain id.' });
   }
-  if (!placementId) {
+  if (!includeAllPlacements && !placementId) {
     return res.status(400).json({ error: 'Missing placement id.' });
   }
   if (!startDate || !endDate) {
@@ -46,7 +47,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const endpoint = buildStatsEndpoint({ domainId, placementId, startDate, endDate, groupBy });
+    const endpoint = buildStatsEndpoint({
+      domainId,
+      placementId: includeAllPlacements ? undefined : placementId,
+      includeAllPlacements,
+      startDate,
+      endDate,
+      groupBy,
+    });
     const data = await fetchAdsterraJson(endpoint, token);
     const items = Array.isArray(data?.items) ? data.items : [];
     const normalizedItems = [];

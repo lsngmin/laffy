@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import ClientBlobUploader from '../components/ClientBlobUploader';
 
+const ADSTERRA_ALL_PLACEMENTS_VALUE = '__all__';
+
 function toDateInputValue(date) {
   if (!(date instanceof Date) || Number.isNaN(date.valueOf())) {
     return '';
@@ -219,7 +221,7 @@ export default function Admin() {
   }, []);
   const [adsterraActiveToken, setAdsterraActiveToken] = useState(adsterraEnvToken);
   const [adsterraPlacements, setAdsterraPlacements] = useState([]);
-  const [adsterraPlacementId, setAdsterraPlacementId] = useState('');
+  const [adsterraPlacementId, setAdsterraPlacementId] = useState(ADSTERRA_ALL_PLACEMENTS_VALUE);
   const [adsterraStartDate, setAdsterraStartDate] = useState(defaultAdsterraRange.start);
   const [adsterraEndDate, setAdsterraEndDate] = useState(defaultAdsterraRange.end);
   const [adsterraStats, setAdsterraStats] = useState([]);
@@ -593,12 +595,14 @@ export default function Admin() {
     return { ...totals, ctr, cpm };
   }, [filteredAdsterraStats]);
 
+  const adsterraAllPlacementsSelected = adsterraPlacementId === ADSTERRA_ALL_PLACEMENTS_VALUE;
+
   const adsterraCanFetchStats = Boolean(
     adsterraActiveToken &&
     adsterraDomainId &&
-    adsterraPlacementId &&
     adsterraStartDate &&
-    adsterraEndDate
+    adsterraEndDate &&
+    (adsterraAllPlacementsSelected || adsterraPlacementId)
   );
 
   const formatPercent = useCallback((value) => {
@@ -728,22 +732,24 @@ export default function Admin() {
         return idValue !== undefined && idValue !== null ? String(idValue) : '';
       };
 
+      const isAllSelected = adsterraPlacementId === ADSTERRA_ALL_PLACEMENTS_VALUE;
+
       if (placements.length) {
         const hasCurrent = placements.some((placement) => extractPlacementId(placement) === adsterraPlacementId);
-        if (!hasCurrent) {
+        if (!hasCurrent && !isAllSelected) {
           const firstId = extractPlacementId(placements[0]);
           if (firstId) {
             setAdsterraPlacementId(firstId);
           }
         }
       } else {
-        setAdsterraPlacementId('');
+        setAdsterraPlacementId(ADSTERRA_ALL_PLACEMENTS_VALUE);
       }
       setAdsterraStatus(placements.length ? '플레이스먼트를 불러왔어요.' : '등록된 플레이스먼트를 찾을 수 없어요.');
     } catch (error) {
       if (adsterraPlacementsRequestRef.current === requestId) {
         setAdsterraPlacements([]);
-        setAdsterraPlacementId('');
+        setAdsterraPlacementId(ADSTERRA_ALL_PLACEMENTS_VALUE);
         setAdsterraStats([]);
         setAdsterraError(error.message || '플레이스먼트를 불러오지 못했어요.');
       }
@@ -801,7 +807,7 @@ export default function Admin() {
       setAdsterraError('도메인 정보가 설정되지 않았어요. 환경 변수를 확인해 주세요.');
       return;
     }
-    if (!adsterraPlacementId) {
+    if (!adsterraAllPlacementsSelected && !adsterraPlacementId) {
       setAdsterraError('광고 포맷(플레이스먼트)을 선택해 주세요.');
       return;
     }
@@ -831,7 +837,8 @@ export default function Admin() {
         body: JSON.stringify({
           token: adsterraActiveToken,
           domainId: adsterraDomainId,
-          placementId: adsterraPlacementId,
+          placementId: adsterraAllPlacementsSelected ? undefined : adsterraPlacementId,
+          allPlacements: adsterraAllPlacementsSelected,
           startDate: adsterraStartDate,
           endDate: adsterraEndDate,
           groupBy: ['date'],
@@ -1750,6 +1757,7 @@ export default function Admin() {
                       disabled={!adsterraActiveToken || adsterraLoadingPlacements}
                       className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100 disabled:opacity-40"
                     >
+                      <option value={ADSTERRA_ALL_PLACEMENTS_VALUE}>전체 보기 (도메인 전체)</option>
                       <option value="">플레이스먼트를 선택해 주세요</option>
                       {adsterraPlacements.map((placement) => {
                         const rawId = placement?.id ?? placement?.ID ?? placement?.placement_id ?? placement?.placementId ?? placement?.value;
@@ -1897,7 +1905,7 @@ export default function Admin() {
                 </div>
                 <div className="rounded-2xl border border-white/5 bg-slate-900/80 p-4 shadow-lg shadow-black/20">
                   <p className="text-xs uppercase tracking-[0.25em] text-slate-400">총 수익 (USD)</p>
-                  <p className="mt-2 text-2xl font-bold text-white">{formatDecimal(adsterraTotals.revenue, 2)}</p>
+                  <p className="mt-2 text-2xl font-bold text-white">{formatDecimal(adsterraTotals.revenue, 3)}</p>
                   <p className="mt-1 text-xs text-slate-500">필터 기준 평균 CPM {formatDecimal(adsterraTotals.cpm, 3)}</p>
                 </div>
               </div>
@@ -1947,7 +1955,7 @@ export default function Admin() {
                             ? adsterraPlacementLabelMap.get(String(placementIdFromRow)) || ''
                             : '');
                         const placementDisplay = placementResolved
-                          || adsterraPlacementLabelMap.get(adsterraPlacementId)
+                          || (adsterraAllPlacementsSelected ? '전체 보기' : adsterraPlacementLabelMap.get(adsterraPlacementId))
                           || '—';
                         const rowKey = `${dateLabel}-${index}-${placementIdFromRow ?? ''}-${countryLabel}-${osLabel}-${deviceLabel}-${deviceFormatLabel}`;
                         return (
@@ -1962,7 +1970,7 @@ export default function Admin() {
                             <td className="px-4 py-3 text-right text-slate-100">{formatNumber(clicks)}</td>
                             <td className="px-4 py-3 text-right text-slate-100">{`${formatDecimal(ctrRaw, 3)}%`}</td>
                             <td className="px-4 py-3 text-right text-slate-100">{formatDecimal(cpmRaw, 3)}</td>
-                            <td className="px-4 py-3 text-right text-slate-100">{formatDecimal(revenue, 2)}</td>
+                            <td className="px-4 py-3 text-right text-slate-100">{formatDecimal(revenue, 3)}</td>
                           </tr>
                         );
                       })}
