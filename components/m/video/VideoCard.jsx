@@ -54,6 +54,16 @@ export default function VideoCard({
     const resolvedPoster = cleanedPoster || (isImage ? cleanedSrc : null);
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
+    const restorePoster = useCallback(() => {
+        const player = videoJsPlayerRef.current;
+        if (!player) return;
+        if (typeof player.pause === 'function') player.pause();
+        if (typeof player.currentTime === 'function') player.currentTime(0);
+        if (player.poster && imageSource) player.poster(imageSource);
+        if (player.posterImage?.show) player.posterImage.show();
+        if (typeof player.removeClass === 'function') player.removeClass('vjs-has-started');
+    }, [imageSource]);
+
     const openSmartLink = useCallback(() => {
         try {
             window.open(SMART_LINK, "_blank", "noopener");
@@ -63,8 +73,9 @@ export default function VideoCard({
     }, [SMART_LINK]);
 
     const handleCardClick = useCallback(() => {
+        restorePoster();
         openSmartLink();
-    }, [openSmartLink]);
+    }, [openSmartLink, restorePoster]);
 
     const resolvedDuration = useMemo(() => {
         if (Number.isFinite(durationSeconds) && durationSeconds > 0) return durationSeconds;
@@ -97,19 +108,7 @@ export default function VideoCard({
         });
 
         player.on('play', () => {
-            player.pause();
-            if (typeof player.currentTime === 'function') {
-                player.currentTime(0);
-            }
-            if (player.poster && imageSource) {
-                player.poster(imageSource);
-            }
-            if (player.posterImage?.show) {
-                player.posterImage.show();
-            }
-            if (typeof player.removeClass === 'function') {
-                player.removeClass('vjs-has-started');
-            }
+            restorePoster();
             openSmartLink();
         });
 
@@ -117,7 +116,7 @@ export default function VideoCard({
             player.dispose();
             videoJsPlayerRef.current = null;
         };
-    }, [imageSource, isImage, openSmartLink, resolvedDuration]);
+    }, [imageSource, isImage, openSmartLink, resolvedDuration, restorePoster]);
 
     return (
         <div
