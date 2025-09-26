@@ -32,11 +32,14 @@ import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/
 import useEventAnalytics from '../hooks/admin/useEventAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
+import HeatmapPanel from '../components/admin/heatmap/HeatmapPanel';
+import useHeatmapAnalytics from '../hooks/admin/useHeatmapAnalytics';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
   { key: 'insights', label: '광고 통합 인사이트', requiresToken: true },
+  { key: 'heatmap', label: '히트맵 분석', requiresToken: true },
 ];
 
 function getDefaultAdsterraDateRange() {
@@ -138,6 +141,12 @@ export default function AdminPage() {
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
     filters: { ...eventFilters, limit: 200 },
+  });
+
+  const heatmap = useHeatmapAnalytics({
+    enabled: hasToken && view === 'heatmap',
+    token,
+    items,
   });
 
   const fetchHistory = useCallback(
@@ -263,7 +272,7 @@ export default function AdminPage() {
   } = useAdminModals({ hasToken, queryString: qs, setItems, refresh });
 
   useEffect(() => {
-    if (!hasToken && (view === 'analytics' || view === 'insights')) {
+    if (!hasToken && (view === 'analytics' || view === 'insights' || view === 'heatmap')) {
       setView('uploads');
     }
   }, [hasToken, view]);
@@ -862,6 +871,15 @@ export default function AdminPage() {
               selectedPlacementId={adsterra.placementId}
             />
           </div>
+        )}
+
+        {view === 'heatmap' && (
+          <HeatmapPanel
+            items={items}
+            heatmap={heatmap}
+            formatNumber={formatNumber}
+            formatDecimal={formatDecimal}
+          />
         )}
       </div>
 
