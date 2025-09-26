@@ -101,9 +101,11 @@ export default function VideoCard({
             player.userActive(true);
             player.on('userinactive', () => player.userActive(true));
 
-            const forcedDuration = resolvedDuration || 123;
-            player.duration = () => forcedDuration;
-            player.trigger('durationchange');
+            if (resolvedDuration !== null) {
+                const forcedDuration = resolvedDuration;
+                player.duration = () => forcedDuration;
+                player.trigger('durationchange');
+            }
         });
 
         player.on('play', () => {
