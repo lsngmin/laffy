@@ -1,32 +1,55 @@
 import { assertAdmin } from './_auth';
 import { put } from '@vercel/blob';
-import { normalizeTimestamp } from '../../../lib/admin/normalizeMeta';
+import normalizeMeta, { normalizeTimestamp } from '../../../lib/admin/normalizeMeta';
+
+const VALID_ORIENTATIONS = new Set(['landscape', 'portrait', 'square']);
+
+function parseString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function pickFirstString(values) {
+  for (const value of values) {
+    const parsed = parseString(value);
+    if (parsed) return parsed;
+  }
+  return '';
+}
+
+function parseMetric(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return Math.round(numeric);
+}
+
+function parseDuration(value) {
+  if (value === undefined || value === null || value === '') return 0;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return Math.round(numeric);
+}
+
+function sanitizeOrientation(value) {
+  const normalized = parseString(value).toLowerCase();
+  return VALID_ORIENTATIONS.has(normalized) ? normalized : 'landscape';
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!assertAdmin(req, res)) return;
+
   try {
-    const {
-      slug,
-      title,
-      description,
-      url,
-      durationSeconds,
-      orientation,
-      type: rawType,
-      poster: rawPoster,
-      thumbnail: rawThumbnail,
-      likes,
-      views,
-      publishedAt,
-      metaUrl,
-      timestamps: rawTimestamps,
-    } = req.body || {};
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const metaUrl = pickFirstString([body.metaUrl]);
 
     const existingMeta = await (async () => {
       if (!metaUrl) return null;
       try {
-        const resMeta = await fetch(metaUrl);
+        const resMeta = await fetch(metaUrl, { cache: 'no-store' });
         if (!resMeta.ok) return null;
         return await resMeta.json();
       } catch (error) {
@@ -35,116 +58,221 @@ export default async function handler(req, res) {
       }
     })();
 
-    const resolvedSlug = (slug || existingMeta?.slug || '').trim();
-    if (!resolvedSlug) return res.status(400).json({ error: 'Missing slug' });
+    const normalizedExisting = existingMeta ? normalizeMeta(existingMeta) : null;
+    const existingDisplay = isObject(existingMeta?.display) ? existingMeta.display : {};
+    const existingMedia = isObject(existingMeta?.media) ? existingMeta.media : {};
+    const existingMetrics = isObject(existingMeta?.metrics) ? existingMeta.metrics : {};
+    const existingTimestamps = isObject(existingMeta?.timestamps) ? existingMeta.timestamps : {};
 
-    const trimmedTitle = typeof title === 'string' && title.trim().length > 0
-      ? title.trim()
-      : existingMeta?.title || '';
-    if (!trimmedTitle) return res.status(400).json({ error: 'Missing title' });
+    const slug = pickFirstString([body.slug, normalizedExisting?.slug, existingMeta?.slug]);
+    if (!slug) return res.status(400).json({ error: 'Missing slug' });
 
-    const trimmedDescription = typeof description === 'string'
-      ? description
-      : typeof existingMeta?.description === 'string'
-        ? existingMeta.description
-        : '';
+    const displayPayload = isObject(body.display) ? body.display : {};
+    const mediaPayload = isObject(body.media) ? body.media : {};
+    const metricsPayload = isObject(body.metrics) ? body.metrics : {};
+    const rawTimestampsField = body.timestamps;
+    const timestampsPayload = isObject(rawTimestampsField) ? rawTimestampsField : {};
 
-    const trimmedUrl = typeof url === 'string' && url.trim().length > 0 ? url.trim() : '';
-    const existingSrc = typeof existingMeta?.src === 'string' ? existingMeta.src : '';
-    const existingUrlFallback = typeof existingMeta?.url === 'string' ? existingMeta.url : '';
-    const resolvedSrc = trimmedUrl || existingSrc || existingUrlFallback;
-    if (!resolvedSrc) return res.status(400).json({ error: 'Missing source URL' });
-
-    const baseType = typeof rawType === 'string' && rawType.trim().length > 0
-      ? rawType.trim()
-      : typeof existingMeta?.type === 'string'
-        ? existingMeta.type
-        : '';
-
+    const baseType = pickFirstString([
+      body.type,
+      normalizedExisting?.type,
+      existingMeta?.type,
+    ]);
     const normalizedType = baseType.toLowerCase() === 'image' ? 'image' : 'video';
 
-    const lowerUrl = resolvedSrc.toLowerCase();
-    const imageExtPattern = /(\.jpe?g|\.png|\.webp)$/;
-    const hasImageExtension = imageExtPattern.test(lowerUrl);
-    const effectiveType = normalizedType === 'image' || hasImageExtension ? 'image' : normalizedType;
+    const assetUrl = pickFirstString([
+      mediaPayload.assetUrl,
+      body.assetUrl,
+      body.url,
+      existingMedia.assetUrl,
+      existingMeta?.src,
+      existingMeta?.url,
+      normalizedExisting?.src,
+    ]);
+    if (!assetUrl) return res.status(400).json({ error: 'Missing source URL' });
 
-    const posterInput = typeof rawPoster === 'string' && rawPoster.trim().length > 0 ? rawPoster.trim() : '';
-    const thumbnailInput = typeof rawThumbnail === 'string' && rawThumbnail.trim().length > 0 ? rawThumbnail.trim() : '';
-    const posterExisting = typeof existingMeta?.poster === 'string' ? existingMeta.poster : '';
-    const thumbnailExisting = typeof existingMeta?.thumbnail === 'string' ? existingMeta.thumbnail : '';
-
-    const resolvedPoster =
-      effectiveType === 'image'
-        ? posterInput || resolvedSrc
-        : posterInput || posterExisting || thumbnailExisting || '';
-
-    const resolvedThumbnail =
-      effectiveType === 'image'
-        ? thumbnailInput || resolvedPoster || resolvedSrc
-        : thumbnailInput || resolvedPoster || thumbnailExisting || posterExisting || '';
-
-    const resolvedDuration = (() => {
-      if (durationSeconds !== undefined && durationSeconds !== null && durationSeconds !== '') {
-        if (typeof durationSeconds === 'number') return durationSeconds;
-        const parsed = Number(durationSeconds);
-        if (Number.isFinite(parsed)) return parsed;
-        return durationSeconds;
-      }
-      if (existingMeta && Object.prototype.hasOwnProperty.call(existingMeta, 'durationSeconds')) {
-        return existingMeta.durationSeconds;
-      }
-      return 0;
+    const effectiveType = (() => {
+      if (normalizedType === 'image') return 'image';
+      const lower = assetUrl.toLowerCase();
+      return /(\.jpe?g|\.png|\.webp|\.gif)$/.test(lower) ? 'image' : normalizedType;
     })();
 
-    const likesNumber = Number(likes);
-    const viewsNumber = Number(views);
-    const resolvedLikes = Number.isFinite(likesNumber)
-      ? Math.max(0, Math.round(likesNumber))
-      : Number.isFinite(Number(existingMeta?.likes))
-        ? Math.max(0, Math.round(Number(existingMeta.likes)))
-        : 0;
-    const resolvedViews = Number.isFinite(viewsNumber)
-      ? Math.max(0, Math.round(viewsNumber))
-      : Number.isFinite(Number(existingMeta?.views))
-        ? Math.max(0, Math.round(Number(existingMeta.views)))
-        : 0;
-    const resolvedPublishedAt = typeof publishedAt === 'string' && publishedAt.trim().length > 0
-      ? publishedAt
-      : typeof existingMeta?.publishedAt === 'string' && existingMeta.publishedAt.trim().length > 0
-        ? existingMeta.publishedAt
-        : new Date().toISOString();
+    const socialTitle = pickFirstString([
+      displayPayload.socialTitle,
+      body.socialTitle,
+      body.title,
+      existingDisplay.socialTitle,
+      normalizedExisting?.title,
+      normalizedExisting?.description,
+      slug,
+    ]);
 
-    const resolvedOrientation = typeof orientation === 'string' && orientation.trim().length > 0
-      ? orientation.trim()
-      : typeof existingMeta?.orientation === 'string' && existingMeta.orientation.trim().length > 0
-        ? existingMeta.orientation
-        : 'landscape';
+    const cardTitle = pickFirstString([
+      displayPayload.cardTitle,
+      body.cardTitle,
+      body.description,
+      existingDisplay.cardTitle,
+      normalizedExisting?.description,
+      socialTitle,
+    ]);
+
+    const summary = pickFirstString([
+      displayPayload.summary,
+      body.summary,
+      existingDisplay.summary,
+      normalizedExisting?.summary,
+      cardTitle,
+    ]);
+
+    const runtimeValue =
+      displayPayload.runtimeSec ??
+      displayPayload.runtimeSeconds ??
+      body.runtimeSec ??
+      body.durationSeconds ??
+      existingDisplay.runtimeSec ??
+      existingMeta?.durationSeconds ??
+      normalizedExisting?.durationSeconds;
+    const durationSeconds = parseDuration(runtimeValue);
+
+    const previewCandidate = pickFirstString([
+      mediaPayload.previewUrl,
+      body.previewUrl,
+      body.poster,
+      existingMedia.previewUrl,
+      existingMeta?.poster,
+      normalizedExisting?.poster,
+      normalizedExisting?.preview,
+    ]);
+
+    const thumbCandidate = pickFirstString([
+      mediaPayload.thumbUrl,
+      body.thumbUrl,
+      body.thumbnail,
+      existingMedia.thumbUrl,
+      existingMeta?.thumbnail,
+      normalizedExisting?.thumbnail,
+      previewCandidate,
+    ]);
+
+    const orientation = sanitizeOrientation(
+      mediaPayload.orientation ||
+        body.orientation ||
+        existingMedia.orientation ||
+        existingMeta?.orientation ||
+        normalizedExisting?.orientation
+    );
+
+    const publishedAt = pickFirstString([
+      timestampsPayload.publishedAt,
+      body.publishedAt,
+      existingTimestamps.publishedAt,
+      existingMeta?.publishedAt,
+      normalizedExisting?.publishedAt,
+    ]) || new Date().toISOString();
+
+    let updatedAt = pickFirstString([
+      timestampsPayload.updatedAt,
+      body.updatedAt,
+      existingTimestamps.updatedAt,
+      existingMeta?.updatedAt,
+      normalizedExisting?.updatedAt,
+    ]);
+    if (!updatedAt && metaUrl) {
+      updatedAt = new Date().toISOString();
+    }
+
+    const likes = parseMetric(
+      metricsPayload.likes ??
+        body.likes ??
+        existingMetrics.likes ??
+        existingMeta?.likes ??
+        normalizedExisting?.likes
+    );
+
+    const views = parseMetric(
+      metricsPayload.views ??
+        body.views ??
+        existingMetrics.views ??
+        existingMeta?.views ??
+        normalizedExisting?.views
+    );
+
+    const timelineSource = (() => {
+      if (Array.isArray(body.timeline)) return body.timeline;
+      if (Array.isArray(rawTimestampsField)) return rawTimestampsField;
+      if (Array.isArray(body.chapters)) return body.chapters;
+      return null;
+    })();
+
+    const timeline = timelineSource
+      ? timelineSource.map((stamp) => normalizeTimestamp(stamp)).filter(Boolean)
+      : Array.isArray(normalizedExisting?.timestamps)
+        ? normalizedExisting.timestamps.map((stamp) => ({ ...stamp }))
+        : [];
+
+    const previewValue = previewCandidate || (effectiveType === 'image' ? assetUrl : '');
+    const thumbValue =
+      thumbCandidate ||
+      (effectiveType === 'image'
+        ? previewValue || assetUrl
+        : previewCandidate || normalizedExisting?.thumbnail || existingMedia.thumbUrl || '');
+
+    const source = (() => {
+      const incoming = body.source;
+      if (typeof incoming === 'string') {
+        const origin = incoming.trim();
+        if (origin) return { origin };
+      }
+      if (isObject(incoming)) {
+        return { ...incoming };
+      }
+      if (typeof existingMeta?.source === 'string') {
+        const origin = existingMeta.source.trim();
+        if (origin) return { origin };
+      }
+      if (isObject(existingMeta?.source)) {
+        return { ...existingMeta.source };
+      }
+      return { origin: 'Blob' };
+    })();
 
     const meta = {
-      ...existingMeta,
-      slug: resolvedSlug,
+      schemaVersion: '2024-05',
+      slug,
       type: effectiveType,
-      src: resolvedSrc,
-      poster: resolvedPoster || null,
-      title: trimmedTitle,
-      description: trimmedDescription,
-      thumbnail: resolvedThumbnail || null,
-      orientation: resolvedOrientation,
-      durationSeconds: resolvedDuration,
-      source: existingMeta?.source || 'Blob',
-      publishedAt: resolvedPublishedAt,
-      likes: resolvedLikes,
-      views: resolvedViews
+      display: {
+        socialTitle: socialTitle || cardTitle || slug,
+        cardTitle: cardTitle || socialTitle || slug,
+        summary: summary || cardTitle || socialTitle || '',
+        runtimeSec: durationSeconds,
+      },
+      media: {
+        assetUrl,
+        orientation,
+      },
+      timestamps: {
+        publishedAt,
+      },
+      metrics: {
+        likes,
+        views,
+      },
+      source,
     };
 
-    if (Array.isArray(rawTimestamps)) {
-      const normalizedTimestamps = rawTimestamps
-        .map((stamp) => normalizeTimestamp(stamp))
-        .filter(Boolean);
-      meta.timestamps = normalizedTimestamps;
-    } else if (!Array.isArray(meta.timestamps)) {
-      meta.timestamps = Array.isArray(existingMeta?.timestamps) ? existingMeta.timestamps : [];
+    if (previewValue) {
+      meta.media.previewUrl = previewValue;
     }
+    if (thumbValue) {
+      meta.media.thumbUrl = thumbValue;
+    }
+    if (updatedAt) {
+      meta.timestamps.updatedAt = updatedAt;
+    }
+    if (timeline.length) {
+      meta.timeline = timeline;
+    }
+
     const folder = effectiveType === 'image' ? 'images' : 'videos';
 
     let keyFromMetaUrl = null;
@@ -160,18 +288,18 @@ export default async function handler(req, res) {
       }
     }
 
-    const key = keyFromMetaUrl || `content/${folder}/${resolvedSlug}.json`;
+    const key = keyFromMetaUrl || `content/${folder}/${slug}.json`;
 
-    await put(key, JSON.stringify(meta), {
+    await put(key, JSON.stringify(meta, null, 2), {
       token: process.env.BLOB_READ_WRITE_TOKEN,
       access: 'public',
       contentType: 'application/json',
       addRandomSuffix: false,
-      allowOverwrite: true
+      allowOverwrite: true,
     });
 
     const revalidateTargets = new Set(['/x']);
-    revalidateTargets.add(`/x/${resolvedSlug}`);
+    revalidateTargets.add(`/x/${slug}`);
 
     if (typeof res.revalidate === 'function') {
       await Promise.all(
@@ -186,12 +314,12 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({ ok: true, key, revalidated: Array.from(revalidateTargets) });
-  } catch (e) {
-    console.error('Failed to register meta', e);
-    res.status(500).json({ error: e?.message || 'Failed to register meta' });
+  } catch (error) {
+    console.error('Failed to register meta', error);
+    res.status(500).json({ error: error?.message || 'Failed to register meta' });
   }
 }
 
 export const config = {
-  runtime: 'nodejs'
+  runtime: 'nodejs',
 };

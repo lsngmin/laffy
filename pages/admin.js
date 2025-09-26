@@ -292,20 +292,46 @@ export default function AdminPage() {
       })();
 
       try {
+        const trimmedTitle = (title || '').trim();
+        const trimmedDescription = (description || '').trim();
+        const orientationValue = typeof orientation === 'string' ? orientation.toLowerCase() : '';
+        const normalizedOrientation = ['landscape', 'portrait', 'square'].includes(orientationValue)
+          ? orientationValue
+          : 'landscape';
+
+        const payload = {
+          schemaVersion: '2024-05',
+          slug,
+          type: normalizedType,
+          display: {
+            socialTitle: trimmedTitle || slug,
+            cardTitle: trimmedDescription || trimmedTitle || slug,
+            summary: trimmedDescription || trimmedTitle || slug,
+            runtimeSec: durationSeconds,
+          },
+          media: {
+            assetUrl: blob.url,
+            orientation: normalizedOrientation,
+          },
+          timestamps: {
+            publishedAt: new Date().toISOString(),
+          },
+          metrics: {
+            likes: 0,
+            views: 0,
+          },
+          source: { origin: 'Blob' },
+        };
+
+        if (isImage) {
+          payload.media.previewUrl = blob.url;
+          payload.media.thumbUrl = blob.url;
+        }
+
         const res = await fetch(`/api/admin/register${qs}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            slug,
-            title,
-            description,
-            url: blob.url,
-            durationSeconds,
-            orientation,
-            type: normalizedType,
-            poster: isImage ? blob.url : null,
-            thumbnail: isImage ? blob.url : null,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
