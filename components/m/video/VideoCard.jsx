@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
@@ -20,6 +20,7 @@ export default function VideoCard({
     const [overlay, setOverlay] = useState(true);
 
     const isImage = mediaType === "image";
+    const SMART_LINK = "https://smartlink.example.com";
 
     useEffect(() => {
         setOverlay(true);
@@ -52,6 +53,18 @@ export default function VideoCard({
     const resolvedPoster = cleanedPoster || (isImage ? cleanedSrc : null);
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
+    const openSmartLink = useCallback(() => {
+        try {
+            window.open(SMART_LINK, "_blank", "noopener");
+        } catch {
+            // ignore
+        }
+    }, [SMART_LINK]);
+
+    const handleCardClick = useCallback(() => {
+        openSmartLink();
+    }, [openSmartLink]);
+
     useEffect(() => {
         if (!isImage) return () => {};
         if (!imageSource || !imageVideoRef.current) return () => {};
@@ -77,14 +90,14 @@ export default function VideoCard({
 
         player.on('play', () => {
             player.pause();
-            try { window.open('https://smartlink.example.com', '_blank', 'noopener'); } catch {}
+            openSmartLink();
         });
 
         return () => {
             player.dispose();
             videoJsPlayerRef.current = null;
         };
-    }, [imageSource, isImage]);
+    }, [imageSource, isImage, openSmartLink]);
 
     return (
         <div
@@ -92,6 +105,7 @@ export default function VideoCard({
                 "relative overflow-hidden rounded-3xl ring-1 ring-slate-800/70 shadow-[0_25px_60px_-35px_rgba(30,41,59,0.8)]",
                 aspect
             )}
+            onClickCapture={handleCardClick}
         >
             {isImage ? (
                 imageSource ? (
