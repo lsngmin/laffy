@@ -6,13 +6,24 @@ export default function AnalyticsRow({
   formatPercent,
   onEdit,
   visibleColumns,
+  selected,
+  onToggleSelect,
 }) {
   const viewsDisplay = metrics ? formatNumber(metrics.views) : metricsLoading ? '불러오는 중…' : '—';
   const likesDisplay = metrics ? formatNumber(metrics.likes) : metricsLoading ? '불러오는 중…' : '—';
   const likeRateDisplay = metrics && metrics.views > 0 ? formatPercent(metrics.likes / metrics.views) : '—';
 
   return (
-    <tr className="hover:bg-slate-800/40">
+    <tr className={`transition hover:bg-slate-800/40 ${selected ? 'bg-slate-800/30' : ''}`}>
+      <td className="px-4 py-3">
+        <input
+          type="checkbox"
+          className="accent-emerald-400"
+          checked={selected}
+          onChange={() => onToggleSelect(row.slug)}
+          aria-label={`${row.title || row.slug} 선택`}
+        />
+      </td>
       <td className="px-4 py-3">
         <div className="font-semibold text-slate-100">{row.title || row.slug}</div>
         <div className="text-xs text-slate-500">{row.slug}</div>

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from 'react';
 import AnalyticsEmptyState from './AnalyticsEmptyState';
 import AnalyticsRow from './AnalyticsRow';
 
@@ -9,13 +10,42 @@ export default function AnalyticsTable({
   formatPercent,
   onEdit,
   visibleColumns,
+  selectedSlugs,
+  onToggleRow,
+  onToggleAll,
 }) {
+  const headerCheckboxRef = useRef(null);
+  const selectableSlugs = useMemo(() => rows.map((row) => row.slug).filter(Boolean), [rows]);
+  const selectedSet = useMemo(() => new Set(selectedSlugs), [selectedSlugs]);
+  const selectedCount = useMemo(
+    () => selectableSlugs.filter((slug) => selectedSet.has(slug)).length,
+    [selectableSlugs, selectedSet]
+  );
+  const allSelected = selectableSlugs.length > 0 && selectedCount === selectableSlugs.length;
+  const isIndeterminate = selectedCount > 0 && !allSelected;
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
+
   return (
     <div className="overflow-hidden rounded-2xl bg-slate-900/80 ring-1 ring-slate-800/70">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-800/70 text-sm">
           <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-widest text-slate-400">
             <tr>
+              <th className="px-4 py-3">
+                <input
+                  ref={headerCheckboxRef}
+                  type="checkbox"
+                  className="accent-emerald-400"
+                  checked={allSelected}
+                  onChange={() => onToggleAll(!allSelected)}
+                  aria-label="모든 항목 선택"
+                />
+              </th>
               <th className="px-4 py-3 font-semibold">콘텐츠</th>
               <th className="px-4 py-3 font-semibold">타입</th>
               {visibleColumns.views && <th className="px-4 py-3 text-right font-semibold">조회수</th>}
@@ -36,6 +66,8 @@ export default function AnalyticsTable({
                 formatPercent={formatPercent}
                 onEdit={onEdit}
                 visibleColumns={visibleColumns}
+                selected={selectedSet.has(row.slug)}
+                onToggleSelect={onToggleRow}
               />
             ))}
             {!rows.length && <AnalyticsEmptyState />}
