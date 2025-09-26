@@ -67,3 +67,15 @@ export async function redisCommand(command, options = {}) {
   const data = await res.json();
   return data.result;
 }
+
+export async function redisEval(script, keys = [], args = [], options = {}) {
+  const keyCount = Array.isArray(keys) ? keys.length : 0;
+  const command = [
+    'EVAL',
+    script,
+    String(keyCount),
+    ...keys,
+    ...args.map((arg) => (typeof arg === 'string' ? arg : String(arg))),
+  ];
+  return redisCommand(command, options);
+}

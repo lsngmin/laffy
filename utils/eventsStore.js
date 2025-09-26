@@ -157,10 +157,68 @@ async function redisCommand(command, options) {
   return exec(command, options);
 }
 
+async function redisEvalScript(script, keys, args, options) {
+  const { redisEval } = await import('./redisClient');
+  return redisEval(script, keys, args, options);
+}
+
 async function hasRedis() {
   const { hasUpstash } = await import('./redisClient');
   return hasUpstash();
 }
+
+const INGEST_LUA_SCRIPT = `
+local catalogKey = KEYS[1]
+local aggKey = KEYS[2]
+local totalKey = KEYS[3]
+local sessionKey = KEYS[4]
+local totalSessionKey = KEYS[5]
+
+local comboValue = ARGV[1]
+local timestamp = ARGV[2]
+local hasValue = ARGV[3]
+local value = tonumber(ARGV[4] or '0')
+local hasSession = ARGV[5]
+local sessionId = ARGV[6]
+local dailyTtl = tonumber(ARGV[7] or '0')
+local totalTtl = tonumber(ARGV[8] or '0')
+
+redis.call('SADD', catalogKey, comboValue)
+
+local aggExists = redis.call('EXISTS', aggKey)
+redis.call('HINCRBY', aggKey, 'count', 1)
+redis.call('HSET', aggKey, 'last_ts', timestamp)
+if hasValue == '1' then
+  redis.call('HINCRBYFLOAT', aggKey, 'sum_value', value)
+end
+if aggExists == 0 and dailyTtl > 0 then
+  redis.call('EXPIRE', aggKey, dailyTtl)
+end
+
+redis.call('HINCRBY', totalKey, 'count', 1)
+redis.call('HSET', totalKey, 'last_ts', timestamp)
+if hasValue == '1' then
+  redis.call('HINCRBYFLOAT', totalKey, 'sum_value', value)
+end
+if totalTtl > 0 then
+  redis.call('EXPIRE', totalKey, totalTtl)
+end
+
+if hasSession == '1' and sessionId and sessionId ~= '' then
+  local sessionExists = redis.call('EXISTS', sessionKey)
+  redis.call('PFADD', sessionKey, sessionId)
+  if sessionExists == 0 and dailyTtl > 0 then
+    redis.call('EXPIRE', sessionKey, dailyTtl)
+  end
+
+  redis.call('PFADD', totalSessionKey, sessionId)
+  if totalTtl > 0 then
+    redis.call('EXPIRE', totalSessionKey, totalTtl)
+  end
+end
+
+return 1
+`;
 
 function ensureMemoryStore() {
   if (!global.__eventStore) {
@@ -211,32 +269,26 @@ async function ingestWithRedis(events, context = {}) {
     const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
     const totalKey = `events:total:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
     const totalSessionKey = `events:totaluniq:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
+    const hasValue = normalized.value ? '1' : '0';
+    const valueArg = hasValue === '1' ? String(normalized.value) : '0';
+    const hasSession = normalized.sessionId ? '1' : '0';
 
     tasks.push(
-      redisCommand(['SADD', CATALOG_KEY, comboKey]),
-      redisCommand(['HINCRBY', aggKey, 'count', 1]),
-      redisCommand(['HSET', aggKey, 'last_ts', String(normalized.timestamp)]),
-      redisCommand(['EXPIRE', aggKey, String(DAILY_TTL_SECONDS)]),
-      redisCommand(['HINCRBY', totalKey, 'count', 1]),
-      redisCommand(['HSET', totalKey, 'last_ts', String(normalized.timestamp)]),
-      redisCommand(['EXPIRE', totalKey, String(TOTAL_TTL_SECONDS)]),
+      redisEvalScript(
+        INGEST_LUA_SCRIPT,
+        [CATALOG_KEY, aggKey, totalKey, sessionKey, totalSessionKey],
+        [
+          comboKey,
+          String(normalized.timestamp),
+          hasValue,
+          valueArg,
+          hasSession,
+          normalized.sessionId || '',
+          String(DAILY_TTL_SECONDS),
+          String(TOTAL_TTL_SECONDS),
+        ],
+      ),
     );
-
-    if (normalized.value) {
-      tasks.push(
-        redisCommand(['HINCRBYFLOAT', aggKey, 'sum_value', String(normalized.value)]),
-        redisCommand(['HINCRBYFLOAT', totalKey, 'sum_value', String(normalized.value)]),
-      );
-    }
-
-    if (normalized.sessionId) {
-      tasks.push(
-        redisCommand(['PFADD', sessionKey, normalized.sessionId]),
-        redisCommand(['EXPIRE', sessionKey, String(DAILY_TTL_SECONDS)]),
-        redisCommand(['PFADD', totalSessionKey, normalized.sessionId]),
-        redisCommand(['EXPIRE', totalSessionKey, String(TOTAL_TTL_SECONDS)]),
-      );
-    }
   }
 
   if (!tasks.length) return { ingested: 0 };
