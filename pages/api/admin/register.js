@@ -87,15 +87,12 @@ export default async function handler(req, res) {
       return Math.max(0, Math.round(parsed));
     };
 
-    const resolvedDuration =
-      effectiveType === 'image'
-        ? 0
-        : (() => {
-          const fromPayload = resolveDurationValue(durationSeconds);
-          if (fromPayload !== null) return fromPayload;
-          const fromExisting = resolveDurationValue(existingMeta?.durationSeconds);
-          return fromExisting !== null ? fromExisting : 0;
-        })();
+    const resolvedDuration = (() => {
+      const fromPayload = resolveDurationValue(durationSeconds);
+      if (fromPayload !== null) return fromPayload;
+      const fromExisting = resolveDurationValue(existingMeta?.durationSeconds);
+      return fromExisting !== null ? fromExisting : 0;
+    })();
 
     const likesNumber = Number(likes);
     const viewsNumber = Number(views);

@@ -272,19 +272,18 @@ export default function Admin() {
     const initialPreview = item.type === 'image'
       ? item.src || item.preview || ''
       : item.poster || item.thumbnail || item.preview || '';
+    const numericDuration = (() => {
+      const parsed = Number(item.durationSeconds);
+      if (!Number.isFinite(parsed) || parsed < 0) return 0;
+      return Math.round(parsed);
+    })();
+
     setEditForm({
       title: item.title || item.slug,
       description: item.description || '',
       imageUrl: '',
       previewUrl: initialPreview,
-      durationSeconds: item.type === 'image'
-        ? '0'
-        : (() => {
-          const parsedDuration = Number(item.durationSeconds);
-          return Number.isFinite(parsedDuration) && parsedDuration > 0
-            ? String(Math.round(parsedDuration))
-            : '';
-        })(),
+      durationSeconds: String(numericDuration),
     });
     setEditInitialPreview(initialPreview);
     setEditUploadMessage('');
@@ -292,7 +291,10 @@ export default function Admin() {
     setEditError('');
     setEditStatus('idle');
     if (editFileInputRef.current) editFileInputRef.current.value = '';
-    setEditingItem(item);
+    setEditingItem({
+      ...item,
+      durationSeconds: numericDuration,
+    });
   }, []);
 
   const closeEditModal = useCallback(() => {
@@ -385,7 +387,7 @@ export default function Admin() {
     const viewsNumber = Number(item.views);
 
     const rawDuration = Number(item.durationSeconds);
-    const durationSeconds = isImage ? 0 : (Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0);
+    const durationSeconds = Number.isFinite(rawDuration) && rawDuration >= 0 ? Math.round(rawDuration) : 0;
 
     return {
       slug: item.slug,
@@ -442,9 +444,7 @@ export default function Admin() {
       : String(editForm.durationSeconds || '').trim();
 
     let resolvedDurationSeconds;
-    if (isImageType) {
-      resolvedDurationSeconds = 0;
-    } else if (!rawDurationInput) {
+    if (rawDurationInput === '') {
       const currentDuration = Number(editingItem.durationSeconds);
       resolvedDurationSeconds = Number.isFinite(currentDuration)
         ? Math.max(0, Math.round(currentDuration))
@@ -455,7 +455,7 @@ export default function Admin() {
         setEditError('재생 시간을 올바른 숫자로 입력해 주세요.');
         return;
       }
-      resolvedDurationSeconds = Math.round(parsed);
+      resolvedDurationSeconds = Math.max(0, Math.round(parsed));
     }
 
     const newImageUrl = editForm.imageUrl;
@@ -1311,10 +1311,10 @@ export default function Admin() {
                     inputMode="numeric"
                     value={editForm.durationSeconds}
                     onChange={(e) => handleEditFieldChange('durationSeconds', e.target.value)}
-                    disabled={editingItem.type === 'image'}
-                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder={editingItem.type === 'image' ? '이미지 콘텐츠는 0초로 고정됩니다.' : '예: 123'}
+                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    placeholder="예: 123"
                   />
+                  <p className="text-xs text-slate-500">초 단위로 입력해 주세요. 비워두면 기존 값이 유지됩니다.</p>
                 </div>
 
                 <div className="space-y-3">
