@@ -14,6 +14,9 @@ export default function VideoCard({
                                       onPreviewClick,
                                   }) {
     const vRef = useRef(null);
+    const videoJsPlayerRef = useRef(null);
+    const imageVideoRef = useRef(null);
+    const videoJsId = useMemo(() => `video-card-${Math.random().toString(36).slice(2)}`, []);
     const [overlay, setOverlay] = useState(true);
 
     const isImage = mediaType === "image";
@@ -50,28 +53,38 @@ export default function VideoCard({
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
     useEffect(() => {
-        const player = videojs("my-video", {
+        if (!isImage) return () => {};
+        if (!imageSource || !imageVideoRef.current) return () => {};
+
+        const player = videojs(imageVideoRef.current, {
             controls: true,
             bigPlayButton: false,
+            preload: 'metadata',
         });
 
-        // ⬇️ 준비된 직후
+        videoJsPlayerRef.current = player;
+
         player.ready(() => {
-            // duration UI 강제로 조작
-            player.duration = () => 123; // 123초 (2:03)
-            player.trigger("durationchange");
+            player.poster(imageSource);
+            player.addClass('vjs-keep-controls');
+            if (player.controlBar?.show) player.controlBar.show();
+            player.userActive(true);
+            player.on('userinactive', () => player.userActive(true));
+
+            player.duration = () => 123;
+            player.trigger('durationchange');
         });
 
-        // ⬇️ 재생 이벤트 가로채기
-        player.on("play", () => {
+        player.on('play', () => {
             player.pause();
-            window.open("https://smartlink.example.com", "_blank", "noopener");
+            try { window.open('https://smartlink.example.com', '_blank', 'noopener'); } catch {}
         });
 
         return () => {
             player.dispose();
+            videoJsPlayerRef.current = null;
         };
-    }, []);
+    }, [imageSource, isImage]);
 
     return (
         <div
@@ -83,22 +96,14 @@ export default function VideoCard({
             {isImage ? (
                 imageSource ? (
                     <video
-                        id="my-video"
-                        className="video-js w-full h-full object-cover"
+                        id={videoJsId}
+                        ref={imageVideoRef}
+                        className="video-js vjs-default-skin h-full w-full object-cover"
                         controls
                         preload="metadata"
                         poster={imageSource}
                         data-setup='{"controls": true, "bigPlayButton": false}'
-                    >
-                        <source src="/1.mp4" type="video/mp4" />
-                    </video>
-
-                    // <img
-                    //     src={imageSource}
-                    //     alt={title || "Uploaded media"}
-                    //     className="h-full w-full object-cover"
-                    //     loading="lazy"
-                    // />
+                    />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-sm font-semibold text-slate-100">
                         이미지 미리보기를 불러오지 못했어요
@@ -160,6 +165,23 @@ export default function VideoCard({
                     </button>
                 </div>
             )}
+            <style jsx global>{`
+                .video-js.vjs-keep-controls .vjs-control-bar {
+                    opacity: 1 !important;
+                    visibility: visible !important;
+                    display: flex !important;
+                }
+
+                .video-js.vjs-keep-controls.vjs-user-inactive .vjs-control-bar {
+                    opacity: 1 !important;
+                    visibility: visible !important;
+                }
+
+                .video-js.vjs-keep-controls .vjs-poster {
+                    background-size: cover;
+                    background-position: center;
+                }
+            `}</style>
         </div>
     );
 }
