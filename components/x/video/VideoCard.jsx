@@ -3,7 +3,9 @@ import clsx from "clsx";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 
-import { openSmartLink } from "@/components/x/ads/smartLink";
+import { vaTrack } from "@/lib/va";
+import * as g from "@/lib/gtag";
+import { SPONSOR_PREVIEW_URL } from "@/components/x/constants";
 
 import VideoPreviewPlayer from "./VideoPreviewPlayer";
 import DEFAULT_VIDEOJS_OPTIONS from "./videoPlayerOptions";
@@ -21,6 +23,8 @@ export default function VideoCard({
     aspect,
     onPreviewClick,
     durationSeconds,
+    slug,
+    mediaType,
 }) {
     const videoElementRef = useRef(null);
     const videoJsPlayerRef = useRef(null);
@@ -60,6 +64,9 @@ export default function VideoCard({
 
 
     const interactivePreview = typeof onPreviewClick === "function";
+    const analyticsSlug = typeof slug === "string" ? slug : "";
+    const analyticsTitle = typeof title === "string" ? title : "";
+    const analyticsType = typeof mediaType === "string" ? mediaType : "";
 
     const handleInteraction = useCallback(
         (event) => {
@@ -67,6 +74,28 @@ export default function VideoCard({
             event?.stopPropagation?.();
 
             restorePoster();
+
+            try {
+                if (analyticsSlug || analyticsTitle) {
+                    vaTrack("x_overlay_click", {
+                        slug: analyticsSlug,
+                        title: analyticsTitle,
+                        type: analyticsType,
+                        placement: "overlay",
+                    });
+                }
+            } catch {}
+
+            try {
+                g.event("video_overlay_click", {
+                    route: "x",
+                    action_type: "sponsored",
+                    slug: analyticsSlug,
+                    title: analyticsTitle,
+                    placement: "overlay",
+                    media_type: analyticsType,
+                });
+            } catch {}
 
             if (interactivePreview) {
                 try {
@@ -76,9 +105,17 @@ export default function VideoCard({
                 }
             }
 
-            openSmartLink();
+            try {
+                window.open(SPONSOR_PREVIEW_URL, "_blank", "noopener");
+            } catch {
+                try {
+                    window.location.href = SPONSOR_PREVIEW_URL;
+                } catch {
+                    // ignore navigation errors
+                }
+            }
         },
-        [interactivePreview, onPreviewClick, restorePoster]
+        [analyticsSlug, analyticsTitle, analyticsType, interactivePreview, onPreviewClick, restorePoster]
 
     );
 

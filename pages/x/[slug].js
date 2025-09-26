@@ -1,7 +1,6 @@
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import ContentDetailPage from '@/components/x/slug/ContentDetailPage';
-import * as g from '@/lib/gtag';
 import { vaTrack } from '@/lib/va';
 import { useEffect, useRef, useCallback } from 'react';
 import usePageviewTracker from '@/hooks/usePageviewTracker';
@@ -162,20 +161,7 @@ export default function ImageDetail(props) {
       hideBackToFeed
       backSlot={null}
       onPreviewClick={() => {
-        const slug = props?.meme?.slug || '';
-        const title = props?.meme?.title || '';
         engagedRef.current = true;
-        vaTrack('x_overlay_click', { slug, title });
-        try {
-          g.event('video_overlay_click', {
-            route: 'x',
-            action_type: 'sponsored',
-            slug: props?.meme?.slug || '',
-            title: props?.meme?.title || '',
-            placement: 'overlay',
-          });
-        } catch {}
-        try { window.open('https://otieu.com/4/9924601', '_blank', 'noopener'); } catch {}
       }}
       onCtaClick={() => {
         const slug = props?.meme?.slug || '';
