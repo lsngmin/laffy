@@ -190,38 +190,6 @@ export default function VideoCard({
                 </video>
             )}
 
-            {/* 오버레이 아이콘 */}
-            {overlayInteractive && (
-                <div
-                    className={clsx(
-                        "absolute inset-0 grid place-items-center transition",
-                        overlayInteractive ? "bg-black/10" : "bg-black/20"
-                    )}
-                >
-                    <button
-                        type="button"
-                        onClick={handleOverlayClick}
-                        disabled={!overlayInteractive}
-                        aria-label={overlayInteractive ? (interactivePreview ? "스폰서로 이동" : "영상 재생") : "미리보기"}
-                        className={clsx(
-                            "group relative inline-flex select-none items-center justify-center text-black transition-transform duration-200",
-                            overlayInteractive ? "cursor-pointer active:scale-95" : "cursor-default opacity-70"
-                        )}
-                    >
-                        <span className="pointer-events-none absolute -inset-6 rounded-[28px] bg-gradient-to-br from-white/40 via-white/5 to-transparent opacity-40 blur-lg transition-opacity duration-300 group-hover:opacity-70" />
-                        <span className="relative inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-white/90 via-white/70 to-white/30 shadow-[0_18px_38px_-14px_rgba(15,23,42,0.75)] ring-1 ring-white/60 backdrop-blur">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-12 w-12 text-slate-900 drop-shadow-[0_6px_10px_rgba(15,23,42,0.55)]"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
-                        </span>
-                    </button>
-                </div>
-            )}
             <style jsx global>{`
                 .video-js.vjs-keep-controls .vjs-control-bar {
                     opacity: 1 !important;
