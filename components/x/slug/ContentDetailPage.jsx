@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "next-i18next";
 
 import { LikeButton, ShareButton, BookmarkButton } from "@/components/x/button";
@@ -14,6 +14,13 @@ import { SPONSOR_SMART_LINK_URL } from "@/components/x/ads/constants";
 import ImageSocialMeta from "@/components/x/meta/ImageSocialMeta";
 import ElevatedNoticePanel from "./ElevatedNoticePanel";
 import RecommendedGrid from "@/components/x/collections/RecommendedGrid";
+import { vaTrack } from "@/lib/va";
+import {
+  buildSmartLinkUrl,
+  getSponsorSessionToken,
+  incrementSponsorClickCount,
+  markReadyStateOnce,
+} from "@/lib/sponsorTracking";
 
 const RelishInvokeAd = dynamic(() => import("@/components/x/ads/RelishInvokeAd"), { ssr: false });
 
@@ -28,6 +35,8 @@ export default function ContentDetailPage({
   const { isLiked, setLikedState, ready: likesReady } = useLikes();
   const [isFavorite, setIsFavorite] = useState(false);
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
+  const [ctaHref, setCtaHref] = useState(SPONSOR_SMART_LINK_URL);
+  const ctaRef = useRef(null);
 
   if (!meme) return null;
 
@@ -79,9 +88,76 @@ export default function ContentDetailPage({
     return () => { cancelled = true; };
   }, [meme.slug, meme.views, meme.likes, setLikedState]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const token = getSponsorSessionToken();
+    const nextHref = buildSmartLinkUrl(SPONSOR_SMART_LINK_URL, token) || SPONSOR_SMART_LINK_URL;
+    setCtaHref(nextHref);
+    if (markReadyStateOnce(meme.slug, "fallback_button")) {
+      try {
+        vaTrack("x_cta_ready_state", {
+          slug: meme.slug,
+          title: meme.title,
+          placement: "fallback_button",
+          state: "rendered",
+        });
+      } catch {}
+    }
+  }, [meme.slug, meme.title]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (!ctaRef.current) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.disconnect();
+          try {
+            vaTrack("x_sponsor_impression", {
+              slug: meme.slug,
+              title: meme.title,
+              placement: "fallback_button",
+            });
+          } catch {}
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(ctaRef.current);
+    return () => observer.disconnect();
+  }, [meme.slug, meme.title]);
+
   const handleCtaClick = useCallback(() => {
+    const slugValue = meme?.slug || "";
+    const titleValue = meme?.title || "";
+    const placement = "fallback_button";
+    const token = getSponsorSessionToken();
+    const repeatCount = incrementSponsorClickCount(slugValue);
+
+    try {
+      vaTrack("x_smart_link_open", {
+        slug: slugValue,
+        title: titleValue,
+        placement,
+        token,
+      });
+    } catch {}
+
+    try {
+      vaTrack("x_sponsor_repeat_click", {
+        slug: slugValue,
+        title: titleValue,
+        placement,
+        count: repeatCount,
+        value: repeatCount,
+      });
+    } catch {}
+
     onCtaClick?.();
-  }, [onCtaClick]);
+  }, [meme?.slug, meme?.title, onCtaClick]);
 
   const openSmartLink = useCallback(() => {
     try { window.location.href = SPONSOR_SMART_LINK_URL; } catch {}
@@ -149,7 +225,8 @@ export default function ContentDetailPage({
               />
               <div className="mt-8 flex w-full justify-center">
                 <a
-                  href={SPONSOR_SMART_LINK_URL}
+                  ref={ctaRef}
+                  href={ctaHref}
                   target="_blank"
                   rel="noopener"
                   onClick={handleCtaClick}
