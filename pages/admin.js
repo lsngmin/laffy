@@ -64,6 +64,24 @@ export default function AdminPage() {
   const hasToken = Boolean(token);
 
   const qs = useMemo(() => (hasToken ? `?token=${encodeURIComponent(token)}` : ''), [hasToken, token]);
+  const [uploadFilters, setUploadFilters] = useState({
+    search: '',
+    type: '',
+    orientation: '',
+    sort: 'recent',
+  });
+
+  const uploadsQueryString = useMemo(() => {
+    if (!hasToken) return '';
+    const params = new URLSearchParams();
+    params.set('token', token);
+    if (uploadFilters.search.trim()) params.set('search', uploadFilters.search.trim());
+    if (uploadFilters.type) params.set('type', uploadFilters.type);
+    if (uploadFilters.orientation) params.set('orientation', uploadFilters.orientation);
+    if (uploadFilters.sort && uploadFilters.sort !== 'recent') params.set('sort', uploadFilters.sort);
+    const serialized = params.toString();
+    return serialized ? `?${serialized}` : '';
+  }, [hasToken, token, uploadFilters]);
 
   const [view, setView] = useState('uploads');
   const [title, setTitle] = useState('');
@@ -71,7 +89,17 @@ export default function AdminPage() {
   const [orientation, setOrientation] = useState('landscape');
   const [duration, setDuration] = useState('0');
 
-  const { items, setItems, refresh } = useAdminItems({ enabled: hasToken, queryString: qs });
+  const {
+    items,
+    setItems,
+    refresh,
+    loadMore,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isRefreshing,
+    error: itemsError,
+  } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
   const { copiedSlug, copy } = useClipboard();
   const analytics = useAnalyticsMetrics({ items, enabled: hasToken && view === 'analytics' });
 
@@ -241,6 +269,10 @@ export default function AdminPage() {
     },
     [description, duration, hasToken, orientation, qs, refresh, title]
   );
+
+  const handleUploadFiltersChange = useCallback((nextFilters) => {
+    setUploadFilters((prev) => ({ ...prev, ...nextFilters }));
+  }, []);
 
   const handleCopyRoute = useCallback(
     async (item) => {
@@ -419,6 +451,16 @@ export default function AdminPage() {
             onDelete={openDeleteModal}
             registerMeta={registerMeta}
             uploadFormState={uploadFormState}
+            onRefresh={refresh}
+            onLoadMore={loadMore}
+            hasMore={hasMore}
+            isLoading={isLoading}
+            isLoadingMore={isLoadingMore}
+            isRefreshing={isRefreshing}
+            error={itemsError}
+            filters={uploadFilters}
+            onFiltersChange={handleUploadFiltersChange}
+            tokenQueryString={qs}
           />
         )}
 
