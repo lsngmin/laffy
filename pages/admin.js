@@ -34,11 +34,14 @@ import useEventAnalytics from '../hooks/admin/useEventAnalytics';
 import useHeatmapAnalytics from '../hooks/admin/useHeatmapAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
+import useAdminCatalog from '../hooks/admin/useAdminCatalog';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'insights', label: '광고 통합 인사이트', requiresToken: true },
+  { key: 'events', label: '커스텀 이벤트', requiresToken: true },
+  { key: 'ads', label: '광고', requiresToken: true },
+  { key: 'insights', label: '통합 인사이트', requiresToken: true },
   { key: 'heatmap', label: '히트맵 분석', requiresToken: true },
 ];
 
@@ -104,9 +107,9 @@ export default function AdminPage() {
   const [duration, setDuration] = useState('0');
 
   const {
-    items,
+    items: uploadItems,
     setItems,
-    refresh,
+    refresh: refreshUploads,
     loadMore,
     hasMore,
     isLoading,
@@ -114,6 +117,12 @@ export default function AdminPage() {
     isRefreshing,
     error: itemsError,
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
+  const catalog = useAdminCatalog({ enabled: hasToken, queryString: qs });
+  const { refresh: refreshCatalog } = catalog;
+  const refreshAll = useCallback(() => {
+    refreshUploads();
+    refreshCatalog();
+  }, [refreshCatalog, refreshUploads]);
   const { copiedSlug, copy } = useClipboard();
   const [historyState, setHistoryState] = useState({ logs: [], loading: false, error: '' });
   const [isHistoryOpen, setHistoryOpen] = useState(false);
@@ -129,7 +138,7 @@ export default function AdminPage() {
   );
 
   const analytics = useAnalyticsMetrics({
-    items,
+    items: catalog.items,
     enabled: hasToken && view === 'analytics',
     initialFilters: analyticsInitialFilters,
     startDate: analyticsStartDate,
@@ -137,7 +146,7 @@ export default function AdminPage() {
   });
 
   const eventAnalytics = useEventAnalytics({
-    enabled: hasToken && view === 'analytics',
+    enabled: hasToken && view === 'events',
     token,
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
@@ -203,7 +212,7 @@ export default function AdminPage() {
   }, []);
 
   const adsterra = useAdsterraStats({
-    enabled: hasToken && view === 'insights',
+    enabled: hasToken && (view === 'ads' || view === 'insights'),
     defaultRange: defaultAdsterraRange,
     envToken: adsterraEnvToken,
     domainName: adsterraDomainNameEnv,
@@ -270,10 +279,10 @@ export default function AdminPage() {
     handleAddTimestamp,
     handleRemoveTimestamp,
     handleSaveTimestamps,
-  } = useAdminModals({ hasToken, queryString: qs, setItems, refresh });
+  } = useAdminModals({ hasToken, queryString: qs, setItems, refresh: refreshAll });
 
   useEffect(() => {
-    if (!hasToken && (view === 'analytics' || view === 'insights' || view === 'heatmap')) {
+    if (!hasToken && (view === 'analytics' || view === 'events' || view === 'ads' || view === 'insights' || view === 'heatmap')) {
       setView('uploads');
     }
   }, [hasToken, view]);
@@ -397,12 +406,12 @@ export default function AdminPage() {
         setTitle('');
         setDescription('');
         setDuration('0');
-        refresh();
+        refreshAll();
       } catch (error) {
         console.error('Meta register failed', error);
       }
     },
-    [description, duration, hasToken, orientation, qs, refresh, title]
+    [description, duration, hasToken, orientation, qs, refreshAll, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {
@@ -412,12 +421,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (view !== 'heatmap') return;
     if (heatmapSlug && heatmapSlug.trim()) return;
-    const source = Array.isArray(items) ? items : [];
+    const source = Array.isArray(catalog.items) ? catalog.items : [];
     const firstSlug = source.find((item) => item?.slug)?.slug;
     if (firstSlug) {
       setHeatmapSlug(firstSlug);
     }
-  }, [heatmapSlug, items, view]);
+  }, [catalog.items, heatmapSlug, view]);
 
   const handleEventFilterChange = useCallback((next) => {
     setEventFilters((prev) => ({ ...prev, ...next }));
@@ -720,14 +729,14 @@ export default function AdminPage() {
         {view === 'uploads' && (
           <UploadsSection
             hasToken={hasToken}
-            items={items}
+            items={uploadItems}
             copiedSlug={copiedSlug}
             onCopy={handleCopyRoute}
             onEdit={openEditModal}
             onDelete={openDeleteModal}
             registerMeta={registerMeta}
             uploadFormState={uploadFormState}
-            onRefresh={refresh}
+            onRefresh={refreshUploads}
             onLoadMore={loadMore}
             hasMore={hasMore}
             isLoading={isLoading}
@@ -743,12 +752,17 @@ export default function AdminPage() {
         {view === 'analytics' && (
           <div className="space-y-6">
             <AnalyticsOverview
-              itemCount={items.length}
+              itemCount={catalog.items.length}
               totals={analytics.analyticsTotals}
               averageLikeRate={analytics.averageLikeRate}
               formatNumber={formatNumber}
               formatPercent={formatPercent}
             />
+            {catalog.error && (
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+                {catalog.error}
+              </div>
+            )}
             <AnalyticsToolbar
               sortKey={analytics.sortKey}
               sortDirection={analytics.sortDirection}
@@ -776,49 +790,60 @@ export default function AdminPage() {
               metricsError={analytics.metricsError}
               formatNumber={formatNumber}
               formatPercent={formatPercent}
-              onEdit={analytics.openMetricsEditor}
+              onEdit={openEditModal}
               visibleColumns={visibleColumns}
               selectedSlugs={analytics.selectedSlugs}
               onToggleRow={analytics.toggleRowSelection}
               onToggleAll={(selectAll) => (selectAll ? analytics.selectAllRows() : analytics.clearSelection())}
             />
-            <div className="mt-12 space-y-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
-                  <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
-                </div>
-              </div>
-              <EventFilters
-                startDate={analyticsStartDate}
-                endDate={analyticsEndDate}
-                onDateChange={handleAnalyticsDateChange}
-                filters={eventFilters}
-                onFilterChange={handleEventFilterChange}
-                catalog={eventAnalytics.data.catalog}
-                loading={eventAnalytics.loading}
-                onRefresh={eventAnalytics.refresh}
-              />
-              <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
-              <EventKeyMetrics
-                items={eventAnalytics.data.items}
-                formatNumber={formatNumber}
-                formatPercent={formatPercent}
-              />
-              {eventAnalytics.data.timeseries.length > 0 && (
-                <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
-              )}
-              <EventTable
-                rows={eventAnalytics.data.items}
-                loading={eventAnalytics.loading}
-                error={eventAnalytics.error}
-                formatNumber={formatNumber}
-              />
-            </div>
           </div>
         )}
 
-        {view === 'insights' && (
+        {view === 'events' && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
+                <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={eventAnalytics.refresh}
+                disabled={eventAnalytics.loading}
+                className="self-start rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-indigo-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {eventAnalytics.loading ? '불러오는 중…' : '새로고침'}
+              </button>
+            </div>
+            <EventFilters
+              startDate={analyticsStartDate}
+              endDate={analyticsEndDate}
+              onDateChange={handleAnalyticsDateChange}
+              filters={eventFilters}
+              onFilterChange={handleEventFilterChange}
+              catalog={eventAnalytics.data.catalog}
+              loading={eventAnalytics.loading}
+              onRefresh={eventAnalytics.refresh}
+            />
+            <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+            <EventKeyMetrics
+              items={eventAnalytics.data.items}
+              formatNumber={formatNumber}
+              formatPercent={formatPercent}
+            />
+            {eventAnalytics.data.timeseries.length > 0 && (
+              <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
+            )}
+            <EventTable
+              rows={eventAnalytics.data.items}
+              loading={eventAnalytics.loading}
+              error={eventAnalytics.error}
+              formatNumber={formatNumber}
+            />
+          </div>
+        )}
+
+        {view === 'ads' && (
           <div className="space-y-6">
             <AdsterraControls
               domainName={adsterraDomainNameEnv}
@@ -856,6 +881,20 @@ export default function AdminPage() {
               onApplyPreset={handleApplyPreset}
             />
             <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
+            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
+            <AdsterraStatsTable
+              rows={adsterra.filteredStats}
+              loading={adsterra.loadingStats}
+              formatNumber={formatNumber}
+              formatDecimal={formatDecimal}
+              placementLabelMap={adsterra.placementLabelMap}
+              selectedPlacementId={adsterra.placementId}
+            />
+          </div>
+        )}
+
+        {view === 'insights' && (
+          <div className="space-y-6">
             <EventSummaryCards totals={insightsEvents.data.totals} formatNumber={formatNumber} />
             {insightsEvents.data.timeseries.length > 0 && (
               <EventTrendChart series={insightsEvents.data.timeseries} formatNumber={formatNumber} />
@@ -872,15 +911,6 @@ export default function AdminPage() {
               error={insightsEvents.error}
               formatNumber={formatNumber}
             />
-            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
-            <AdsterraStatsTable
-              rows={adsterra.filteredStats}
-              loading={adsterra.loadingStats}
-              formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
-              placementLabelMap={adsterra.placementLabelMap}
-              selectedPlacementId={adsterra.placementId}
-            />
           </div>
         )}
 
@@ -888,7 +918,7 @@ export default function AdminPage() {
           <HeatmapPanel
             slug={heatmapSlug}
             onSlugChange={setHeatmapSlug}
-            items={items}
+            items={catalog.items}
             data={heatmapAnalytics.data}
             loading={heatmapAnalytics.loading}
             error={heatmapAnalytics.error}
