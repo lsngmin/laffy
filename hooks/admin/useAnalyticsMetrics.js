@@ -9,7 +9,18 @@ const DEFAULT_COLUMNS = {
   edit: true,
 };
 
-export default function useAnalyticsMetrics({ items, enabled }) {
+function normalizeHistory(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry) => ({
+      date: typeof entry?.date === 'string' ? entry.date : null,
+      views: Number(entry?.views) || 0,
+      likes: Math.max(0, Number(entry?.likes) || 0),
+    }))
+    .filter((entry) => Boolean(entry.date));
+}
+
+export default function useAnalyticsMetrics({ items, enabled, startDate, endDate }) {
   const [metricsBySlug, setMetricsBySlug] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState(null);
@@ -19,6 +30,7 @@ export default function useAnalyticsMetrics({ items, enabled }) {
   const [metricsEditor, setMetricsEditor] = useState(null);
 
   const pendingMetricsRef = useRef(new Set());
+  const rangeActive = Boolean(startDate && endDate);
 
   useEffect(() => {
     setMetricsBySlug((prev) => {
@@ -32,7 +44,13 @@ export default function useAnalyticsMetrics({ items, enabled }) {
   }, [items]);
 
   useEffect(() => {
+    pendingMetricsRef.current = new Set();
+    setMetricsBySlug({});
+  }, [startDate, endDate]);
+
+  useEffect(() => {
     if (!enabled) return undefined;
+
     const slugs = items.map((item) => item.slug).filter(Boolean);
     const pendingSet = pendingMetricsRef.current;
     const fetchTargets = slugs.filter((slug) => !metricsBySlug[slug] && !pendingSet.has(slug));
@@ -52,16 +70,35 @@ export default function useAnalyticsMetrics({ items, enabled }) {
       try {
         const results = await Promise.all(
           fetchTargets.map(async (slug) => {
-            const res = await fetch(`/api/metrics/get?slug=${encodeURIComponent(slug)}`);
+            const params = new URLSearchParams();
+            params.set('slug', slug);
+            if (startDate) params.set('start', startDate);
+            if (endDate) params.set('end', endDate);
+            const res = await fetch(`/api/metrics/get?${params.toString()}`);
             if (!res.ok) {
               throw new Error('metrics_error');
             }
             const data = await res.json();
+            const totalViews = Number(data?.views) || 0;
+            const totalLikes = Math.max(0, Number(data?.likes) || 0);
+            const history = normalizeHistory(data?.history);
+            const rawRangeTotals = data?.rangeTotals;
+            const rangeTotals =
+              rawRangeTotals && typeof rawRangeTotals === 'object'
+                ? {
+                    views: Number(rawRangeTotals.views) || 0,
+                    likes: Math.max(0, Number(rawRangeTotals.likes) || 0),
+                  }
+                : null;
+            const liked = typeof data?.liked === 'boolean' ? data.liked : undefined;
             return {
               slug,
               metrics: {
-                views: Number(data?.views) || 0,
-                likes: Math.max(0, Number(data?.likes) || 0),
+                views: totalViews,
+                likes: totalLikes,
+                liked,
+                history,
+                rangeTotals,
               },
             };
           })
@@ -90,7 +127,7 @@ export default function useAnalyticsMetrics({ items, enabled }) {
       fetchTargets.forEach((slug) => pendingSet.delete(slug));
       setMetricsLoading(false);
     };
-  }, [enabled, items, metricsBySlug]);
+  }, [enabled, items, metricsBySlug, startDate, endDate]);
 
   const analyticsRows = useMemo(
     () =>
@@ -103,43 +140,103 @@ export default function useAnalyticsMetrics({ items, enabled }) {
     [items, metricsBySlug]
   );
 
+  const hasRangeData = useMemo(() => analyticsRows.some((row) => row.metrics?.rangeTotals), [analyticsRows]);
+
+  const rowsWithDisplayMetrics = useMemo(
+    () =>
+      analyticsRows.map((row) => {
+        const metrics = row.metrics;
+        if (!metrics) return { ...row, displayMetrics: null };
+        const useRangeTotals = rangeActive && hasRangeData && metrics.rangeTotals;
+        const viewsForDisplay = useRangeTotals ? metrics.rangeTotals.views ?? metrics.views : metrics.views;
+        const likesForDisplay = useRangeTotals ? metrics.rangeTotals.likes ?? metrics.likes : metrics.likes;
+        return {
+          ...row,
+          displayMetrics: {
+            ...metrics,
+            views: Number(viewsForDisplay) || 0,
+            likes: Math.max(0, Number(likesForDisplay) || 0),
+          },
+        };
+      }),
+    [analyticsRows, hasRangeData, rangeActive]
+  );
+
   const sortedAnalyticsRows = useMemo(() => {
-    const rows = [...analyticsRows];
+    const rows = [...rowsWithDisplayMetrics];
     const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
     rows.sort((a, b) => {
-      const metricsA = a.metrics || {};
-      const metricsB = b.metrics || {};
+      const metricsA = a.displayMetrics || {};
+      const metricsB = b.displayMetrics || {};
       const aValue = sortKey === 'likes' ? metricsA.likes ?? 0 : metricsA.views ?? 0;
       const bValue = sortKey === 'likes' ? metricsB.likes ?? 0 : metricsB.views ?? 0;
       return (bValue - aValue) * directionMultiplier;
     });
     return rows;
-  }, [analyticsRows, sortDirection, sortKey]);
+  }, [rowsWithDisplayMetrics, sortDirection, sortKey]);
 
   const analyticsTotals = useMemo(
     () =>
-      analyticsRows.reduce(
+      rowsWithDisplayMetrics.reduce(
         (acc, row) => {
-          if (!row.metrics) return acc;
+          if (!row.displayMetrics) return acc;
           return {
-            views: acc.views + (row.metrics.views || 0),
-            likes: acc.likes + (row.metrics.likes || 0),
+            views: acc.views + (row.displayMetrics.views || 0),
+            likes: acc.likes + (row.displayMetrics.likes || 0),
           };
         },
         { views: 0, likes: 0 }
       ),
-    [analyticsRows]
+    [rowsWithDisplayMetrics]
   );
 
   const averageLikeRate = useMemo(() => {
-    const withViews = analyticsRows.filter((row) => row.metrics && row.metrics.views > 0);
+    const withViews = rowsWithDisplayMetrics.filter((row) => row.displayMetrics && row.displayMetrics.views > 0);
     if (!withViews.length) return 0;
-    const totalRate = withViews.reduce(
-      (acc, row) => acc + row.metrics.likes / row.metrics.views,
-      0
-    );
+    const totalRate = withViews.reduce((acc, row) => acc + row.displayMetrics.likes / row.displayMetrics.views, 0);
     return totalRate / withViews.length;
+  }, [rowsWithDisplayMetrics]);
+
+  const aggregatedRangeTotals = useMemo(() => {
+    let hasRangeTotals = false;
+    const totals = analyticsRows.reduce(
+      (acc, row) => {
+        if (!row.metrics?.rangeTotals) return acc;
+        hasRangeTotals = true;
+        return {
+          views: acc.views + (row.metrics.rangeTotals.views || 0),
+          likes: acc.likes + (row.metrics.rangeTotals.likes || 0),
+        };
+      },
+      { views: 0, likes: 0 }
+    );
+    return { totals, hasRangeTotals };
   }, [analyticsRows]);
+
+  const trendHistory = useMemo(() => {
+    const buckets = new Map();
+    analyticsRows.forEach((row) => {
+      const history = row.metrics?.history;
+      if (!Array.isArray(history)) return;
+      history.forEach((entry) => {
+        if (!entry?.date) return;
+        const existing = buckets.get(entry.date) || { date: entry.date, views: 0, likes: 0 };
+        existing.views += Number(entry.views) || 0;
+        existing.likes += Math.max(0, Number(entry.likes) || 0);
+        buckets.set(entry.date, existing);
+      });
+    });
+    return Array.from(buckets.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [analyticsRows]);
+
+  const exportRows = useMemo(
+    () =>
+      sortedAnalyticsRows.map((row) => ({
+        ...row,
+        metrics: row.displayMetrics || row.metrics || { views: 0, likes: 0 },
+      })),
+    [sortedAnalyticsRows]
+  );
 
   const toggleColumn = useCallback((column) => {
     setVisibleColumns((prev) => ({
@@ -202,18 +299,25 @@ export default function useAnalyticsMetrics({ items, enabled }) {
   }, []);
 
   const updateMetricsForSlug = useCallback((slug, views, likes) => {
-    setMetricsBySlug((prev) => ({
-      ...prev,
-      [slug]: { views, likes },
-    }));
+    setMetricsBySlug((prev) => {
+      const next = { ...prev };
+      const existing = next[slug] || {};
+      next[slug] = { ...existing, views, likes };
+      return next;
+    });
   }, []);
 
-  const buildCsv = useCallback(() => buildAnalyticsCsv(sortedAnalyticsRows), [sortedAnalyticsRows]);
+  const buildCsv = useCallback(() => buildAnalyticsCsv(exportRows), [exportRows]);
 
   return {
     analyticsRows,
     sortedAnalyticsRows,
     analyticsTotals,
+    rangeTotals: aggregatedRangeTotals.hasRangeTotals ? aggregatedRangeTotals.totals : null,
+    hasRangeTotals: aggregatedRangeTotals.hasRangeTotals,
+    isRangeActive: rangeActive,
+    trendHistory,
+    exportRows,
     averageLikeRate,
     metricsBySlug,
     metricsLoading,

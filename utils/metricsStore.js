@@ -25,6 +25,72 @@ function normalizeMetricValue(value) {
   return Math.max(0, Math.round(num));
 }
 
+function normalizeDateInput(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const iso = value.includes('T') ? value : `${value}T00:00:00Z`;
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function formatDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeHistoryEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  const cleaned = entries
+    .map((entry) => ({
+      date: typeof entry?.date === 'string' ? entry.date : null,
+      views: Number(entry?.views) || 0,
+      likes: Math.max(0, Number(entry?.likes) || 0),
+    }))
+    .filter((entry) => Boolean(entry.date));
+  cleaned.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return cleaned;
+}
+
+function filterHistoryByRange(history, startDate, endDate) {
+  if (!startDate && !endDate) return history;
+  const startKey = startDate ? formatDateKey(startDate) : null;
+  const endKey = endDate ? formatDateKey(endDate) : null;
+  return history.filter((entry) => {
+    if (!entry?.date) return false;
+    if (startKey && entry.date < startKey) return false;
+    if (endKey && entry.date > endKey) return false;
+    return true;
+  });
+}
+
+function summarizeHistory(history) {
+  return history.reduce(
+    (acc, entry) => ({
+      views: acc.views + (Number(entry.views) || 0),
+      likes: acc.likes + (Number(entry.likes) || 0),
+    }),
+    { views: 0, likes: 0 }
+  );
+}
+
+function prepareHistoryPayload(rawHistory, startDate, endDate) {
+  const normalizedHistory = normalizeHistoryEntries(rawHistory);
+  const start = normalizeDateInput(startDate);
+  const end = normalizeDateInput(endDate);
+  if (!start && !end) {
+    return { history: normalizedHistory, rangeTotals: null };
+  }
+  const filtered = filterHistoryByRange(normalizedHistory, start, end);
+  const totals = summarizeHistory(filtered);
+  return { history: filtered, rangeTotals: totals };
+}
+
 function redisBool(value) {
   return value === 1 || value === '1';
 }
@@ -41,10 +107,12 @@ function ensureMemoryState() {
 
 export async function getMetrics(slug, options = {}) {
   const { viewerId } = options;
+  const startDate = normalizeDateInput(options.startDate);
+  const endDate = normalizeDateInput(options.endDate);
   const { hasUpstash } = await import('./redisClient');
   if (hasUpstash()) {
     try {
-      return await getMetricsFromRedis(slug, viewerId);
+      return await getMetricsFromRedis(slug, viewerId, { startDate, endDate });
     } catch (error) {
       console.warn('[metrics] Redis get failed, falling back to store', error);
     }
@@ -56,15 +124,16 @@ export async function getMetrics(slug, options = {}) {
     views: parseCount(base.views),
     likes: parseCount(base.likes),
   };
+  const { history, rangeTotals } = prepareHistoryPayload(base.history, startDate, endDate);
 
   if (!viewerId) {
-    return counts;
+    return { ...counts, history, rangeTotals };
   }
 
   const memory = ensureMemoryState();
   const likeSet = memory.likeSets.get(slug);
   const liked = Boolean(likeSet && likeSet.has(viewerId));
-  return { ...counts, liked };
+  return { ...counts, liked, history, rangeTotals };
 }
 
 export async function bumpView(slug, options = {}) {
@@ -151,6 +220,7 @@ export async function setLikeState(slug, options = {}) {
 export async function overwriteMetrics(slug, metrics = {}) {
   const viewsValue = normalizeMetricValue(metrics.views);
   const likesValue = normalizeMetricValue(metrics.likes);
+  const historyValue = Array.isArray(metrics.history) ? normalizeHistoryEntries(metrics.history) : null;
   const { hasUpstash } = await import('./redisClient');
 
   if (hasUpstash()) {
@@ -174,9 +244,11 @@ export async function overwriteMetrics(slug, metrics = {}) {
 
   const store = await getStore();
   const current = await store.read(slug);
+  const nextHistory = historyValue !== null ? historyValue : normalizeHistoryEntries(current.history);
   const next = {
     views: viewsValue !== null ? viewsValue : parseCount(current.views),
     likes: likesValue !== null ? likesValue : parseCount(current.likes),
+    history: nextHistory,
   };
   await store.write(slug, next);
 
@@ -187,18 +259,27 @@ export async function overwriteMetrics(slug, metrics = {}) {
   return next;
 }
 
-async function getMetricsFromRedis(slug, viewerId) {
+async function getMetricsFromRedis(slug, viewerId, rangeOptions = {}) {
   const { redisCommand } = await import('./redisClient');
   const key = metricsKey(slug);
   const result = await redisCommand(['HGETALL', key]);
   const counts = parseRedisCounts(result);
 
+  const { startDate, endDate } = rangeOptions;
+  const { rangeTotals } = prepareHistoryPayload([], startDate, endDate);
+  const hasRangeRequest = Boolean(normalizeDateInput(startDate) || normalizeDateInput(endDate));
+
   if (!viewerId) {
-    return counts;
+    return { ...counts, history: [], rangeTotals: hasRangeRequest ? rangeTotals : null };
   }
 
   const member = await redisCommand(['SISMEMBER', likeSetKey(slug), viewerId]);
-  return { ...counts, liked: redisBool(member) };
+  return {
+    ...counts,
+    liked: redisBool(member),
+    history: [],
+    rangeTotals: hasRangeRequest ? rangeTotals : null,
+  };
 }
 
 async function bumpViewWithRedis(slug, viewerId) {
@@ -303,7 +384,7 @@ async function getStore() {
 function noopStore() {
   return {
     async read() {
-      return { views: 0, likes: 0 };
+      return { views: 0, likes: 0, history: [] };
     },
     async write() {},
   };
@@ -313,10 +394,24 @@ function memoryStore() {
   if (!global.__metricsMem) global.__metricsMem = new Map();
   return {
     async read(slug) {
-      return global.__metricsMem.get(slug) || { views: 0, likes: 0 };
+      const stored = global.__metricsMem.get(slug);
+      if (!stored) return { views: 0, likes: 0, history: [] };
+      return {
+        views: parseCount(stored.views),
+        likes: parseCount(stored.likes),
+        history: normalizeHistoryEntries(stored.history),
+      };
     },
     async write(slug, obj) {
-      global.__metricsMem.set(slug, obj);
+      const existing = global.__metricsMem.get(slug) || {};
+      const history = Array.isArray(obj.history)
+        ? normalizeHistoryEntries(obj.history)
+        : normalizeHistoryEntries(existing.history);
+      global.__metricsMem.set(slug, {
+        views: parseCount(obj.views),
+        likes: parseCount(obj.likes),
+        history,
+      });
     },
   };
 }
@@ -334,25 +429,41 @@ async function blobStore() {
         const key = blobKey(slug);
         const { blobs } = await list({ prefix: key });
         const found = blobs.find((b) => b.pathname === key);
-        if (!found) return { views: 0, likes: 0 };
+        if (!found) return { views: 0, likes: 0, history: [] };
         const res = await fetch(found.url);
-        if (!res.ok) return { views: 0, likes: 0 };
+        if (!res.ok) return { views: 0, likes: 0, history: [] };
         const json = await res.json();
-        return { views: parseCount(json.views), likes: parseCount(json.likes) };
+        return {
+          views: parseCount(json.views),
+          likes: parseCount(json.likes),
+          history: normalizeHistoryEntries(json.history),
+        };
       } catch (e) {
-        return { views: 0, likes: 0 };
+        return { views: 0, likes: 0, history: [] };
       }
     },
     async write(slug, obj) {
       const key = blobKey(slug);
-      await put(key, JSON.stringify({
-        views: parseCount(obj.views),
-        likes: parseCount(obj.likes),
-      }), {
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-        contentType: 'application/json',
-        access: 'public',
-      });
+      let history = [];
+      if (Array.isArray(obj.history)) {
+        history = normalizeHistoryEntries(obj.history);
+      } else {
+        const current = await this.read(slug);
+        history = normalizeHistoryEntries(current.history);
+      }
+      await put(
+        key,
+        JSON.stringify({
+          views: parseCount(obj.views),
+          likes: parseCount(obj.likes),
+          history,
+        }),
+        {
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+          contentType: 'application/json',
+          access: 'public',
+        }
+      );
     },
   };
 }

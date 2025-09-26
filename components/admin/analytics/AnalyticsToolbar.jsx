@@ -5,6 +5,9 @@ export default function AnalyticsToolbar({
   visibleColumns,
   onToggleColumn,
   onExportCsv,
+  startDate,
+  endDate,
+  onDateChange,
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60 md:flex-row md:items-center md:justify-between">
@@ -29,7 +32,7 @@ export default function AnalyticsToolbar({
           좋아요 {sortKey === 'likes' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+      <div className="flex flex-col gap-3 text-xs text-slate-300 md:flex-row md:items-center md:justify-end">
         <div className="flex flex-wrap items-center gap-2">
           {Object.entries(visibleColumns).map(([key, value]) => (
             <label
@@ -45,6 +48,26 @@ export default function AnalyticsToolbar({
               {key}
             </label>
           ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-slate-200">
+          <label className="flex items-center gap-1 rounded-full bg-slate-950/60 px-3 py-1">
+            <span className="text-[11px] uppercase tracking-widest text-slate-400">시작</span>
+            <input
+              type="date"
+              value={startDate || ''}
+              onChange={(event) => onDateChange?.('start', event.target.value)}
+              className="rounded bg-slate-800/80 px-2 py-1 text-xs text-slate-100 outline-none"
+            />
+          </label>
+          <label className="flex items-center gap-1 rounded-full bg-slate-950/60 px-3 py-1">
+            <span className="text-[11px] uppercase tracking-widest text-slate-400">종료</span>
+            <input
+              type="date"
+              value={endDate || ''}
+              onChange={(event) => onDateChange?.('end', event.target.value)}
+              className="rounded bg-slate-800/80 px-2 py-1 text-xs text-slate-100 outline-none"
+            />
+          </label>
         </div>
         <button
           type="button"
