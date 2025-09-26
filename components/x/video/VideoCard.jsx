@@ -3,9 +3,11 @@ import clsx from "clsx";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 
-import PosterVideoPlayer from "./PosterVideoPlayer";
+import { openSmartLink } from "@/components/x/ads/smartLink";
 
-const SMART_LINK = "https://relishsubsequentlytank.com/m4dat49uw?key=5c0b078a04533db894c7b305e5dd7a67";
+import VideoPreviewPlayer from "./VideoPreviewPlayer";
+import DEFAULT_VIDEOJS_OPTIONS from "./videoPlayerOptions";
+
 
 function sanitizeString(value) {
     if (typeof value !== "string") return null;
@@ -56,13 +58,6 @@ export default function VideoCard({
         }
     }, [resolvedPoster]);
 
-    const openSmartLink = useCallback(() => {
-        try {
-            window.location.href = SMART_LINK;
-        } catch {
-            // ignore navigation issues
-        }
-    }, []);
 
     const interactivePreview = typeof onPreviewClick === "function";
 
@@ -83,7 +78,8 @@ export default function VideoCard({
 
             openSmartLink();
         },
-        [interactivePreview, onPreviewClick, openSmartLink, restorePoster]
+        [interactivePreview, onPreviewClick, restorePoster]
+
     );
 
     useEffect(() => {
@@ -92,12 +88,8 @@ export default function VideoCard({
             return () => {};
         }
 
-        const player = videojs(videoElement, {
-            controls: false,
-            bigPlayButton: true,
-            preload: "metadata",
-            autoplay: false,
-        });
+        const player = videojs(videoElement, DEFAULT_VIDEOJS_OPTIONS);
+
 
         videoJsPlayerRef.current = player;
 
@@ -154,6 +146,9 @@ export default function VideoCard({
 
     const handleFallbackClick = shouldShowFallback ? handleInteraction : undefined;
 
+    const showPlayOverlay = !shouldShowFallback;
+
+
     return (
         <div
             className={clsx(
@@ -167,13 +162,29 @@ export default function VideoCard({
                     이미지를 불러오지 못했어요
                 </div>
             ) : (
-                <PosterVideoPlayer
+                <VideoPreviewPlayer
+
                     videoId={videoJsId}
                     ref={videoElementRef}
                     poster={resolvedPoster}
                     title={resolvedTitle}
                 />
             )}
+            {showPlayOverlay && (
+                <button
+                    type="button"
+                    onClick={handleInteraction}
+                    className="group absolute inset-0 flex items-center justify-center"
+                    aria-label="재생"
+                >
+                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-black/60 text-white transition group-hover:bg-black/80">
+                        <svg aria-hidden="true" className="h-6 w-6 fill-current" viewBox="0 0 24 24" focusable="false">
+                            <path d="M8 5.14v13.72L19 12 8 5.14z" />
+                        </svg>
+                    </span>
+                </button>
+            )}
+
         </div>
     );
 }
