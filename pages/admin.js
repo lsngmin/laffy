@@ -7,6 +7,7 @@ import UploadsSection from '../components/admin/uploads/UploadsSection';
 import AnalyticsOverview from '../components/admin/analytics/AnalyticsOverview';
 import AnalyticsToolbar from '../components/admin/analytics/AnalyticsToolbar';
 import AnalyticsTable from '../components/admin/analytics/AnalyticsTable';
+import AnalyticsTrendChart from '../components/admin/analytics/AnalyticsTrendChart';
 import AdsterraControls from '../components/admin/adsterra/AdsterraControls';
 import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCards';
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
@@ -101,15 +102,21 @@ export default function AdminPage() {
     error: itemsError,
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
   const { copiedSlug, copy } = useClipboard();
-  const analyticsInitialFilters = useMemo(
-    () => ({ type: '', orientation: '', query: '' }),
-    []
-  );
+  const [analyticsStartDate, setAnalyticsStartDate] = useState('');
+  const [analyticsEndDate, setAnalyticsEndDate] = useState('');
+
   const analytics = useAnalyticsMetrics({
     items,
     enabled: hasToken && view === 'analytics',
     initialFilters: analyticsInitialFilters,
-  });
+
+    startDate: analyticsStartDate,
+    endDate: analyticsEndDate,
+  
+  const analyticsInitialFilters = useMemo(
+    () => ({ type: '', orientation: '', query: '' }),
+    []
+  );
 
   const defaultAdsterraRange = useMemo(() => getDefaultAdsterraDateRange(), []);
   const adsterraEnvToken = useMemo(
@@ -423,9 +430,17 @@ export default function AdminPage() {
     [adsterra]
   );
 
+  const handleAnalyticsDateChange = useCallback((field, value) => {
+    if (field === 'start') {
+      setAnalyticsStartDate(value);
+    } else if (field === 'end') {
+      setAnalyticsEndDate(value);
+    }
+  }, []);
+
   const handleExportCsv = useCallback(() => {
-    downloadAnalyticsCsv(analytics.sortedAnalyticsRows);
-  }, [analytics.sortedAnalyticsRows]);
+    downloadAnalyticsCsv(analytics.exportRows);
+  }, [analytics.exportRows]);
 
   const visibleColumns = analytics.visibleColumns;
 
@@ -488,9 +503,15 @@ export default function AdminPage() {
               visibleColumns={visibleColumns}
               onToggleColumn={analytics.toggleColumn}
               onExportCsv={handleExportCsv}
+              startDate={analyticsStartDate}
+              endDate={analyticsEndDate}
+              onDateChange={handleAnalyticsDateChange}
               filters={analytics.filters}
               onFilterChange={analytics.updateFilters}
             />
+            {analytics.isRangeActive && analytics.trendHistory.length > 0 && (
+              <AnalyticsTrendChart history={analytics.trendHistory} formatNumber={formatNumber} />
+            )}
             <AnalyticsTable
               rows={analytics.sortedAnalyticsRows}
               metricsLoading={analytics.metricsLoading}

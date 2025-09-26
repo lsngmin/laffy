@@ -30,7 +30,7 @@ export default function AnalyticsTable({
               <AnalyticsRow
                 key={row.slug}
                 row={row}
-                metrics={row.metrics}
+                metrics={row.displayMetrics || row.metrics}
                 metricsLoading={metricsLoading}
                 formatNumber={formatNumber}
                 formatPercent={formatPercent}

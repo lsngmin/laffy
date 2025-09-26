@@ -11,7 +11,7 @@ export function buildAnalyticsCsv(rows) {
   const header = ['slug', 'title', 'type', 'views', 'likes', 'like_rate'];
   const lines = [header.join(',')];
   rows.forEach((row) => {
-    const metrics = row.metrics || { views: 0, likes: 0 };
+    const metrics = row.displayMetrics || row.metrics || { views: 0, likes: 0 };
     const likeRate = metrics.views > 0 ? metrics.likes / metrics.views : 0;
     lines.push(
       [
