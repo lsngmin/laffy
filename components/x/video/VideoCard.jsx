@@ -33,6 +33,7 @@ export default function VideoCard({
     sponsorUrl = VIDEO_PREVIEW_SPONSOR_URL,
     trackingRoute = "x",
     trackingPlacement = "overlay",
+    ...rest
 }) {
     const containerRef = useRef(null);
     const videoElementRef = useRef(null);
@@ -258,6 +259,7 @@ export default function VideoCard({
                 aspect
             )}
             onClickCapture={handleFallbackClick}
+            {...rest}
         >
             {shouldShowFallback ? (
                 <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-sm font-semibold text-slate-100">

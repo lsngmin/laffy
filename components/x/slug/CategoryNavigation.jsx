@@ -1,6 +1,12 @@
 import clsx from "clsx";
 
-export default function CategoryNavigation({ items = [], activeKey = "", onItemClick, ariaLabel }) {
+export default function CategoryNavigation({
+  items = [],
+  activeKey = "",
+  onItemClick,
+  ariaLabel,
+  ...rest
+}) {
   if (!Array.isArray(items) || items.length === 0) {
     return null;
   }
@@ -9,6 +15,7 @@ export default function CategoryNavigation({ items = [], activeKey = "", onItemC
     <nav
       className="relative mx-auto mb-6 max-w-4xl"
       aria-label={ariaLabel || "Category navigation"}
+      {...rest}
     >
       <div className="relative rounded-3xl bg-slate-900/70 backdrop-blur-md px-4 py-3 shadow-xl ring-1 ring-white/10">
         <span
