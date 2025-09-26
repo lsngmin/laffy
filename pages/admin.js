@@ -140,6 +140,7 @@ export default function AdminPage() {
       }
     },
     [analytics.selectedSlugs, hasToken, token]
+  );
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
 
@@ -147,10 +148,9 @@ export default function AdminPage() {
     items,
     enabled: hasToken && view === 'analytics',
     initialFilters: analyticsInitialFilters,
-
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
-  
+  });
   const analyticsInitialFilters = useMemo(
     () => ({ type: '', orientation: '', query: '' }),
     []
