@@ -1,4 +1,7 @@
+import { createHash } from 'crypto';
 import { fetchAdsterraJson } from '@/utils/adsterraClient';
+import { applyRateLimit, setRateLimitHeaders } from '@/utils/apiRateLimit';
+import { resolveWithCache } from '@/utils/serverCache';
 
 function buildStatsEndpoint({ domainId, placementId, includeAllPlacements = false, startDate, endDate, groupBy = ['date'] }) {
   const params = new URLSearchParams();
@@ -47,6 +50,26 @@ export default async function handler(req, res) {
   }
 
   try {
+    const rate = applyRateLimit(req, `adsterra:stats:${domainId}`, { limit: 12, windowMs: 120_000 });
+    setRateLimitHeaders(res, rate);
+    if (!rate.ok) {
+      return res.status(429).json({ error: '광고 통계 요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.' });
+    }
+
+    const normalizedGroupBy = Array.isArray(groupBy)
+      ? groupBy.filter((value) => typeof value === 'string' && value).map((value) => value.trim()).sort()
+      : [];
+    const tokenHash = createHash('sha1').update(token).digest('hex');
+    const cacheKey = JSON.stringify({
+      token: tokenHash,
+      domainId,
+      includeAllPlacements,
+      placementId: includeAllPlacements ? '' : placementId,
+      startDate,
+      endDate,
+      groupBy: normalizedGroupBy,
+    });
+
     const endpoint = buildStatsEndpoint({
       domainId,
       placementId: includeAllPlacements ? undefined : placementId,
@@ -55,36 +78,41 @@ export default async function handler(req, res) {
       endDate,
       groupBy,
     });
-    const data = await fetchAdsterraJson(endpoint, token);
-    const items = Array.isArray(data?.items) ? data.items : [];
-    const normalizedItems = [];
+    const payload = await resolveWithCache('adsterra:stats', cacheKey, 120_000, async () => {
+      const data = await fetchAdsterraJson(endpoint, token);
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const normalizedItems = [];
 
-    items.forEach((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return;
-      }
+      items.forEach((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return;
+        }
 
-      if (Array.isArray(entry?.items)) {
-        normalizedItems.push(...entry.items);
-        return;
-      }
+        if (Array.isArray(entry?.items)) {
+          normalizedItems.push(...entry.items);
+          return;
+        }
 
-      if (entry?.value && Array.isArray(entry.value.items)) {
-        normalizedItems.push(...entry.value.items);
-        return;
-      }
+        if (entry?.value && Array.isArray(entry.value.items)) {
+          normalizedItems.push(...entry.value.items);
+          return;
+        }
 
-      normalizedItems.push(entry);
+        normalizedItems.push(entry);
+      });
+
+      const itemCount = Number.isFinite(Number(data?.itemCount))
+        ? Number(data.itemCount)
+        : normalizedItems.length || items.length;
+
+      return {
+        items: normalizedItems.length ? normalizedItems : items,
+        itemCount,
+        raw: data,
+      };
     });
 
-    const itemCount = Number.isFinite(Number(data?.itemCount))
-      ? Number(data.itemCount)
-      : normalizedItems.length || items.length;
-    return res.status(200).json({
-      items: normalizedItems.length ? normalizedItems : items,
-      itemCount,
-      raw: data,
-    });
+    return res.status(200).json(payload);
   } catch (error) {
     return res.status(error.status || 502).json({ error: error.message || 'Failed to load statistics.' });
   }
