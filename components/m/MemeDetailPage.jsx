@@ -8,7 +8,7 @@ import { BookmarkLink, BackToFeedLink } from "@/components/link";
 import { useLikes } from "@/hooks/useLikes";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { loadFavorites, toggleFavoriteSlug } from "@/utils/storage";
-import VideoCard from "@/components/m/video/VideoCard";
+import VideoCard from "@/components/x/video/VideoCard";
 import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import RecommendedMemes from "@/components/m/RecommendedMemes";
