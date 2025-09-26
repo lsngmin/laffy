@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const EMPTY_SUMMARY = Object.freeze({
   items: [],
-  totals: { count: 0, uniqueSessions: 0 },
+  totals: {
+    count: 0,
+    uniqueSessions: 0,
+    visitors: 0,
+    pageViews: 0,
+    bounceEvents: 0,
+    bounceRate: 0,
+    pageViewEventNames: [],
+    visitorEventNames: [],
+    bounceEventNames: [],
+  },
   timeseries: [],
   catalog: { events: [], slugsByEvent: {} },
 });

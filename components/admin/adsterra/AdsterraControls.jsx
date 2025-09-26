@@ -77,7 +77,7 @@ export default function AdsterraControls({
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <div className="md:col-span-2 xl:col-span-1">
-          <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">광고 포맷 (플레이스먼트)</label>
+          <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">수익 포맷 (플레이스먼트)</label>
           <select
             value={placementId}
             onChange={(event) => onPlacementChange(event.target.value)}

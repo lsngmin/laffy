@@ -35,49 +35,32 @@ export default function AnalyticsToolbar({
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full bg-slate-950/60 px-3 py-1 text-slate-400">정렬 기준</span>
-        <button
-          type="button"
-          onClick={() => onSortChange('views')}
-          className={`rounded-full px-3 py-1 font-semibold transition ${
-            sortKey === 'views' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
-          }`}
-        >
-          조회수 {sortKey === 'views' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-        </button>
-        <button
-          type="button"
-          onClick={() => onSortChange('likes')}
-          className={`rounded-full px-3 py-1 font-semibold transition ${
-            sortKey === 'likes' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
-          }`}
-        >
-          좋아요 {sortKey === 'likes' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
-        </button>
-      </div>
-      <div className="flex flex-col gap-3 text-xs text-slate-300 md:flex-row md:items-center md:justify-between">
-
-        <div className="flex flex-wrap items-center gap-2">
-          {Object.entries(visibleColumns).map(([key, value]) => (
-            <label
-              key={key}
-              className="flex items-center gap-1 rounded-full bg-slate-950/50 px-3 py-1 capitalize"
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2 overflow-x-auto text-xs [scrollbar-width:thin] [-ms-overflow-style:none] lg:overflow-visible">
+          <span className="whitespace-nowrap rounded-full bg-slate-950/60 px-3 py-1 text-slate-400">정렬 기준</span>
+          <div className="flex min-w-0 flex-nowrap gap-2">
+            <button
+              type="button"
+              onClick={() => onSortChange('views')}
+              className={`whitespace-nowrap rounded-full px-3 py-1 font-semibold transition ${
+                sortKey === 'views' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
+              }`}
             >
-              <input
-                type="checkbox"
-                checked={value}
-                onChange={() => onToggleColumn(key)}
-                className="accent-indigo-400"
-              />
-              {key}
-            </label>
-          ))}
+              조회수 {sortKey === 'views' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => onSortChange('likes')}
+              className={`whitespace-nowrap rounded-full px-3 py-1 font-semibold transition ${
+                sortKey === 'likes' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'
+              }`}
+            >
+              좋아요 {sortKey === 'likes' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-slate-950/50 px-3 py-1 text-slate-400">
-            선택 {selectedCount}개
-          </span>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300 lg:justify-end">
+          <span className="rounded-full bg-slate-950/60 px-3 py-1 text-slate-400">선택 {selectedCount}개</span>
           <button
             type="button"
             onClick={onOpenBulkEditor}
@@ -107,6 +90,25 @@ export default function AnalyticsToolbar({
           >
             CSV 다운로드
           </button>
+        </div>
+      </div>
+      <div className="flex flex-col gap-3 text-xs text-slate-300 md:flex-row md:items-center md:justify-between">
+
+        <div className="flex flex-wrap items-center gap-2">
+          {Object.entries(visibleColumns).map(([key, value]) => (
+            <label
+              key={key}
+              className="flex items-center gap-1 rounded-full bg-slate-950/50 px-3 py-1 capitalize"
+            >
+              <input
+                type="checkbox"
+                checked={value}
+                onChange={() => onToggleColumn(key)}
+                className="accent-indigo-400"
+              />
+              {key}
+            </label>
+          ))}
         </div>
 
       </div>

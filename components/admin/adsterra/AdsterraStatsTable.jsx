@@ -18,7 +18,7 @@ export default function AdsterraStatsTable({
             <tr>
               <th className="px-4 py-3 font-semibold">날짜</th>
               <th className="px-4 py-3 font-semibold">국가</th>
-              <th className="px-4 py-3 font-semibold">광고 포맷</th>
+              <th className="px-4 py-3 font-semibold">수익 포맷</th>
               <th className="px-4 py-3 font-semibold">OS</th>
               <th className="px-4 py-3 font-semibold">디바이스</th>
               <th className="px-4 py-3 font-semibold">디바이스 포맷</th>
@@ -44,7 +44,8 @@ export default function AdsterraStatsTable({
                   row?.cpm ??
                     (impressions > 0 && revenue >= 0 ? (revenue / impressions) * 1000 : 0)
                 ) || 0;
-              const dateLabel = row?.date || row?.day || row?.Day || row?.group || `#${index + 1}`;
+              const dateLabel = row?.localDate || row?.date || row?.day || row?.Day || row?.group || `#${index + 1}`;
+              const dateDetail = row?.localDateLabel || dateLabel;
               const countryLabel = row?.country ?? row?.Country ?? row?.geo ?? row?.Geo ?? '—';
               const osLabel = row?.os ?? row?.OS ?? row?.platform ?? row?.Platform ?? '—';
               const deviceLabel = row?.device ?? row?.Device ?? row?.device_type ?? row?.deviceType ?? '—';
@@ -66,10 +67,12 @@ export default function AdsterraStatsTable({
                 (allSelected
                   ? '전체 보기'
                   : placementLabelMap.get(String(selectedPlacementId)) || '—');
-              const rowKey = `${dateLabel}-${index}-${placementId ?? ''}-${countryLabel}-${osLabel}-${deviceLabel}-${deviceFormatLabel}`;
+              const rowKey = `${row?.localDateIso || dateLabel}-${index}-${placementId ?? ''}-${countryLabel}-${osLabel}-${deviceLabel}-${deviceFormatLabel}`;
               return (
                 <tr key={rowKey} className="hover:bg-slate-800/40">
-                  <td className="px-4 py-3 font-semibold text-slate-100">{dateLabel}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-100" title={dateDetail}>
+                    {dateLabel}
+                  </td>
                   <td className="px-4 py-3 text-slate-100">{countryLabel}</td>
                   <td className="px-4 py-3 text-slate-100">{placementDisplay}</td>
                   <td className="px-4 py-3 text-slate-100">{osLabel}</td>

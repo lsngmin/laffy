@@ -138,6 +138,20 @@ function normalizeEventPayload(event) {
   };
 }
 
+function classifyEventName(name) {
+  if (typeof name !== 'string') {
+    return { isPageView: false, isVisitor: false, isBounce: false };
+  }
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) {
+    return { isPageView: false, isVisitor: false, isBounce: false };
+  }
+  const isPageView = /page\s*view|view|pv/.test(normalized);
+  const isVisitor = /visit|session|enter|start/.test(normalized);
+  const isBounce = /bounce|exit|leave|drop/.test(normalized);
+  return { isPageView, isVisitor, isBounce };
+}
+
 async function redisCommand(command, options) {
   const { redisCommand: exec } = await import('./redisClient');
   return exec(command, options);
@@ -339,6 +353,11 @@ async function getSummaryFromRedis(options = {}) {
   const timeseriesMap = new Map();
   let totalCount = 0;
   let totalUnique = 0;
+  let totalPageViews = 0;
+  let totalBounceEvents = 0;
+  const pageViewEvents = new Set();
+  const visitorEvents = new Set();
+  const bounceEvents = new Set();
 
   for (const combo of combos) {
     const slugKey = combo.slug || GLOBAL_SLUG;
@@ -388,6 +407,19 @@ async function getSummaryFromRedis(options = {}) {
     totalCount += comboCount;
     totalUnique += uniqueSessions;
 
+    const { isPageView, isVisitor, isBounce } = classifyEventName(combo.name);
+    if (isPageView) {
+      totalPageViews += comboCount;
+      pageViewEvents.add(combo.name);
+    }
+    if (isVisitor) {
+      visitorEvents.add(combo.name);
+    }
+    if (isBounce) {
+      totalBounceEvents += comboCount;
+      bounceEvents.add(combo.name);
+    }
+
     items.push({
       eventName: combo.name,
       slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
@@ -405,9 +437,23 @@ async function getSummaryFromRedis(options = {}) {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, value]) => ({ date, count: value.count, valueSum: value.value }));
 
+  const visitors = totalUnique;
+  const effectivePageViews = pageViewEvents.size ? totalPageViews : totalCount;
+  const bounceRate = visitors > 0 ? totalBounceEvents / visitors : 0;
+
   return {
     items: limitedItems,
-    totals: { count: totalCount, uniqueSessions: totalUnique },
+    totals: {
+      count: totalCount,
+      uniqueSessions: totalUnique,
+      visitors,
+      pageViews: effectivePageViews,
+      bounceEvents: totalBounceEvents,
+      bounceRate,
+      pageViewEventNames: Array.from(pageViewEvents),
+      visitorEventNames: Array.from(visitorEvents),
+      bounceEventNames: Array.from(bounceEvents),
+    },
     timeseries,
     catalog,
   };
@@ -429,6 +475,11 @@ function getSummaryFromMemory(options = {}) {
   const timeseriesMap = new Map();
   let totalCount = 0;
   let totalUnique = 0;
+  let totalPageViews = 0;
+  let totalBounceEvents = 0;
+  const pageViewEvents = new Set();
+  const visitorEvents = new Set();
+  const bounceEvents = new Set();
 
   combos.forEach((combo) => {
     const slugKey = combo.slug || GLOBAL_SLUG;
@@ -455,6 +506,19 @@ function getSummaryFromMemory(options = {}) {
     if (!comboCount) return;
     totalCount += comboCount;
     totalUnique += sessionSet.size;
+
+    const { isPageView, isVisitor, isBounce } = classifyEventName(combo.name);
+    if (isPageView) {
+      totalPageViews += comboCount;
+      pageViewEvents.add(combo.name);
+    }
+    if (isVisitor) {
+      visitorEvents.add(combo.name);
+    }
+    if (isBounce) {
+      totalBounceEvents += comboCount;
+      bounceEvents.add(combo.name);
+    }
     items.push({
       eventName: combo.name,
       slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
@@ -472,9 +536,23 @@ function getSummaryFromMemory(options = {}) {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, value]) => ({ date, count: value.count, valueSum: value.value }));
 
+  const visitors = totalUnique;
+  const effectivePageViews = pageViewEvents.size ? totalPageViews : totalCount;
+  const bounceRate = visitors > 0 ? totalBounceEvents / visitors : 0;
+
   return {
     items: limitedItems,
-    totals: { count: totalCount, uniqueSessions: totalUnique },
+    totals: {
+      count: totalCount,
+      uniqueSessions: totalUnique,
+      visitors,
+      pageViews: effectivePageViews,
+      bounceEvents: totalBounceEvents,
+      bounceRate,
+      pageViewEventNames: Array.from(pageViewEvents),
+      visitorEventNames: Array.from(visitorEvents),
+      bounceEventNames: Array.from(bounceEvents),
+    },
     timeseries,
     catalog,
   };
