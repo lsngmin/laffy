@@ -1,0 +1,473 @@
+const DEFAULT_RANGE_DAYS = 6;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DAILY_TTL_SECONDS = 60 * 60 * 24 * 45; // 45 days
+const TOTAL_TTL_SECONDS = 60 * 60 * 24 * 365; // 1 year
+const CATALOG_KEY = 'events:catalog';
+const GLOBAL_SLUG = '__global__';
+
+function toDateKey(ts) {
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function clampLimit(value, fallback = 50) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return fallback;
+  return Math.min(500, Math.round(num));
+}
+
+function parseDateInput(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const iso = trimmed.includes('T') ? trimmed : `${trimmed}T00:00:00Z`;
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+
+function normalizeRange(startInput, endInput) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const defaultEnd = now;
+  const defaultStart = new Date(now.getTime() - DEFAULT_RANGE_DAYS * DAY_MS);
+
+  const startDate = parseDateInput(startInput) || defaultStart;
+  const endDate = parseDateInput(endInput) || defaultEnd;
+
+  if (startDate > endDate) {
+    return { start: endDate, end: endDate };
+  }
+
+  const start = new Date(startDate.getTime());
+  const end = new Date(endDate.getTime());
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return { start, end };
+}
+
+function rangeToDateKeys(range) {
+  const keys = [];
+  const cursor = new Date(range.start.getTime());
+  while (cursor <= range.end) {
+    keys.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+}
+
+function serializeCombo(name, slug) {
+  return `${name}::${slug || GLOBAL_SLUG}`;
+}
+
+function deserializeCombo(value) {
+  if (typeof value !== 'string') return null;
+  const [name, slug] = value.split('::');
+  if (!name) return null;
+  return { name, slug: slug === undefined ? GLOBAL_SLUG : slug };
+}
+
+function normalizeSlug(slug) {
+  if (typeof slug !== 'string') return '';
+  const trimmed = slug.trim();
+  return trimmed ? trimmed : '';
+}
+
+function normalizeEventPayload(event) {
+  if (!event || typeof event !== 'object') return null;
+  const name = typeof event.name === 'string' ? event.name.trim() : '';
+  if (!name) return null;
+  const slug = normalizeSlug(event.slug || event.props?.slug);
+  const tsRaw = event.ts ?? Date.now();
+  const ts = Number(tsRaw);
+  const timestamp = Number.isFinite(ts) ? ts : Date.now();
+  const sessionId = typeof event.sessionId === 'string' ? event.sessionId.trim() : '';
+  const value = Number(event.value ?? event.props?.value);
+  const numericValue = Number.isFinite(value) ? value : 0;
+  return {
+    name,
+    slug,
+    timestamp,
+    sessionId,
+    value: numericValue,
+  };
+}
+
+async function redisCommand(command, options) {
+  const { redisCommand: exec } = await import('./redisClient');
+  return exec(command, options);
+}
+
+async function hasRedis() {
+  const { hasUpstash } = await import('./redisClient');
+  return hasUpstash();
+}
+
+function ensureMemoryStore() {
+  if (!global.__eventStore) {
+    global.__eventStore = {
+      catalog: new Set(),
+      daily: new Map(),
+      totals: new Map(),
+    };
+  }
+  return global.__eventStore;
+}
+
+function memoryKey(dateKey, comboKey) {
+  return `${dateKey}::${comboKey}`;
+}
+
+function aggregateCatalogFromMemory() {
+  const store = ensureMemoryStore();
+  const events = new Set();
+  const slugsByEvent = new Map();
+  store.catalog.forEach((comboKey) => {
+    const combo = deserializeCombo(comboKey);
+    if (!combo) return;
+    events.add(combo.name);
+    if (!slugsByEvent.has(combo.name)) slugsByEvent.set(combo.name, new Set());
+    if (combo.slug && combo.slug !== GLOBAL_SLUG) {
+      slugsByEvent.get(combo.name).add(combo.slug);
+    }
+  });
+  const catalog = {
+    events: Array.from(events).sort((a, b) => a.localeCompare(b)),
+    slugsByEvent: {},
+  };
+  slugsByEvent.forEach((slugSet, eventName) => {
+    catalog.slugsByEvent[eventName] = Array.from(slugSet).sort((a, b) => a.localeCompare(b));
+  });
+  return catalog;
+}
+
+async function ingestWithRedis(events, context = {}) {
+  const tasks = [];
+  for (const rawEvent of events) {
+    const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
+    if (!normalized) continue;
+    const comboKey = serializeCombo(normalized.name, normalized.slug || GLOBAL_SLUG);
+    const dateKey = toDateKey(normalized.timestamp);
+    const aggKey = `events:agg:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
+    const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
+    const totalKey = `events:total:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
+    const totalSessionKey = `events:totaluniq:${normalized.name}:${normalized.slug || GLOBAL_SLUG}`;
+
+    tasks.push(
+      redisCommand(['SADD', CATALOG_KEY, comboKey]),
+      redisCommand(['HINCRBY', aggKey, 'count', 1]),
+      redisCommand(['HSET', aggKey, 'last_ts', String(normalized.timestamp)]),
+      redisCommand(['EXPIRE', aggKey, String(DAILY_TTL_SECONDS)]),
+      redisCommand(['HINCRBY', totalKey, 'count', 1]),
+      redisCommand(['HSET', totalKey, 'last_ts', String(normalized.timestamp)]),
+      redisCommand(['EXPIRE', totalKey, String(TOTAL_TTL_SECONDS)]),
+    );
+
+    if (normalized.value) {
+      tasks.push(
+        redisCommand(['HINCRBYFLOAT', aggKey, 'sum_value', String(normalized.value)]),
+        redisCommand(['HINCRBYFLOAT', totalKey, 'sum_value', String(normalized.value)]),
+      );
+    }
+
+    if (normalized.sessionId) {
+      tasks.push(
+        redisCommand(['PFADD', sessionKey, normalized.sessionId]),
+        redisCommand(['EXPIRE', sessionKey, String(DAILY_TTL_SECONDS)]),
+        redisCommand(['PFADD', totalSessionKey, normalized.sessionId]),
+        redisCommand(['EXPIRE', totalSessionKey, String(TOTAL_TTL_SECONDS)]),
+      );
+    }
+  }
+
+  if (!tasks.length) return { ingested: 0 };
+  try {
+    await Promise.all(tasks);
+    return { ingested: events.length };
+  } catch (error) {
+    console.warn('[events] redis ingest failed, falling back to memory', error);
+    return ingestWithMemory(events, context);
+  }
+}
+
+function ingestWithMemory(events, context = {}) {
+  const store = ensureMemoryStore();
+  let ingested = 0;
+  events.forEach((rawEvent) => {
+    const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
+    if (!normalized) return;
+    const comboKey = serializeCombo(normalized.name, normalized.slug || GLOBAL_SLUG);
+    store.catalog.add(comboKey);
+    const dateKey = toDateKey(normalized.timestamp);
+    const dailyKey = memoryKey(dateKey, comboKey);
+    const dailyEntry = store.daily.get(dailyKey) || { count: 0, sessions: new Set(), lastTs: 0, sumValue: 0 };
+    dailyEntry.count += 1;
+    dailyEntry.lastTs = Math.max(dailyEntry.lastTs, normalized.timestamp);
+    if (normalized.value) dailyEntry.sumValue += normalized.value;
+    if (normalized.sessionId) dailyEntry.sessions.add(normalized.sessionId);
+    store.daily.set(dailyKey, dailyEntry);
+
+    const totalEntry = store.totals.get(comboKey) || { count: 0, sessions: new Set(), lastTs: 0, sumValue: 0 };
+    totalEntry.count += 1;
+    totalEntry.lastTs = Math.max(totalEntry.lastTs, normalized.timestamp);
+    if (normalized.value) totalEntry.sumValue += normalized.value;
+    if (normalized.sessionId) totalEntry.sessions.add(normalized.sessionId);
+    store.totals.set(comboKey, totalEntry);
+    ingested += 1;
+  });
+  return { ingested };
+}
+
+async function fetchCatalogFromRedis() {
+  try {
+    const result = await redisCommand(['SMEMBERS', CATALOG_KEY], { allowReadOnly: true });
+    if (!Array.isArray(result)) return [];
+    return result;
+  } catch (error) {
+    console.warn('[events] failed to read catalog from redis', error);
+    return [];
+  }
+}
+
+function buildCatalogFromCombos(combos) {
+  const events = new Set();
+  const slugsByEvent = new Map();
+  combos.forEach((comboKey) => {
+    const combo = deserializeCombo(comboKey);
+    if (!combo) return;
+    events.add(combo.name);
+    if (!slugsByEvent.has(combo.name)) slugsByEvent.set(combo.name, new Set());
+    if (combo.slug && combo.slug !== GLOBAL_SLUG) {
+      slugsByEvent.get(combo.name).add(combo.slug);
+    }
+  });
+  const catalog = {
+    events: Array.from(events).sort((a, b) => a.localeCompare(b)),
+    slugsByEvent: {},
+  };
+  slugsByEvent.forEach((slugSet, eventName) => {
+    catalog.slugsByEvent[eventName] = Array.from(slugSet).sort((a, b) => a.localeCompare(b));
+  });
+  return catalog;
+}
+
+function filterCombos(combos, filters = {}) {
+  const { eventName, slug } = filters;
+  const normalizedEvent = typeof eventName === 'string' ? eventName.trim() : '';
+  const normalizedSlug = normalizeSlug(slug);
+  return combos
+    .map((comboKey) => deserializeCombo(comboKey))
+    .filter(Boolean)
+    .filter((combo) => {
+      if (normalizedEvent && combo.name !== normalizedEvent) return false;
+      if (normalizedSlug) {
+        const slugKey = combo.slug === GLOBAL_SLUG ? '' : combo.slug;
+        if (slugKey !== normalizedSlug) return false;
+      }
+      return true;
+    });
+}
+
+function entriesToObject(entries) {
+  if (!Array.isArray(entries)) return {};
+  const obj = {};
+  for (let i = 0; i < entries.length; i += 2) {
+    const key = entries[i];
+    const value = entries[i + 1];
+    obj[key] = value;
+  }
+  return obj;
+}
+
+async function getSummaryFromRedis(options = {}) {
+  const range = normalizeRange(options.startDate, options.endDate);
+  const dateKeys = rangeToDateKeys(range);
+  const limit = clampLimit(options.limit, 50);
+  const combosRaw = await fetchCatalogFromRedis();
+  const catalog = buildCatalogFromCombos(combosRaw);
+  const combos = filterCombos(combosRaw, {
+    eventName: options.eventName,
+    slug: options.slug,
+  });
+
+  const items = [];
+  const timeseriesMap = new Map();
+  let totalCount = 0;
+  let totalUnique = 0;
+
+  for (const combo of combos) {
+    const slugKey = combo.slug || GLOBAL_SLUG;
+    const sessionKeys = [];
+    let comboCount = 0;
+    let comboValue = 0;
+    let lastTs = 0;
+
+    const dailyResults = await Promise.all(
+      dateKeys.map((dateKey) =>
+        redisCommand(['HGETALL', `events:agg:${dateKey}:${combo.name}:${slugKey}`], {
+          allowReadOnly: true,
+        })
+      )
+    );
+
+    dailyResults.forEach((raw, index) => {
+      if (!Array.isArray(raw) || raw.length === 0) return;
+      const data = entriesToObject(raw);
+      const count = Number(data.count) || 0;
+      const valueSum = Number(data.sum_value) || 0;
+      const last = Number(data.last_ts) || 0;
+      if (count <= 0) return;
+      comboCount += count;
+      comboValue += Number.isFinite(valueSum) ? valueSum : 0;
+      lastTs = Math.max(lastTs, last);
+      const dateKey = dateKeys[index];
+      const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
+      dateEntry.count += count;
+      dateEntry.value += Number.isFinite(valueSum) ? valueSum : 0;
+      timeseriesMap.set(dateKey, dateEntry);
+      sessionKeys.push(`events:sessions:${dateKey}:${combo.name}:${slugKey}`);
+    });
+
+    if (!comboCount) continue;
+
+    let uniqueSessions = 0;
+    if (sessionKeys.length) {
+      try {
+        const result = await redisCommand(['PFCOUNT', ...sessionKeys], { allowReadOnly: true });
+        uniqueSessions = Number(result) || 0;
+      } catch (error) {
+        console.warn('[events] PFCOUNT failed', error);
+      }
+    }
+
+    totalCount += comboCount;
+    totalUnique += uniqueSessions;
+
+    items.push({
+      eventName: combo.name,
+      slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
+      count: comboCount,
+      uniqueSessions,
+      valueSum: comboValue,
+      lastTimestamp: lastTs || null,
+      lastDate: lastTs ? new Date(lastTs).toISOString() : null,
+    });
+  }
+
+  items.sort((a, b) => b.count - a.count);
+  const limitedItems = limit ? items.slice(0, limit) : items;
+  const timeseries = Array.from(timeseriesMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, value]) => ({ date, count: value.count, valueSum: value.value }));
+
+  return {
+    items: limitedItems,
+    totals: { count: totalCount, uniqueSessions: totalUnique },
+    timeseries,
+    catalog,
+  };
+}
+
+function getSummaryFromMemory(options = {}) {
+  const store = ensureMemoryStore();
+  const range = normalizeRange(options.startDate, options.endDate);
+  const dateKeys = rangeToDateKeys(range);
+  const limit = clampLimit(options.limit, 50);
+  const combosRaw = Array.from(store.catalog);
+  const catalog = aggregateCatalogFromMemory();
+  const combos = filterCombos(combosRaw, {
+    eventName: options.eventName,
+    slug: options.slug,
+  });
+
+  const items = [];
+  const timeseriesMap = new Map();
+  let totalCount = 0;
+  let totalUnique = 0;
+
+  combos.forEach((combo) => {
+    const slugKey = combo.slug || GLOBAL_SLUG;
+    const comboKey = serializeCombo(combo.name, slugKey);
+    let comboCount = 0;
+    let comboValue = 0;
+    let lastTs = 0;
+    const sessionSet = new Set();
+
+    dateKeys.forEach((dateKey) => {
+      const dailyKey = memoryKey(dateKey, comboKey);
+      const daily = store.daily.get(dailyKey);
+      if (!daily || daily.count <= 0) return;
+      comboCount += daily.count;
+      comboValue += daily.sumValue || 0;
+      lastTs = Math.max(lastTs, daily.lastTs || 0);
+      daily.sessions.forEach((sessionId) => sessionSet.add(sessionId));
+      const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
+      dateEntry.count += daily.count;
+      dateEntry.value += daily.sumValue || 0;
+      timeseriesMap.set(dateKey, dateEntry);
+    });
+
+    if (!comboCount) return;
+    totalCount += comboCount;
+    totalUnique += sessionSet.size;
+    items.push({
+      eventName: combo.name,
+      slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
+      count: comboCount,
+      uniqueSessions: sessionSet.size,
+      valueSum: comboValue,
+      lastTimestamp: lastTs || null,
+      lastDate: lastTs ? new Date(lastTs).toISOString() : null,
+    });
+  });
+
+  items.sort((a, b) => b.count - a.count);
+  const limitedItems = limit ? items.slice(0, limit) : items;
+  const timeseries = Array.from(timeseriesMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, value]) => ({ date, count: value.count, valueSum: value.value }));
+
+  return {
+    items: limitedItems,
+    totals: { count: totalCount, uniqueSessions: totalUnique },
+    timeseries,
+    catalog,
+  };
+}
+
+export async function ingestEvents(events, context = {}) {
+  if (!Array.isArray(events) || !events.length) {
+    return { ingested: 0 };
+  }
+
+  if (await hasRedis()) {
+    return ingestWithRedis(events, context);
+  }
+
+  return ingestWithMemory(events, context);
+}
+
+export async function getEventSummary(options = {}) {
+  if (await hasRedis()) {
+    return getSummaryFromRedis(options);
+  }
+  return getSummaryFromMemory(options);
+}
+
+export async function getEventCatalog() {
+  if (await hasRedis()) {
+    const combos = await fetchCatalogFromRedis();
+    return buildCatalogFromCombos(combos);
+  }
+  return aggregateCatalogFromMemory();
+}

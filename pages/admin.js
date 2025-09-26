@@ -12,6 +12,11 @@ import AdsterraControls from '../components/admin/adsterra/AdsterraControls';
 import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCards';
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
 import AdsterraChartPanel from '../components/admin/adsterra/AdsterraChartPanel';
+import EventSummaryCards from '../components/admin/events/EventSummaryCards';
+import EventFilters from '../components/admin/events/EventFilters';
+import EventTable from '../components/admin/events/EventTable';
+import EventTrendChart from '../components/admin/events/EventTrendChart';
+import EventAdCorrelation from '../components/admin/insights/EventAdCorrelation';
 import MetricsModal from '../components/admin/modals/MetricsModal';
 import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
 import AnalyticsCsvUploadModal from '../components/admin/modals/AnalyticsCsvUploadModal';
@@ -23,13 +28,14 @@ import useClipboard from '../hooks/admin/useClipboard';
 import useAdminItems from '../hooks/admin/useAdminItems';
 import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
+import useEventAnalytics from '../hooks/admin/useEventAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드 · 목록', requiresToken: false },
   { key: 'analytics', label: '분석', requiresToken: true },
-  { key: 'adsterra', label: '통계', requiresToken: true },
+  { key: 'insights', label: '광고 통합 인사이트', requiresToken: true },
 ];
 
 function getDefaultAdsterraDateRange() {
@@ -110,6 +116,7 @@ export default function AdminPage() {
 
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
+  const [eventFilters, setEventFilters] = useState({ eventName: '', slug: '' });
 
   const analyticsInitialFilters = useMemo(
     () => ({ type: '', orientation: '', query: '' }),
@@ -122,6 +129,14 @@ export default function AdminPage() {
     initialFilters: analyticsInitialFilters,
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
+  });
+
+  const eventAnalytics = useEventAnalytics({
+    enabled: hasToken && view === 'analytics',
+    token,
+    startDate: analyticsStartDate,
+    endDate: analyticsEndDate,
+    filters: { ...eventFilters, limit: 200 },
   });
 
   const fetchHistory = useCallback(
@@ -177,13 +192,41 @@ export default function AdminPage() {
   }, []);
 
   const adsterra = useAdsterraStats({
-    enabled: hasToken && view === 'adsterra',
+    enabled: hasToken && view === 'insights',
     defaultRange: defaultAdsterraRange,
     envToken: adsterraEnvToken,
     domainName: adsterraDomainNameEnv,
     domainKey: adsterraDomainKeyEnv || adsterraDomainIdEnv,
     initialDomainId: adsterraDomainIdEnv,
   });
+
+  const insightsEvents = useEventAnalytics({
+    enabled: hasToken && view === 'insights',
+    token,
+    startDate: adsterra.startDate,
+    endDate: adsterra.endDate,
+    filters: { limit: 200 },
+  });
+
+  const adCorrelationSeries = useMemo(() => {
+    const seriesMap = new Map();
+    adsterra.filteredStats.forEach((row) => {
+      if (!row || typeof row !== 'object') return;
+      const dateLabel = row.date || row.day || row.Day || row.group;
+      if (!dateLabel) return;
+      const impressions = Number(row?.impression ?? row?.impressions ?? 0) || 0;
+      const clicks = Number(row?.clicks ?? row?.click ?? 0) || 0;
+      const revenue = Number(row?.revenue ?? 0) || 0;
+      const current = seriesMap.get(dateLabel) || { impressions: 0, clicks: 0, revenue: 0 };
+      current.impressions += impressions;
+      current.clicks += clicks;
+      current.revenue += revenue;
+      seriesMap.set(dateLabel, current);
+    });
+    return Array.from(seriesMap.entries())
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .map(([date, value]) => ({ date, ...value }));
+  }, [adsterra.filteredStats]);
 
   const {
     editingItem,
@@ -219,7 +262,7 @@ export default function AdminPage() {
   } = useAdminModals({ hasToken, queryString: qs, setItems, refresh });
 
   useEffect(() => {
-    if (!hasToken && (view === 'analytics' || view === 'adsterra')) {
+    if (!hasToken && (view === 'analytics' || view === 'insights')) {
       setView('uploads');
     }
   }, [hasToken, view]);
@@ -353,6 +396,10 @@ export default function AdminPage() {
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {
     setUploadFilters((prev) => ({ ...prev, ...nextFilters }));
+  }, []);
+
+  const handleEventFilterChange = useCallback((next) => {
+    setEventFilters((prev) => ({ ...prev, ...next }));
   }, []);
 
   const handleCopyRoute = useCallback(
@@ -714,10 +761,38 @@ export default function AdminPage() {
               onToggleRow={analytics.toggleRowSelection}
               onToggleAll={(selectAll) => (selectAll ? analytics.selectAllRows() : analytics.clearSelection())}
             />
+            <div className="mt-12 space-y-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">커스텀 이벤트 분석</h2>
+                  <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
+                </div>
+              </div>
+              <EventFilters
+                startDate={analyticsStartDate}
+                endDate={analyticsEndDate}
+                onDateChange={handleAnalyticsDateChange}
+                filters={eventFilters}
+                onFilterChange={handleEventFilterChange}
+                catalog={eventAnalytics.data.catalog}
+                loading={eventAnalytics.loading}
+                onRefresh={eventAnalytics.refresh}
+              />
+              <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+              {eventAnalytics.data.timeseries.length > 0 && (
+                <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
+              )}
+              <EventTable
+                rows={eventAnalytics.data.items}
+                loading={eventAnalytics.loading}
+                error={eventAnalytics.error}
+                formatNumber={formatNumber}
+              />
+            </div>
           </div>
         )}
 
-        {view === 'adsterra' && (
+        {view === 'insights' && (
           <div className="space-y-6">
             <AdsterraControls
               domainName={adsterraDomainNameEnv}
@@ -755,6 +830,22 @@ export default function AdminPage() {
               onApplyPreset={handleApplyPreset}
             />
             <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
+            <EventSummaryCards totals={insightsEvents.data.totals} formatNumber={formatNumber} />
+            {insightsEvents.data.timeseries.length > 0 && (
+              <EventTrendChart series={insightsEvents.data.timeseries} formatNumber={formatNumber} />
+            )}
+            <EventAdCorrelation
+              eventSeries={insightsEvents.data.timeseries}
+              adSeries={adCorrelationSeries}
+              formatNumber={formatNumber}
+              formatDecimal={formatDecimal}
+            />
+            <EventTable
+              rows={insightsEvents.data.items}
+              loading={insightsEvents.loading}
+              error={insightsEvents.error}
+              formatNumber={formatNumber}
+            />
             <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
             <AdsterraStatsTable
               rows={adsterra.filteredStats}
