@@ -1,4 +1,5 @@
 import { list } from '@vercel/blob';
+import normalizeMeta from '@/lib/admin/normalizeMeta';
 import { getBlobReadToken } from './blobTokens';
 import localMemes from './localMemes';
 
@@ -53,24 +54,49 @@ function getLocalFallback() {
   };
 }
 
+function resolveSource(meta) {
+  if (!meta) return 'Blob';
+  if (typeof meta.source === 'string' && meta.source.trim().length > 0) {
+    return meta.source.trim();
+  }
+  if (meta.source && typeof meta.source === 'object') {
+    const origin =
+      typeof meta.source.origin === 'string' && meta.source.origin.trim().length > 0
+        ? meta.source.origin.trim()
+        : '';
+    if (origin) return origin;
+  }
+  return 'Blob';
+}
+
 function normalize(meta) {
-  const normalizedPoster = meta.poster || meta.thumbnail || null;
-  const normalizedThumbnail = meta.thumbnail || normalizedPoster || '';
+  const normalized = normalizeMeta(meta);
+
+  const publishedAt = normalized.publishedAt || new Date().toISOString();
+  const preview = normalized.preview || normalized.thumbnail || normalized.poster || '';
+  const poster = normalized.poster || (preview || null);
+  const thumbnail = normalized.thumbnail || preview || '';
 
   return {
-    slug: meta.slug,
-    type: meta.type || 'video',
-    src: meta.src || meta.url,
-    poster: normalizedPoster,
-    title: meta.title || '',
-    description: meta.description || '',
-    thumbnail: normalizedThumbnail,
-    orientation: meta.orientation || 'landscape',
-    durationSeconds: Number(meta.durationSeconds) || 0,
-    source: meta.source || 'Blob',
-    publishedAt: meta.publishedAt || new Date().toISOString(),
-    likes: Number(meta.likes) || 0,
-    views: Number(meta.views) || 0
+    slug: normalized.slug,
+    type: normalized.type || 'video',
+    src: normalized.src || '',
+    poster,
+    title: normalized.title || '',
+    description: normalized.description || '',
+    thumbnail,
+    preview,
+    summary: normalized.summary || '',
+    orientation: normalized.orientation || 'landscape',
+    durationSeconds: Number.isFinite(Number(normalized.durationSeconds))
+      ? Number(normalized.durationSeconds)
+      : 0,
+    source: resolveSource(meta),
+    publishedAt,
+    updatedAt: normalized.updatedAt || '',
+    likes: Number.isFinite(Number(normalized.likes)) ? Number(normalized.likes) : 0,
+    views: Number.isFinite(Number(normalized.views)) ? Number(normalized.views) : 0,
+    timestamps: Array.isArray(normalized.timestamps) ? normalized.timestamps : [],
   };
 }
 

@@ -123,6 +123,7 @@ function buildItem(blob, metaInfo) {
     likes: Number.isFinite(normalized.likes) ? normalized.likes : 0,
     views: Number.isFinite(normalized.views) ? normalized.views : 0,
     publishedAt: normalized.publishedAt || '',
+    updatedAt: normalized.updatedAt || '',
     _error: Boolean(metaInfo.error),
   };
 }
