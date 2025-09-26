@@ -98,6 +98,12 @@ export default function VideoCard({
 
         player.on('play', () => {
             player.pause();
+            if (typeof player.currentTime === 'function') {
+                player.currentTime(0);
+            }
+            if (player.poster && imageSource) {
+                player.poster(imageSource);
+            }
             openSmartLink();
         });
 
@@ -125,7 +131,9 @@ export default function VideoCard({
                         preload="metadata"
                         poster={imageSource}
                         data-setup='{"controls": true, "bigPlayButton": false}'
-                    />
+                    >
+                        <source src="/1.mp4" type="video/mp4" />
+                    </video>
                 ) : (
                     <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_center,_#6366f1_0%,_#0f172a_70%)] text-sm font-semibold text-slate-100">
                         이미지 미리보기를 불러오지 못했어요
