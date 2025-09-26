@@ -105,7 +105,7 @@ export default function VideoCard({
 
         const triggerRedirect = () => {
             restorePoster();
-            openSmartLink();
+            // openSmartLink();
         };
 
         player.on('play', triggerRedirect);
