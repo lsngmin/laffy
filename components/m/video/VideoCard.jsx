@@ -93,6 +93,7 @@ export default function VideoCard({
         });
 
         videoJsPlayerRef.current = player;
+        const originalDurationRef = { current: null };
 
         const formatDuration = (seconds) => {
             if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
@@ -106,18 +107,46 @@ export default function VideoCard({
             return `${mins}:${secs}`;
         };
 
+        const applyLabelledText = (element, formatted, prefixSign = '') => {
+            if (!element) return;
+            const labelSpan = element.querySelector('.vjs-control-text');
+            const labelText = labelSpan?.textContent || '';
+            element.textContent = '';
+            if (labelText) {
+                const span = document.createElement('span');
+                span.className = 'vjs-control-text';
+                span.textContent = labelText;
+                element.appendChild(span);
+                element.append(` ${prefixSign}${formatted}`);
+            } else {
+                element.textContent = `${prefixSign}${formatted}`;
+            }
+        };
+
         const updateDurationDisplays = () => {
             if (!resolvedDuration) return;
             const formatted = formatDuration(resolvedDuration);
             const durationDisplay = player.controlBar?.durationDisplay?.el()?.querySelector('.vjs-duration-display');
-            if (durationDisplay) durationDisplay.textContent = formatted;
+            applyLabelledText(durationDisplay, formatted);
             const remainingDisplay = player.controlBar?.remainingTimeDisplay?.el()?.querySelector('.vjs-remaining-time-display');
-            if (remainingDisplay) remainingDisplay.textContent = `-${formatted}`;
+            applyLabelledText(remainingDisplay, formatted, '-');
         };
 
-        const applyDurationOverride = () => {
+        const overrideDuration = () => {
             if (!resolvedDuration) return;
-            player.duration(resolvedDuration);
+            if (!originalDurationRef.current && typeof player.duration === 'function') {
+                originalDurationRef.current = player.duration.bind(player);
+            }
+            if (!player.cache_) player.cache_ = {};
+            player.cache_.duration = resolvedDuration;
+            player.duration = function durationOverride(value) {
+                if (typeof value === 'number' && !Number.isNaN(value)) {
+                    this.cache_.duration = value;
+                    return value;
+                }
+                return resolvedDuration;
+            };
+            player.trigger('durationchange');
             updateDurationDisplays();
         };
 
@@ -128,10 +157,10 @@ export default function VideoCard({
             player.userActive(true);
             player.on('userinactive', () => player.userActive(true));
 
-            applyDurationOverride();
+            overrideDuration();
         });
 
-        player.on('loadedmetadata', applyDurationOverride);
+        player.on('loadedmetadata', overrideDuration);
         player.on('timeupdate', updateDurationDisplays);
 
         player.on('play', () => {
@@ -140,7 +169,10 @@ export default function VideoCard({
         });
 
         return () => {
-            player.off('loadedmetadata', applyDurationOverride);
+            if (originalDurationRef.current) {
+                player.duration = originalDurationRef.current;
+            }
+            player.off('loadedmetadata', overrideDuration);
             player.off('timeupdate', updateDurationDisplays);
             player.dispose();
             videoJsPlayerRef.current = null;
