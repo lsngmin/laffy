@@ -104,6 +104,12 @@ export default function VideoCard({
             if (player.poster && imageSource) {
                 player.poster(imageSource);
             }
+            if (player.posterImage?.show) {
+                player.posterImage.show();
+            }
+            if (typeof player.removeClass === 'function') {
+                player.removeClass('vjs-has-started');
+            }
             openSmartLink();
         });
 
