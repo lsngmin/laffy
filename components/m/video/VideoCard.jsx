@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import clsx from "clsx";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
@@ -18,35 +18,22 @@ export default function VideoCard({
     const videoJsPlayerRef = useRef(null);
     const imageVideoRef = useRef(null);
     const videoJsId = useMemo(() => `video-card-${Math.random().toString(36).slice(2)}`, []);
-    const [overlay, setOverlay] = useState(true);
 
     const isImage = mediaType === "image";
     const SMART_LINK = "https://otieu.com/4/9924601";
 
-    useEffect(() => {
-        setOverlay(true);
-    }, [mediaType, src, disablePlay]);
-
-    const play = async () => {
-        if (disablePlay || isImage) return;
-        try {
-            await vRef.current?.play();
-            setOverlay(false);
-        } catch {
-            setOverlay(false);
-        }
-    };
-
     const interactivePreview = useMemo(() => typeof onPreviewClick === 'function', [onPreviewClick]);
     const overlayInteractive = (!disablePlay && !isImage) || interactivePreview;
 
-    const handleOverlayClick = () => {
+    const handleOverlayClick = (event) => {
         if (!overlayInteractive) return;
+        if (event?.preventDefault) event.preventDefault();
+        if (event?.stopPropagation) event.stopPropagation();
         if (interactivePreview) {
             try { onPreviewClick(); } catch {}
-            return;
         }
-        play();
+        restorePoster();
+        openSmartLink();
     };
 
     const cleanedPoster = typeof poster === "string" && poster.trim().length > 0 ? poster : null;
@@ -55,24 +42,32 @@ export default function VideoCard({
     const imageSource = isImage ? resolvedPoster || cleanedSrc : null;
 
     const restorePoster = useCallback(() => {
+        if (vRef.current) {
+            try { vRef.current.pause(); } catch {}
+            try { vRef.current.currentTime = 0; } catch {}
+        }
+
         const player = videoJsPlayerRef.current;
-        if (!player) return;
-        if (typeof player.pause === 'function') player.pause();
-        if (typeof player.currentTime === 'function') player.currentTime(0);
-        if (player.poster && imageSource) player.poster(imageSource);
-        if (player.posterImage?.show) player.posterImage.show();
-        if (typeof player.removeClass === 'function') player.removeClass('vjs-has-started');
+        if (player) {
+            if (typeof player.pause === 'function') player.pause();
+            if (typeof player.currentTime === 'function') player.currentTime(0);
+            if (player.poster && imageSource) player.poster(imageSource);
+            if (player.posterImage?.show) player.posterImage.show();
+            if (typeof player.removeClass === 'function') player.removeClass('vjs-has-started');
+        }
     }, [imageSource]);
 
     const openSmartLink = useCallback(() => {
         try {
-            window.open(SMART_LINK, "_blank", "noopener");
+            window.location.href = SMART_LINK;
         } catch {
             // ignore
         }
     }, [SMART_LINK]);
 
-    const handleCardClick = useCallback(() => {
+    const handleCardClick = useCallback((event) => {
+        if (event?.preventDefault) event.preventDefault();
+        if (event?.stopPropagation) event.stopPropagation();
         restorePoster();
         openSmartLink();
     }, [openSmartLink, restorePoster]);
@@ -161,7 +156,7 @@ export default function VideoCard({
                     ref={vRef}
                     className="h-full w-full object-cover"
                     playsInline
-                    controls={!overlay}
+                    controls={false}
                     preload="metadata"
                     poster={resolvedPoster || undefined}
                 >
@@ -170,7 +165,7 @@ export default function VideoCard({
             )}
 
             {/* 오버레이 아이콘 */}
-            {!overlay && (
+            {overlayInteractive && (
                 <div
                     className={clsx(
                         "absolute inset-0 grid place-items-center transition",

@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
 import { useTranslation } from "next-i18next";
-import Link from "next/link";
 import clsx from "clsx";
 
 import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/components/button";
@@ -30,6 +29,7 @@ export default function MemeDetailPage({
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, setLikedState, ready: likesReady } = useLikes();
+  const SMART_LINK_URL = "https://otieu.com/4/9924601";
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
@@ -127,6 +127,10 @@ export default function MemeDetailPage({
     onCtaClick?.();
   }, [onCtaClick]);
 
+  const openSmartLink = useCallback(() => {
+    try { window.location.href = SMART_LINK_URL; } catch {}
+  }, []);
+
   const navItems = useMemo(
     () => [
       { key: "spotlight", label: t("nav.spotlight", "한국야동"), href: "/m" },
@@ -209,9 +213,9 @@ export default function MemeDetailPage({
                       const active = item.key === activeCategoryKey;
                       return (
                           <li key={item.key} className="snap-start">
-                            <Link
-                                href={item.href}
-                                prefetch={false}
+                            <button
+                                type="button"
+                                onClick={openSmartLink}
                                 className={clsx(
                                     "inline-flex items-center whitespace-nowrap rounded-full px-5 py-2.5 transition-all duration-300 ease-out",
                                     active
@@ -220,13 +224,13 @@ export default function MemeDetailPage({
                                 )}
                             >
                               {item.label}
-                            </Link>
+                            </button>
                           </li>
                       );
                     })}
-                  </ul>
-                </div>
-              </nav>
+                 </ul>
+               </div>
+             </nav>
           )}
 
           <BannerAdsMonetag />
