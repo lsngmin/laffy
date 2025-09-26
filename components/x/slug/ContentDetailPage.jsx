@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Head from "next/head";
 import { useTranslation } from "next-i18next";
-import clsx from "clsx";
 
 import { LikeButton, ShareButton, LocaleSwitchButton, BookmarkButton } from "@/components/button";
 import { BookmarkLink, BackToFeedLink } from "@/components/link";
@@ -13,10 +12,11 @@ import TitleNameHead from "@/components/m/TitleNameHead";
 import LogoText from "@/components/LogoText";
 import RecommendedMemes from "@/components/m/RecommendedMemes";
 import dynamic from "next/dynamic";
+import CategoryNavigation from "./CategoryNavigation";
 
 const BannerRect = dynamic(() => import("@/components/ads/RelishAtOptionsFrame"), { ssr: false });
 
-export default function MemeDetailPage({
+export default function ContentDetailPage({
   meme,
   allMemes,
   disableVideo = false,
@@ -48,13 +48,13 @@ export default function MemeDetailPage({
   const viewsDisplay = formatCount(serverCounts.views ?? meme.views, locale);
 
   // Safe meta values for social preview (length/whitespace)
-  const safeTitle = String(meme?.title || 'Laffy')
-    .replace(/[\r\n\t]+/g, ' ')
-    .replace(/\s+/g, ' ')
+  const safeTitle = String(meme?.title || "Laffy")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
     .slice(0, 70);
-  const safeDesc = String(meme?.description || '')
-    .replace(/[\r\n\t]+/g, ' ')
-    .replace(/\s+/g, ' ')
+  const safeDesc = String(meme?.description || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
     .slice(0, 200);
 
   useEffect(() => {
@@ -72,10 +72,10 @@ export default function MemeDetailPage({
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        const views = typeof data?.views === 'number' ? data.views : meme.views;
-        const likes = typeof data?.likes === 'number' ? data.likes : meme.likes;
+        const views = typeof data?.views === "number" ? data.views : meme.views;
+        const likes = typeof data?.likes === "number" ? data.likes : meme.likes;
         setServerCounts({ views, likes });
-        if (typeof data?.liked === 'boolean') {
+        if (typeof data?.liked === "boolean") {
           setLikedState(meme.slug, data.liked);
         }
       } catch {
@@ -94,7 +94,7 @@ export default function MemeDetailPage({
   const handleToggleLike = async () => {
     const prevLiked = liked;
     const nextLiked = !prevLiked;
-    const prevLikesCount = typeof serverCounts.likes === 'number' ? serverCounts.likes : meme.likes;
+    const prevLikesCount = typeof serverCounts.likes === "number" ? serverCounts.likes : meme.likes;
 
     setLikedState(meme.slug, nextLiked);
     setServerCounts((s) => ({
@@ -108,11 +108,11 @@ export default function MemeDetailPage({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ slug: meme.slug, liked: nextLiked }),
       });
-      if (!res.ok) throw new Error('like_failed');
+      if (!res.ok) throw new Error("like_failed");
       const data = await res.json();
-      const resolvedLikes = typeof data?.likes === 'number' ? data.likes : prevLikesCount;
+      const resolvedLikes = typeof data?.likes === "number" ? data.likes : prevLikesCount;
       setServerCounts((s) => ({ ...s, likes: resolvedLikes }));
-      if (typeof data?.liked === 'boolean') {
+      if (typeof data?.liked === "boolean") {
         setLikedState(meme.slug, data.liked);
       }
     } catch {
@@ -191,49 +191,15 @@ export default function MemeDetailPage({
           {/*</div>*/}
 
           <div className="mt-6 mb-6 text-center">
-            <LogoText size={'5xl'} className="tracking-[0.4em]" />
+            <LogoText size={"5xl"} className="tracking-[0.4em]" />
           </div>
 
-          {navItems.length > 0 && (
-              <nav
-                  className="relative mx-auto mb-6 max-w-4xl"
-                  aria-label={t("nav.label", "Meme navigation")}
-              >
-                <div className="relative rounded-3xl bg-slate-900/70 backdrop-blur-md px-4 py-3 shadow-xl ring-1 ring-white/10">
-                  {/* 좌우 그라데이션 마스크 */}
-                  <span
-                      className="pointer-events-none absolute inset-y-0 left-0 w-12 rounded-l-3xl bg-gradient-to-r from-slate-950 via-slate-950/70 to-transparent"
-                      aria-hidden="true"
-                  />
-                  <span
-                      className="pointer-events-none absolute inset-y-0 right-0 w-12 rounded-r-3xl bg-gradient-to-l from-slate-950 via-slate-950/70 to-transparent"
-                      aria-hidden="true"
-                  />
-
-                  <ul className="flex flex-wrap justify-center gap-3 overflow-x-auto snap-x snap-mandatory text-sm font-medium text-slate-300">
-                    {navItems.map((item) => {
-                      const active = item.key === activeCategoryKey;
-                      return (
-                          <li key={item.key} className="snap-start">
-                            <button
-                                type="button"
-                                onClick={openSmartLink}
-                                className={clsx(
-                                    "inline-flex items-center whitespace-nowrap rounded-full px-5 py-2.5 transition-all duration-300 ease-out",
-                                    active
-                                        ? "bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400 text-slate-950 shadow-lg shadow-sky-400/20 ring-2 ring-sky-300"
-                                        : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white hover:scale-105"
-                                )}
-                            >
-                              {item.label}
-                            </button>
-                          </li>
-                      );
-                    })}
-                 </ul>
-               </div>
-             </nav>
-          )}
+          <CategoryNavigation
+            items={navItems}
+            activeKey={activeCategoryKey}
+            onItemClick={openSmartLink}
+            ariaLabel={t("nav.label", "Meme navigation")}
+          />
 
           <div className="mt-6 flex justify-center">
             <BannerRect width={300} height={250} />
@@ -247,9 +213,9 @@ export default function MemeDetailPage({
             <header className="space-y-4">
               <h1 className="text-2xl font-bold leading-snug text-white sm:text-[30px]">{meme.description}</h1>
               <div className="flex flex-wrap items-center gap-3 text-[13px] font-medium text-slate-300/90">
-                {relativeTime && <span>{`${t('meta.postedLabel')}: ${relativeTime}`}</span>}
-                {viewsDisplay && <span>{`${t('meta.viewsLabel')}: ${viewsDisplay}`}</span>}
-                {likesDisplay && <span>{`${t('meta.likesLabel')}: ${likesDisplay}`}</span>}
+                {relativeTime && <span>{`${t("meta.postedLabel")}: ${relativeTime}`}</span>}
+                {viewsDisplay && <span>{`${t("meta.viewsLabel")}: ${viewsDisplay}`}</span>}
+                {likesDisplay && <span>{`${t("meta.likesLabel")}: ${likesDisplay}`}</span>}
               </div>
             </header>
 

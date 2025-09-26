@@ -1,9 +1,9 @@
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
-import MemeDetailPage from '@/components/m/MemeDetailPage';
+import ContentDetailPage from '@/components/x/slug/ContentDetailPage';
 import dynamic from 'next/dynamic';
 import QuadAdGrid from '@/components/ads/QuadAdGrid';
-const MonetagInvoke = dynamic(() => import('@/components/ads/MonetagInvokeContainer'), { ssr: false });
+const MonetagBanner = dynamic(() => import('@/components/x/ads/BannerAdsMonetag'), { ssr: false });
 import * as g from '@/lib/gtag';
 import { vaTrack } from '@/lib/va';
 import { useEffect, useRef, useCallback } from 'react';
@@ -162,7 +162,7 @@ export default function ImageDetail(props) {
   }, [slug, title]);
 
   return (
-    <MemeDetailPage
+    <ContentDetailPage
       {...props}
       disableVideo
       hideBackToFeed
@@ -176,7 +176,7 @@ export default function ImageDetail(props) {
       belowVideoSlot={null}
       afterArticleSlot={
         <div className="mt-6 flex w-full justify-center">
-          <MonetagInvoke
+          <MonetagBanner
             containerId="container-423e3c0edc8f597be9c7991231d2dd57"
             src="//relishsubsequentlytank.com/423e3c0edc8f597be9c7991231d2dd57/invoke.js"
           />
