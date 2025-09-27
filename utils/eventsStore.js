@@ -1,3 +1,11 @@
+import {
+  hasSupabaseConfig,
+  callSupabaseRpc,
+  supabaseRest,
+  SUPABASE_EVENTS_ROLLUP_FUNCTION,
+  SUPABASE_EVENTS_ROLLUP_TABLE,
+} from './supabaseClient';
+
 const DEFAULT_RANGE_DAYS = 6;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CATALOG_KEY = 'events:catalog';
@@ -244,6 +252,73 @@ function aggregateEventsForRedis(events, context = {}) {
   };
 }
 
+async function persistEventAggregatesToSupabase(aggregates) {
+  if (!Array.isArray(aggregates) || aggregates.length === 0) return;
+  if (!hasSupabaseConfig()) return;
+
+  const rows = aggregates
+    .filter((entry) => entry?.count > 0)
+    .map((entry) => ({
+      date_key: entry.dateKey,
+      event_name: entry.name,
+      slug: entry.slugKey === GLOBAL_SLUG ? null : entry.slugKey,
+      count: entry.count,
+      value_sum: entry.valueSum,
+      uniq_sessions: entry.sessions instanceof Set ? entry.sessions.size : Number(entry.sessionCount || 0),
+      last_ts: entry.lastTimestamp || null,
+    }))
+    .filter((row) => row.count > 0);
+
+  if (!rows.length) return;
+
+  try {
+    await callSupabaseRpc(SUPABASE_EVENTS_ROLLUP_FUNCTION, { rows });
+  } catch (error) {
+    console.warn('[events] supabase ingest failed', error);
+  }
+}
+
+async function fetchEventRollupsFromSupabase({ startDateKey, endDateKey, eventName, slug }) {
+  if (!hasSupabaseConfig()) return [];
+  if (!startDateKey || !endDateKey) return [];
+
+  const params = new URLSearchParams();
+  params.set('select', 'date_key,event_name,slug,count,value_sum,uniq_sessions,last_ts');
+  params.append('date_key', `gte.${startDateKey}`);
+  params.append('date_key', `lte.${endDateKey}`);
+  params.set('order', 'date_key.asc,event_name.asc,slug.asc');
+
+  if (eventName && typeof eventName === 'string') {
+    params.set('event_name', `eq.${eventName.trim()}`);
+  }
+
+  if (typeof slug === 'string') {
+    const trimmed = slug.trim();
+    if (trimmed) {
+      params.set('slug', `eq.${trimmed}`);
+    } else {
+      params.set('slug', 'is.null');
+    }
+  }
+
+  try {
+    const rows = await supabaseRest(`${SUPABASE_EVENTS_ROLLUP_TABLE}?${params.toString()}`);
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row) => ({
+      dateKey: typeof row.date_key === 'string' ? row.date_key : toDateKey(row.date_key),
+      name: row.event_name,
+      slugKey: row.slug === null || row.slug === undefined || row.slug === '' ? GLOBAL_SLUG : row.slug,
+      count: Number(row.count) || 0,
+      valueSum: Number(row.value_sum) || 0,
+      uniqueSessions: Number(row.uniq_sessions) || 0,
+      lastTimestamp: Number(row.last_ts) || 0,
+    }));
+  } catch (error) {
+    console.warn('[events] supabase summary fetch failed', error);
+    return [];
+  }
+}
+
 async function ingestWithRedis(events, context = {}) {
   const limitedEvents = Array.isArray(events) ? events.slice(0, MAX_EVENTS_PER_BATCH) : [];
   const { combos, aggregates } = aggregateEventsForRedis(limitedEvents, context);
@@ -277,13 +352,21 @@ async function ingestWithRedis(events, context = {}) {
     }
   }
 
+  let redisSucceeded = false;
   try {
     await Promise.all(tasks);
-    return { ingested: limitedEvents.length };
+    redisSucceeded = true;
   } catch (error) {
     console.warn('[events] redis ingest failed, falling back to memory', error);
+  }
+
+  await persistEventAggregatesToSupabase(aggregates);
+
+  if (!redisSucceeded) {
     return ingestWithMemory(limitedEvents, context);
   }
+
+  return { ingested: limitedEvents.length };
 }
 
 function ingestWithMemory(events, context = {}) {
@@ -386,6 +469,25 @@ async function getSummaryFromRedis(options = {}) {
     slug: options.slug,
   });
 
+  if (!dateKeys.length || combos.length === 0) {
+    return {
+      items: [],
+      totals: {
+        count: 0,
+        uniqueSessions: 0,
+        visitors: 0,
+        pageViews: 0,
+        bounceEvents: 0,
+        bounceRate: 0,
+        pageViewEventNames: [],
+        visitorEventNames: [],
+        bounceEventNames: [],
+      },
+      timeseries: [],
+      catalog,
+    };
+  }
+
   const items = [];
   const timeseriesMap = new Map();
   let totalCount = 0;
@@ -396,50 +498,96 @@ async function getSummaryFromRedis(options = {}) {
   const visitorEvents = new Set();
   const bounceEvents = new Set();
 
+  const todayKey = toDateKey(Date.now());
+  const supabaseRollups = await fetchEventRollupsFromSupabase({
+    startDateKey: dateKeys[0],
+    endDateKey: dateKeys[dateKeys.length - 1],
+    eventName: options.eventName,
+    slug: options.slug,
+  });
+
+  const supabaseMap = new Map();
+  for (const row of supabaseRollups) {
+    if (!row || !row.dateKey || !row.name) continue;
+    const key = `${row.dateKey}::${row.name}::${row.slugKey}`;
+    const existing = supabaseMap.get(key);
+    if (existing) {
+      existing.count += row.count;
+      existing.valueSum += row.valueSum;
+      existing.uniqueSessions += row.uniqueSessions;
+      existing.lastTimestamp = Math.max(existing.lastTimestamp, row.lastTimestamp || 0);
+    } else {
+      supabaseMap.set(key, { ...row });
+    }
+  }
+
   for (const combo of combos) {
     const slugKey = combo.slug || GLOBAL_SLUG;
-    const sessionKeys = [];
     let comboCount = 0;
     let comboValue = 0;
     let lastTs = 0;
+    let supabaseUnique = 0;
+    const redisSessionKeys = [];
+    const redisDateKeys = [];
 
-    const dailyResults = await Promise.all(
-      dateKeys.map((dateKey) =>
-        redisCommand(['HGETALL', `events:agg:${dateKey}:${combo.name}:${slugKey}`], {
-          allowReadOnly: true,
-        })
-      )
-    );
+    for (const dateKey of dateKeys) {
+      const supaKey = `${dateKey}::${combo.name}::${slugKey}`;
+      const supaRow = supabaseMap.get(supaKey);
+      if (supaRow && dateKey !== todayKey) {
+        comboCount += supaRow.count;
+        comboValue += supaRow.valueSum;
+        supabaseUnique += supaRow.uniqueSessions;
+        lastTs = Math.max(lastTs, supaRow.lastTimestamp || 0);
+        const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
+        dateEntry.count += supaRow.count;
+        dateEntry.value += supaRow.valueSum;
+        timeseriesMap.set(dateKey, dateEntry);
+      } else {
+        redisDateKeys.push(dateKey);
+      }
+    }
 
-    dailyResults.forEach((raw, index) => {
-      if (!Array.isArray(raw) || raw.length === 0) return;
-      const data = entriesToObject(raw);
-      const count = Number(data.count) || 0;
-      const valueSum = Number(data.sum_value) || 0;
-      const last = Number(data.last_ts) || 0;
-      if (count <= 0) return;
-      comboCount += count;
-      comboValue += Number.isFinite(valueSum) ? valueSum : 0;
-      lastTs = Math.max(lastTs, last);
-      const dateKey = dateKeys[index];
-      const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
-      dateEntry.count += count;
-      dateEntry.value += Number.isFinite(valueSum) ? valueSum : 0;
-      timeseriesMap.set(dateKey, dateEntry);
-      sessionKeys.push(`events:sessions:${dateKey}:${combo.name}:${slugKey}`);
-    });
+    if (redisDateKeys.length) {
+      const redisResults = await Promise.all(
+        redisDateKeys.map((dateKey) =>
+          redisCommand(['HGETALL', `events:agg:${dateKey}:${combo.name}:${slugKey}`], {
+            allowReadOnly: true,
+          })
+        )
+      );
+
+      redisResults.forEach((raw, index) => {
+        if (!Array.isArray(raw) || raw.length === 0) return;
+        const data = entriesToObject(raw);
+        const count = Number(data.count) || 0;
+        const valueSum = Number(data.sum_value) || 0;
+        const last = Number(data.last_ts) || 0;
+        if (count <= 0) return;
+        const dateKey = redisDateKeys[index];
+        comboCount += count;
+        comboValue += Number.isFinite(valueSum) ? valueSum : 0;
+        lastTs = Math.max(lastTs, last);
+        const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
+        dateEntry.count += count;
+        dateEntry.value += Number.isFinite(valueSum) ? valueSum : 0;
+        timeseriesMap.set(dateKey, dateEntry);
+        redisSessionKeys.push(`events:sessions:${dateKey}:${combo.name}:${slugKey}`);
+      });
+    }
 
     if (!comboCount) continue;
 
-    let uniqueSessions = 0;
-    if (sessionKeys.length) {
+    let redisUnique = 0;
+    if (redisSessionKeys.length) {
       try {
-        const result = await redisCommand(['PFCOUNT', ...sessionKeys], { allowReadOnly: true });
-        uniqueSessions = Number(result) || 0;
+        const result = await redisCommand(['PFCOUNT', ...redisSessionKeys], { allowReadOnly: true });
+        redisUnique = Number(result) || 0;
       } catch (error) {
         console.warn('[events] PFCOUNT failed', error);
       }
     }
+
+    const uniqueSessions = supabaseUnique + redisUnique;
 
     totalCount += comboCount;
     totalUnique += uniqueSessions;
@@ -605,6 +753,9 @@ export async function ingestEvents(events, context = {}) {
   if (await hasRedis()) {
     return ingestWithRedis(limitedEvents, context);
   }
+
+  const { aggregates } = aggregateEventsForRedis(limitedEvents, context);
+  await persistEventAggregatesToSupabase(aggregates);
 
   return ingestWithMemory(limitedEvents, context);
 }

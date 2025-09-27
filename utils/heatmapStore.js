@@ -1,3 +1,9 @@
+import {
+  hasSupabaseConfig,
+  callSupabaseRpc,
+  SUPABASE_HEATMAP_ROLLUP_FUNCTION,
+} from './supabaseClient';
+
 const FIELD_DELIMITER = '|';
 const DEFAULT_BUCKET = 'default';
 const MAX_CELLS_PER_BATCH = 30;
@@ -129,6 +135,36 @@ async function recordWithMemory(slug, bucket, cells) {
   return recorded;
 }
 
+function resolveDateKey(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+async function persistHeatmapSamplesToSupabase(slug, bucket, cells, timestamp) {
+  if (!Array.isArray(cells) || cells.length === 0) return;
+  if (!hasSupabaseConfig()) return;
+
+  const dateKey = resolveDateKey(timestamp);
+  const rows = cells.map((cell) => ({
+    date_key: dateKey,
+    slug,
+    bucket,
+    cell: cell.cell,
+    section: cell.section,
+    type: cell.type,
+    count: cell.count,
+  }));
+
+  try {
+    await callSupabaseRpc(SUPABASE_HEATMAP_ROLLUP_FUNCTION, { rows });
+  } catch (error) {
+    console.warn('[heatmap] supabase ingest failed', error);
+  }
+}
+
 async function loadFromRedis(slug) {
   const { redisCommand } = await import('./redisClient');
   const key = heatmapKey(slug);
@@ -177,17 +213,27 @@ export async function recordHeatmapSamples(slug, options = {}) {
   const cells = normalizeCells(options.cells);
   if (cells.length === 0) return { recorded: 0 };
 
+  const timestamp = Number.isFinite(Number(options.timestamp)) ? Number(options.timestamp) : Date.now();
+
   const { hasUpstash } = await import('./redisClient');
+  let recorded = 0;
+  let redisSucceeded = false;
+
   if (hasUpstash()) {
     try {
-      const recorded = await recordWithRedis(normalizedSlug, bucket, cells);
-      return { recorded };
+      recorded = await recordWithRedis(normalizedSlug, bucket, cells);
+      redisSucceeded = true;
     } catch (error) {
       console.warn('[heatmap] Redis record failed, falling back to memory', error);
     }
   }
 
-  const recorded = await recordWithMemory(normalizedSlug, bucket, cells);
+  if (!redisSucceeded) {
+    recorded = await recordWithMemory(normalizedSlug, bucket, cells);
+  }
+
+  await persistHeatmapSamplesToSupabase(normalizedSlug, bucket, cells, timestamp);
+
   return { recorded };
 }
 
