@@ -20,6 +20,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const ALLOWED_EVENT_NAMES = new Set(['x_visit']);
 
 function formatDateKey(date) {
   try {
@@ -160,6 +161,13 @@ function classifyEventName(name) {
   return { isPageView, isVisitor, isBounce };
 }
 
+function isVisitorEvent(name) {
+  if (typeof name !== 'string') return false;
+  const normalized = name.trim();
+  if (!normalized) return false;
+  return ALLOWED_EVENT_NAMES.has(normalized);
+}
+
 async function redisCommand(command, options) {
   const { redisCommand: exec } = await import('./redisClient');
   return exec(command, options);
@@ -195,6 +203,7 @@ function aggregateCatalogFromMemory() {
   store.catalog.forEach((comboKey) => {
     const combo = deserializeCombo(comboKey);
     if (!combo) return;
+    if (!isVisitorEvent(combo.name)) return;
     events.add(combo.name);
     if (!slugsByEvent.has(combo.name)) slugsByEvent.set(combo.name, new Set());
     if (combo.slug && combo.slug !== GLOBAL_SLUG) {
@@ -218,6 +227,7 @@ function aggregateEventsForRedis(events, context = {}) {
   for (const rawEvent of events) {
     const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
     if (!normalized) continue;
+    if (!isVisitorEvent(normalized.name)) continue;
 
     const slugKey = normalized.slug || GLOBAL_SLUG;
     const comboKey = serializeCombo(normalized.name, slugKey);
@@ -379,6 +389,7 @@ function ingestWithMemory(events, context = {}) {
   events.forEach((rawEvent) => {
     const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
     if (!normalized) return;
+    if (!isVisitorEvent(normalized.name)) return;
     const comboKey = serializeCombo(normalized.name, normalized.slug || GLOBAL_SLUG);
     store.catalog.add(comboKey);
     const dateKey = toDateKey(normalized.timestamp);
@@ -418,6 +429,7 @@ function buildCatalogFromCombos(combos) {
   combos.forEach((comboKey) => {
     const combo = deserializeCombo(comboKey);
     if (!combo) return;
+    if (!isVisitorEvent(combo.name)) return;
     events.add(combo.name);
     if (!slugsByEvent.has(combo.name)) slugsByEvent.set(combo.name, new Set());
     if (combo.slug && combo.slug !== GLOBAL_SLUG) {
@@ -448,7 +460,8 @@ function filterCombos(combos, filters = {}) {
         if (slugKey !== normalizedSlug) return false;
       }
       return true;
-    });
+    })
+    .filter((combo) => isVisitorEvent(combo.name));
 }
 
 function entriesToObject(entries) {
@@ -513,6 +526,7 @@ async function getSummaryFromRedis(options = {}) {
   const supabaseMap = new Map();
   for (const row of supabaseRollups) {
     if (!row || !row.dateKey || !row.name) continue;
+    if (!isVisitorEvent(row.name)) continue;
     const key = `${row.dateKey}::${row.name}::${row.slugKey}`;
     const existing = supabaseMap.get(key);
     if (existing) {
