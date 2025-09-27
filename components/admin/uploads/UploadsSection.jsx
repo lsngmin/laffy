@@ -33,7 +33,13 @@ export default function UploadsSection({
   const handleRefresh = onRefresh || (() => {});
   const handleLoadMore = onLoadMore || (() => {});
 
-  const { search = '', type: typeFilter = '', orientation: orientationFilter = '', sort: sortOption = 'recent' } =
+  const {
+    search = '',
+    type: typeFilter = '',
+    orientation: orientationFilter = '',
+    sort: sortOption = 'recent',
+    channel: channelFilter = '',
+  } =
     filters || {};
 
   const changeFilters = useCallback(
@@ -49,6 +55,7 @@ export default function UploadsSection({
   const handleTypeFilterChange = useCallback((value) => changeFilters({ type: value }), [changeFilters]);
   const handleOrientationFilterChange = useCallback((value) => changeFilters({ orientation: value }), [changeFilters]);
   const handleSortChange = useCallback((value) => changeFilters({ sort: value }), [changeFilters]);
+  const handleChannelFilterChange = useCallback((value) => changeFilters({ channel: value }), [changeFilters]);
 
   const itemKey = useCallback((item) => item?.pathname || item?.slug || item?.routePath || item?.url || '', []);
 
@@ -115,7 +122,13 @@ export default function UploadsSection({
     return () => clearTimeout(timer);
   }, [bulkFeedback.status]);
 
-  const isFiltering = Boolean(search || typeFilter || orientationFilter || (sortOption && sortOption !== 'recent'));
+  const isFiltering = Boolean(
+    search ||
+      typeFilter ||
+      orientationFilter ||
+      channelFilter ||
+      (sortOption && sortOption !== 'recent')
+  );
   const showEmptyState = !isLoading && !items.length;
   const canShowLoadMore = hasMore;
   const selectedCount = selectedIds.size;
@@ -132,8 +145,8 @@ export default function UploadsSection({
     try {
       for (const item of selectedItems) {
         const body = item.url
-          ? { url: item.url, slug: item.slug, type: item.type }
-          : { pathname: item.pathname, slug: item.slug, type: item.type };
+          ? { url: item.url, slug: item.slug, type: item.type, channel: item.channel }
+          : { pathname: item.pathname, slug: item.slug, type: item.type, channel: item.channel };
         const res = await fetch(`/api/admin/delete${queryString}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -269,10 +282,12 @@ export default function UploadsSection({
         description={uploadFormState.description}
         orientation={uploadFormState.orientation}
         duration={uploadFormState.duration}
+        channel={uploadFormState.channel}
         onTitleChange={uploadFormState.setTitle}
         onDescriptionChange={uploadFormState.setDescription}
         onOrientationChange={uploadFormState.setOrientation}
         onDurationChange={uploadFormState.setDuration}
+        onChannelChange={uploadFormState.setChannel}
         handleUploadUrl={uploadFormState.handleUploadUrl}
         onUploaded={registerMeta}
       />
@@ -314,6 +329,8 @@ export default function UploadsSection({
           onTypeFilterChange={handleTypeFilterChange}
           orientationFilter={orientationFilter}
           onOrientationFilterChange={handleOrientationFilterChange}
+          channelFilter={channelFilter}
+          onChannelFilterChange={handleChannelFilterChange}
           sortOption={sortOption}
           onSortOptionChange={handleSortChange}
         />

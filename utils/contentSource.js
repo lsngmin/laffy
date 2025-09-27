@@ -97,6 +97,7 @@ function normalize(meta) {
     likes: Number.isFinite(Number(normalized.likes)) ? Number(normalized.likes) : 0,
     views: Number.isFinite(Number(normalized.views)) ? Number(normalized.views) : 0,
     timestamps: Array.isArray(normalized.timestamps) ? normalized.timestamps : [],
+    channel: typeof normalized.channel === 'string' && normalized.channel.toLowerCase() === 'l' ? 'l' : 'x',
   };
 }
 

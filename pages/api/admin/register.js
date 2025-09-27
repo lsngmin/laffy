@@ -38,6 +38,11 @@ function sanitizeOrientation(value) {
   return VALID_ORIENTATIONS.has(normalized) ? normalized : 'landscape';
 }
 
+function parseChannel(value) {
+  const normalized = parseString(value).toLowerCase();
+  return normalized === 'l' ? 'l' : 'x';
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!assertAdmin(req, res)) return;
@@ -96,6 +101,10 @@ export default async function handler(req, res) {
       const lower = assetUrl.toLowerCase();
       return /(\.jpe?g|\.png|\.webp|\.gif)$/.test(lower) ? 'image' : normalizedType;
     })();
+
+    const channel = parseChannel(
+      body.channel ?? normalizedExisting?.channel ?? existingMeta?.channel
+    );
 
     const socialTitle = pickFirstString([
       displayPayload.socialTitle,
@@ -240,6 +249,7 @@ export default async function handler(req, res) {
       schemaVersion: '2024-05',
       slug,
       type: effectiveType,
+      channel,
       display: {
         socialTitle: socialTitle || cardTitle || slug,
         cardTitle: cardTitle || socialTitle || slug,
@@ -298,8 +308,17 @@ export default async function handler(req, res) {
       allowOverwrite: true,
     });
 
-    const revalidateTargets = new Set(['/x']);
-    revalidateTargets.add(`/x/${slug}`);
+    const revalidateTargets = new Set();
+    if (channel === 'l') {
+      revalidateTargets.add('/l');
+      revalidateTargets.add(`/l/${slug}`);
+    } else if (effectiveType === 'image') {
+      revalidateTargets.add('/x');
+      revalidateTargets.add(`/x/${slug}`);
+    } else {
+      revalidateTargets.add('/m');
+      revalidateTargets.add(`/m/${slug}`);
+    }
 
     if (typeof res.revalidate === 'function') {
       await Promise.all(

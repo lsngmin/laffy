@@ -10,6 +10,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     imageUrl: '',
     previewUrl: '',
     durationSeconds: '',
+    channel: 'x',
   });
   const [editInitialPreview, setEditInitialPreview] = useState('');
   const [editError, setEditError] = useState('');
@@ -49,6 +50,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       imageUrl: '',
       previewUrl: initialPreview,
       durationSeconds: String(numericDuration),
+      channel: item.channel === 'l' ? 'l' : 'x',
     });
     setEditInitialPreview(initialPreview);
     setEditUploadMessage('');
@@ -70,6 +72,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       imageUrl: '',
       previewUrl: '',
       durationSeconds: '',
+      channel: 'x',
     });
     setEditInitialPreview('');
     setEditUploadMessage('');
@@ -180,6 +183,9 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
 
     const newImageUrl = editForm.imageUrl;
     const basePreview = editInitialPreview || editingItem.preview || '';
+    const rawChannelInput =
+      typeof editForm.channel === 'string' ? editForm.channel.trim().toLowerCase() : '';
+    const resolvedChannel = rawChannelInput === 'l' ? 'l' : 'x';
 
     const assetUrl = isImageType
       ? newImageUrl || editingItem.src || editingItem.poster || editingItem.thumbnail || basePreview || ''
@@ -216,6 +222,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
         schemaVersion: '2024-05',
         slug: editingItem.slug,
         type: editingItem.type === 'image' ? 'image' : 'video',
+        channel: resolvedChannel,
         display: {
           socialTitle: trimmedTitle,
           cardTitle: trimmedDescription || trimmedTitle,
@@ -270,19 +277,21 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       setItems((prev) =>
         prev.map((it) =>
           it.slug === editingItem.slug
-            ? { ...it, durationSeconds: resolvedDurationSeconds }
+            ? { ...it, durationSeconds: resolvedDurationSeconds, channel: resolvedChannel }
             : it
         )
       );
       setEditForm((prev) => ({
         ...prev,
         durationSeconds: String(resolvedDurationSeconds),
+        channel: resolvedChannel,
       }));
       setEditingItem((prev) =>
         prev
           ? {
               ...prev,
               durationSeconds: resolvedDurationSeconds,
+              channel: resolvedChannel,
             }
           : prev
       );
@@ -304,6 +313,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     editForm.description,
     editForm.durationSeconds,
     editForm.imageUrl,
+    editForm.channel,
     editForm.title,
     editInitialPreview,
     editingItem,
@@ -331,8 +341,8 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     const payload = buildRegisterPayload(item);
     const metaUrl = typeof item.url === 'string' ? item.url : '';
     const body = item.url
-      ? { url: item.url, slug: item.slug, type: item.type }
-      : { pathname: item.pathname, slug: item.slug, type: item.type };
+      ? { url: item.url, slug: item.slug, type: item.type, channel: item.channel }
+      : { pathname: item.pathname, slug: item.slug, type: item.type, channel: item.channel };
     setDeleteStatus('pending');
     setDeleteError('');
 

@@ -139,6 +139,7 @@ export default function AdminPage() {
     type: '',
     orientation: '',
     sort: 'recent',
+    channel: '',
   });
 
   const uploadsQueryString = useMemo(() => {
@@ -149,6 +150,7 @@ export default function AdminPage() {
     if (uploadFilters.type) params.set('type', uploadFilters.type);
     if (uploadFilters.orientation) params.set('orientation', uploadFilters.orientation);
     if (uploadFilters.sort && uploadFilters.sort !== 'recent') params.set('sort', uploadFilters.sort);
+    if (uploadFilters.channel) params.set('channel', uploadFilters.channel);
     const serialized = params.toString();
     return serialized ? `?${serialized}` : '';
   }, [hasToken, token, uploadFilters]);
@@ -165,6 +167,7 @@ export default function AdminPage() {
   const [description, setDescription] = useState('');
   const [orientation, setOrientation] = useState('landscape');
   const [duration, setDuration] = useState('0');
+  const [channel, setChannel] = useState('x');
 
   const {
     items: uploadItems,
@@ -433,13 +436,15 @@ export default function AdminPage() {
       description,
       orientation,
       duration,
+      channel,
       setTitle,
       setDescription,
       setOrientation,
       setDuration,
+      setChannel,
       handleUploadUrl: `/api/blob/upload${qs}`,
     }),
-    [description, duration, orientation, qs, title]
+    [channel, description, duration, orientation, qs, title]
   );
 
   const registerMeta = useCallback(
@@ -458,6 +463,7 @@ export default function AdminPage() {
         const parsed = Number(duration);
         return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 0;
       })();
+      const normalizedChannel = channel === 'l' ? 'l' : 'x';
 
       try {
         const trimmedTitle = (title || '').trim();
@@ -471,6 +477,7 @@ export default function AdminPage() {
           schemaVersion: '2024-05',
           slug,
           type: normalizedType,
+          channel: normalizedChannel,
           display: {
             socialTitle: trimmedTitle || slug,
             cardTitle: trimmedDescription || trimmedTitle || slug,
@@ -509,12 +516,13 @@ export default function AdminPage() {
         setTitle('');
         setDescription('');
         setDuration('0');
+        setChannel('x');
         refreshAll();
       } catch (error) {
         console.error('Meta register failed', error);
       }
     },
-    [description, duration, hasToken, orientation, qs, refreshAll, title]
+    [channel, description, duration, hasToken, orientation, qs, refreshAll, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {

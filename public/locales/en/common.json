@@ -56,5 +56,10 @@
       "title": "Recommended Content",
       "subtitle": "Keep the smiles rolling with these picks"
     }
+  },
+  "redirect": {
+    "heading": "Redirecting…",
+    "description": "Hang tight, we’re opening the smart link for you.",
+    "cta": "Tap here if nothing happens."
   }
 }

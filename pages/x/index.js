@@ -121,7 +121,9 @@ export default function ImageGallery({ items }) {
 
 export async function getStaticProps({ locale }) {
   const { items } = await getAllContent();
-  const galleryItems = items.filter((item) => (item.type || '').toLowerCase() === 'image');
+  const galleryItems = items
+    .filter((item) => (item.type || '').toLowerCase() === 'image')
+    .filter((item) => ((item.channel || 'x').toLowerCase() === 'x'));
   return {
     props: {
       items: galleryItems,

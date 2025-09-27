@@ -1,5 +1,6 @@
 export default function UploadTagChips({ item }) {
   const tags = [];
+  if (item.channel) tags.push({ label: item.channel.toUpperCase(), tone: 'bg-purple-900/60' });
   if (item.type) tags.push({ label: item.type.toUpperCase(), tone: 'bg-slate-800' });
   if (item.orientation) tags.push({ label: item.orientation, tone: 'bg-indigo-900/60' });
   if (item.durationSeconds) tags.push({ label: `${item.durationSeconds}s`, tone: 'bg-emerald-900/50' });

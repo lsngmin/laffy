@@ -43,12 +43,19 @@ function parseSort(value) {
   return VALID_SORTS.has(normalized) ? normalized : 'recent';
 }
 
+function parseChannel(value) {
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim().toLowerCase();
+  return ['x', 'l'].includes(normalized) ? normalized : '';
+}
+
 function matchesFilters(item, filters) {
   if (!item) return false;
-  const { search, type, orientation } = filters;
+  const { search, type, orientation, channel } = filters;
 
   if (type && (item.type || '').toLowerCase() !== type) return false;
   if (orientation && (item.orientation || '').toLowerCase() !== orientation) return false;
+  if (channel && (item.channel || '').toLowerCase() !== channel) return false;
 
   if (search) {
     const haystacks = [item.slug, item.title, item.description]
@@ -100,7 +107,18 @@ function buildItem(blob, metaInfo) {
   const normalized = metaInfo.normalized || {};
   const slug = normalized.slug || fallbackSlug;
   const type = normalized.type || 'video';
-  const routePath = slug ? (type === 'image' ? `/x/${slug}` : `/m/${slug}`) : '';
+  const channelValue = typeof normalized.channel === 'string' ? normalized.channel.toLowerCase() : '';
+  const channel = channelValue === 'l' ? 'l' : 'x';
+  let routePath = '';
+  if (slug) {
+    if (channel === 'l') {
+      routePath = `/l/${slug}`;
+    } else if ((type || '').toLowerCase() === 'image') {
+      routePath = `/x/${slug}`;
+    } else {
+      routePath = `/m/${slug}`;
+    }
+  }
 
   return {
     pathname: blob.pathname,
@@ -109,6 +127,7 @@ function buildItem(blob, metaInfo) {
     uploadedAt: blob.uploadedAt,
     slug,
     type,
+    channel,
     routePath,
     title: normalized.title || slug,
     summary: normalized.summary || '',
@@ -138,8 +157,9 @@ export default async function handler(req, res) {
   const type = parseType(req.query.type);
   const orientation = parseOrientation(req.query.orientation);
   const sort = parseSort(req.query.sort);
+  const channel = parseChannel(req.query.channel);
 
-  const filters = { search, type, orientation };
+  const filters = { search, type, orientation, channel };
 
   try {
     const token = getBlobReadToken();

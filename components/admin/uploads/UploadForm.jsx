@@ -6,10 +6,12 @@ export default function UploadForm({
   description,
   orientation,
   duration,
+  channel,
   onTitleChange,
   onDescriptionChange,
   onOrientationChange,
   onDurationChange,
+  onChannelChange,
   handleUploadUrl,
   onUploaded,
 }) {
@@ -50,6 +52,18 @@ export default function UploadForm({
             <option value="landscape">landscape</option>
             <option value="portrait">portrait</option>
             <option value="square">square</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-widest text-slate-400">Channel</label>
+          <select
+            disabled={!hasToken}
+            value={channel}
+            onChange={(event) => onChannelChange(event.target.value)}
+            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-40"
+          >
+            <option value="x">x</option>
+            <option value="l">l</option>
           </select>
         </div>
         <div>

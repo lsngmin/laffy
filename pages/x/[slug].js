@@ -323,6 +323,7 @@ export async function getStaticPaths({ locales }) {
   const { items } = await getAllContent();
   const paths = items
     .filter((item) => (item.type || '').toLowerCase() === 'image')
+    .filter((item) => ((item.channel || 'x').toLowerCase() === 'x'))
     .flatMap((meme) =>
       locales.map((locale) => ({ params: { slug: meme.slug }, locale }))
     );
@@ -335,8 +336,12 @@ export async function getStaticProps({ params, locale }) {
   if ((meme.type || '').toLowerCase() !== 'image') {
     return { notFound: true };
   }
+  if (((meme.channel || 'x').toLowerCase()) !== 'x') {
+    return { notFound: true };
+  }
 
   const normalizedMeme = { ...meme };
+  const channelFilteredItems = items.filter((item) => ((item.channel || 'x').toLowerCase() === 'x'));
 
   // SEO data
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -360,7 +365,7 @@ export async function getStaticProps({ params, locale }) {
   return {
     props: {
       meme: { ...normalizedMeme, __seo: { canonicalUrl, hreflangs, jsonLd, metaImage: thumb } },
-      allMemes: items,
+      allMemes: channelFilteredItems,
       ...(await serverSideTranslations(locale, ['common'])),
     },
     revalidate: 60,

@@ -46,11 +46,11 @@ export default function EditContentModal({
               <p className="text-[12px] text-slate-500">Slug · {editingItem.slug}</p>
             </header>
 
-            <div className="grid gap-5">
-              <div className="space-y-2">
-                <label className="text-xs uppercase tracking-widest text-slate-400">Title</label>
-                <input
-                  value={editForm.title}
+              <div className="grid gap-5">
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">Title</label>
+                  <input
+                    value={editForm.title}
                   onChange={(event) => onFieldChange('title', event.target.value)}
                   className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                   placeholder="콘텐츠 제목"
@@ -64,29 +64,41 @@ export default function EditContentModal({
                   onChange={(event) => onFieldChange('description', event.target.value)}
                   rows={4}
                   className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  placeholder="간단한 설명을 입력해 주세요."
-                />
-              </div>
+                    placeholder="간단한 설명을 입력해 주세요."
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className="text-xs uppercase tracking-widest text-slate-400">Duration (seconds)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputMode="numeric"
-                  value={editForm.durationSeconds}
-                  onChange={(event) => onFieldChange('durationSeconds', event.target.value)}
-                  className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  placeholder="예: 123"
-                />
-                <p className="text-xs text-slate-500">초 단위로 입력해 주세요. 비워두면 기존 값이 유지됩니다.</p>
-              </div>
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">Duration (seconds)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={editForm.durationSeconds}
+                    onChange={(event) => onFieldChange('durationSeconds', event.target.value)}
+                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    placeholder="예: 123"
+                  />
+                  <p className="text-xs text-slate-500">초 단위로 입력해 주세요. 비워두면 기존 값이 유지됩니다.</p>
+                </div>
 
-              <div className="space-y-3">
-                <label className="text-xs uppercase tracking-widest text-slate-400">대표 이미지</label>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="relative h-36 w-full overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70 sm:h-44 sm:w-44">
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">Channel</label>
+                  <select
+                    value={editForm.channel || 'x'}
+                    onChange={(event) => onFieldChange('channel', event.target.value)}
+                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  >
+                    <option value="x">x</option>
+                    <option value="l">l</option>
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs uppercase tracking-widest text-slate-400">대표 이미지</label>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <div className="relative h-36 w-full overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70 sm:h-44 sm:w-44">
                     {editForm.previewUrl ? (
                       <img src={editForm.previewUrl} alt={`${editingItem.slug} preview`} className="h-full w-full object-cover" />
                     ) : (

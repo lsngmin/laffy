@@ -11,6 +11,8 @@ export default function UploadFilters({
   onTypeFilterChange,
   orientationFilter,
   onOrientationFilterChange,
+  channelFilter,
+  onChannelFilterChange,
   sortOption,
   onSortOptionChange,
 }) {
@@ -36,6 +38,18 @@ export default function UploadFilters({
             <option value="">전체</option>
             <option value="video">영상</option>
             <option value="image">이미지</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2 rounded-full bg-slate-950/50 px-3 py-1 text-xs">
+          <span className="text-slate-500">채널</span>
+          <select
+            value={channelFilter}
+            onChange={(event) => onChannelFilterChange(event.target.value)}
+            className="bg-transparent text-slate-200 outline-none"
+          >
+            <option value="">전체</option>
+            <option value="x">x</option>
+            <option value="l">l</option>
           </select>
         </div>
         <div className="flex items-center gap-2 rounded-full bg-slate-950/50 px-3 py-1 text-xs">
