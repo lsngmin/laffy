@@ -1,9 +1,8 @@
 const DEFAULT_RANGE_DAYS = 6;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DAILY_TTL_SECONDS = 60 * 60 * 24 * 45; // 45 days
-const TOTAL_TTL_SECONDS = 60 * 60 * 24 * 365; // 1 year
 const CATALOG_KEY = 'events:catalog';
 const GLOBAL_SLUG = '__global__';
+const MAX_EVENTS_PER_BATCH = 10;
 const KST_TIMEZONE = 'Asia/Seoul';
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   timeZone: KST_TIMEZONE,
@@ -157,188 +156,10 @@ async function redisCommand(command, options) {
   return exec(command, options);
 }
 
-async function redisEvalScript(script, keys, args, options) {
-  const { redisEval } = await import('./redisClient');
-  return redisEval(script, keys, args, options);
-}
-
 async function hasRedis() {
   const { hasUpstash } = await import('./redisClient');
   return hasUpstash();
 }
-
-const INGEST_LUA_SCRIPT = `
-local catalogKey = KEYS[1]
-local dailyTtl = tonumber(ARGV[1] or '0')
-local totalTtl = tonumber(ARGV[2] or '0')
-local encoded = ARGV[3]
-
-if not encoded then
-  return 0
-end
-
-local ok, events = pcall(cjson.decode, encoded)
-if not ok or type(events) ~= 'table' then
-  return 0
-end
-
-local ingested = 0
-
-for i = 1, #events do
-  local event = events[i]
-  if type(event) == 'table' then
-    local comboValue = event['combo']
-    local timestamp = tonumber(event['timestamp'])
-    local aggKey = event['aggKey']
-    local totalKey = event['totalKey']
-    local sessionKey = event['sessionKey']
-    local totalSessionKey = event['totalSessionKey']
-    local hasValue = event['hasValue']
-    local value = tonumber(event['value']) or 0
-    local hasSession = event['hasSession']
-    local sessionId = event['sessionId']
-
-    if comboValue and aggKey and totalKey and timestamp then
-      ingested = ingested + 1
-
-      redis.call('SADD', catalogKey, comboValue)
-
-      local aggExists = redis.call('EXISTS', aggKey)
-      redis.call('HINCRBY', aggKey, 'count', 1)
-      redis.call('HSET', aggKey, 'last_ts', timestamp)
-      if hasValue == 1 or hasValue == '1' then
-        redis.call('HINCRBYFLOAT', aggKey, 'sum_value', value)
-      end
-      if aggExists == 0 and dailyTtl > 0 then
-        redis.call('EXPIRE', aggKey, dailyTtl)
-      end
-
-      redis.call('HINCRBY', totalKey, 'count', 1)
-      redis.call('HSET', totalKey, 'last_ts', timestamp)
-      if hasValue == 1 or hasValue == '1' then
-        redis.call('HINCRBYFLOAT', totalKey, 'sum_value', value)
-      end
-      if totalTtl > 0 then
-        redis.call('EXPIRE', totalKey, totalTtl)
-      end
-
-      if (hasSession == 1 or hasSession == '1') and sessionId and sessionId ~= '' and sessionKey and totalSessionKey then
-        local sessionExists = redis.call('EXISTS', sessionKey)
-        redis.call('PFADD', sessionKey, sessionId)
-        if sessionExists == 0 and dailyTtl > 0 then
-          redis.call('EXPIRE', sessionKey, dailyTtl)
-        end
-
-        redis.call('PFADD', totalSessionKey, sessionId)
-        if totalTtl > 0 then
-          redis.call('EXPIRE', totalSessionKey, totalTtl)
-        end
-      end
-    end
-  end
-end
-
-return ingested
-`;
-
-const SUMMARY_LUA_SCRIPT = `
-local okDates, dateKeys = pcall(cjson.decode, ARGV[1] or '[]')
-if not okDates or type(dateKeys) ~= 'table' then
-  dateKeys = {}
-end
-
-local okCombos, combos = pcall(cjson.decode, ARGV[2] or '[]')
-if not okCombos or type(combos) ~= 'table' then
-  combos = {}
-end
-
-local comboResults = {}
-local comboSessions = {}
-local timeseries = {}
-
-for i = 1, #combos do
-  local combo = combos[i]
-  if type(combo) == 'table' then
-    local name = combo['name']
-    local slug = combo['slug'] or '${GLOBAL_SLUG}'
-    local comboKey = combo['comboKey']
-    if (type(comboKey) ~= 'string' or comboKey == '') and type(name) == 'string' and name ~= '' then
-      comboKey = name .. '::' .. slug
-    end
-
-    if type(name) == 'string' and name ~= '' and type(slug) == 'string' and slug ~= '' and comboKey then
-      local totalCount = 0
-      local totalValue = 0
-      local lastTs = 0
-      local sessionKeys = {}
-
-      for j = 1, #dateKeys do
-        local dateKey = dateKeys[j]
-        if type(dateKey) == 'string' and dateKey ~= '' then
-          local aggKey = 'events:agg:' .. dateKey .. ':' .. name .. ':' .. slug
-          local aggValues = redis.call('HMGET', aggKey, 'count', 'sum_value', 'last_ts')
-          if aggValues and #aggValues >= 3 then
-            local count = tonumber(aggValues[1]) or 0
-
-            if count > 0 then
-              local sumValue = tonumber(aggValues[2]) or 0
-              local last = tonumber(aggValues[3]) or 0
-
-              totalCount = totalCount + count
-              totalValue = totalValue + sumValue
-              if last > lastTs then
-                lastTs = last
-              end
-
-              local tsEntry = timeseries[dateKey]
-              if not tsEntry then
-                tsEntry = { count = 0, value = 0 }
-              end
-              tsEntry.count = tsEntry.count + count
-              tsEntry.value = tsEntry.value + sumValue
-              timeseries[dateKey] = tsEntry
-
-              local sessionKey = 'events:sessions:' .. dateKey .. ':' .. name .. ':' .. slug
-              if redis.call('EXISTS', sessionKey) == 1 then
-                sessionKeys[#sessionKeys + 1] = sessionKey
-              end
-            end
-          end
-        end
-      end
-
-      comboResults[comboKey] = {
-        count = totalCount,
-        value = totalValue,
-        lastTs = lastTs,
-        name = name,
-        slug = slug,
-      }
-      comboSessions[comboKey] = sessionKeys
-    end
-  end
-end
-
-local uniqueSessions = {}
-for comboKey, sessionKeys in pairs(comboSessions) do
-  if type(sessionKeys) == 'table' and #sessionKeys > 0 then
-    local ok, result = pcall(redis.call, 'PFCOUNT', unpack(sessionKeys))
-    if ok then
-      uniqueSessions[comboKey] = tonumber(result) or 0
-    else
-      uniqueSessions[comboKey] = 0
-    end
-  else
-    uniqueSessions[comboKey] = 0
-  end
-end
-
-return cjson.encode({
-  combos = comboResults,
-  uniques = uniqueSessions,
-  timeseries = timeseries,
-})
-`;
 
 function ensureMemoryStore() {
   if (!global.__eventStore) {
@@ -378,54 +199,90 @@ function aggregateCatalogFromMemory() {
   return catalog;
 }
 
-async function ingestWithRedis(events, context = {}) {
-  const payload = [];
+function aggregateEventsForRedis(events, context = {}) {
+  const aggregates = new Map();
+  const comboSet = new Set();
+
   for (const rawEvent of events) {
     const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
     if (!normalized) continue;
+
     const slugKey = normalized.slug || GLOBAL_SLUG;
     const comboKey = serializeCombo(normalized.name, slugKey);
-    const dateKey = toDateKey(normalized.timestamp);
-    const aggKey = `events:agg:${dateKey}:${normalized.name}:${slugKey}`;
-    const sessionKey = `events:sessions:${dateKey}:${normalized.name}:${slugKey}`;
-    const totalKey = `events:total:${normalized.name}:${slugKey}`;
-    const totalSessionKey = `events:totaluniq:${normalized.name}:${slugKey}`;
-    const hasValue = normalized.value ? 1 : 0;
-    const hasSession = normalized.sessionId ? 1 : 0;
+    comboSet.add(comboKey);
 
-    payload.push({
-      combo: comboKey,
-      timestamp: normalized.timestamp,
-      aggKey,
-      totalKey,
-      sessionKey,
-      totalSessionKey,
-      hasValue,
-      value: normalized.value || 0,
-      hasSession,
-      sessionId: normalized.sessionId || '',
-    });
+    const dateKey = toDateKey(normalized.timestamp);
+    const aggregateKey = `${dateKey}::${normalized.name}::${slugKey}`;
+    if (!aggregates.has(aggregateKey)) {
+      aggregates.set(aggregateKey, {
+        dateKey,
+        name: normalized.name,
+        slugKey,
+        count: 0,
+        valueSum: 0,
+        sessions: new Set(),
+        lastTimestamp: 0,
+      });
+    }
+
+    const entry = aggregates.get(aggregateKey);
+    entry.count += 1;
+    if (Number.isFinite(normalized.value) && normalized.value !== 0) {
+      entry.valueSum += normalized.value;
+    }
+    if (normalized.sessionId) {
+      entry.sessions.add(normalized.sessionId);
+    }
+    if (normalized.timestamp > entry.lastTimestamp) {
+      entry.lastTimestamp = normalized.timestamp;
+    }
   }
 
-  if (!payload.length) return { ingested: 0 };
+  return {
+    combos: Array.from(comboSet),
+    aggregates: Array.from(aggregates.values()),
+  };
+}
+
+async function ingestWithRedis(events, context = {}) {
+  const limitedEvents = Array.isArray(events) ? events.slice(0, MAX_EVENTS_PER_BATCH) : [];
+  const { combos, aggregates } = aggregateEventsForRedis(limitedEvents, context);
+  if (!aggregates.length) {
+    return { ingested: 0 };
+  }
+
+  const tasks = [];
+
+  if (combos.length) {
+    tasks.push(redisCommand(['SADD', CATALOG_KEY, ...combos]));
+  }
+
+  for (const entry of aggregates) {
+    const aggKey = `events:agg:${entry.dateKey}:${entry.name}:${entry.slugKey}`;
+    const sessionKey = `events:sessions:${entry.dateKey}:${entry.name}:${entry.slugKey}`;
+
+    tasks.push(redisCommand(['HINCRBY', aggKey, 'count', String(entry.count)]));
+
+    if (entry.valueSum !== 0) {
+      tasks.push(redisCommand(['HINCRBYFLOAT', aggKey, 'sum_value', String(entry.valueSum)]));
+    }
+
+    if (entry.lastTimestamp) {
+      tasks.push(redisCommand(['HSET', aggKey, 'last_ts', String(entry.lastTimestamp)]));
+    }
+
+    if (entry.sessions.size) {
+      const sessionArgs = ['PFADD', sessionKey, ...entry.sessions];
+      tasks.push(redisCommand(sessionArgs));
+    }
+  }
 
   try {
-    const encodedPayload = JSON.stringify(payload);
-    const result = await redisEvalScript(
-      INGEST_LUA_SCRIPT,
-      [CATALOG_KEY],
-      [
-        String(DAILY_TTL_SECONDS),
-        String(TOTAL_TTL_SECONDS),
-        encodedPayload,
-      ],
-    );
-    const ingested = Number(result);
-    const count = Number.isFinite(ingested) ? ingested : payload.length;
-    return { ingested: count };
+    await Promise.all(tasks);
+    return { ingested: limitedEvents.length };
   } catch (error) {
     console.warn('[events] redis ingest failed, falling back to memory', error);
-    return ingestWithMemory(events, context);
+    return ingestWithMemory(limitedEvents, context);
   }
 }
 
@@ -518,134 +375,16 @@ function entriesToObject(entries) {
   return obj;
 }
 
-function createEmptySummaryResult(catalog) {
-  return {
-    items: [],
-    totals: {
-      count: 0,
-      uniqueSessions: 0,
-      visitors: 0,
-      pageViews: 0,
-      bounceEvents: 0,
-      bounceRate: 0,
-      pageViewEventNames: [],
-      visitorEventNames: [],
-      bounceEventNames: [],
-    },
-    timeseries: [],
-    catalog: catalog || { events: [], slugsByEvent: {} },
-  };
-}
-
-function parseSummaryScriptResult(raw) {
-  if (!raw) return null;
-  if (typeof raw === 'string') {
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      console.warn('[events] failed to parse summary script result', error);
-      return null;
-    }
-  }
-  if (typeof raw === 'object') {
-    return raw;
-  }
-  return null;
-}
-
-function buildSummaryFromScriptData({ combos, limit, catalog, scriptData }) {
-  if (!scriptData || typeof scriptData !== 'object') {
-    return createEmptySummaryResult(catalog);
-  }
-
-  const comboResults = scriptData.combos && typeof scriptData.combos === 'object' ? scriptData.combos : {};
-  const uniqueResults = scriptData.uniques && typeof scriptData.uniques === 'object' ? scriptData.uniques : {};
-  const timeseriesRaw = scriptData.timeseries && typeof scriptData.timeseries === 'object' ? scriptData.timeseries : {};
-
-  const items = [];
-  let totalCount = 0;
-  let totalUnique = 0;
-  let totalPageViews = 0;
-  let totalBounceEvents = 0;
-  const pageViewEvents = new Set();
-  const visitorEvents = new Set();
-  const bounceEvents = new Set();
-
-  combos.forEach((combo) => {
-    const slugKey = combo.slug || GLOBAL_SLUG;
-    const comboKey = serializeCombo(combo.name, slugKey);
-    const entry = comboResults[comboKey] || {};
-    const comboCount = Number(entry.count) || 0;
-    if (!comboCount) return;
-    const comboValue = Number(entry.value) || 0;
-    const lastTs = Number(entry.lastTs) || 0;
-    const uniqueSessions = Number(uniqueResults[comboKey]) || 0;
-
-    totalCount += comboCount;
-    totalUnique += uniqueSessions;
-
-    const { isPageView, isVisitor, isBounce } = classifyEventName(combo.name);
-    if (isPageView) {
-      totalPageViews += comboCount;
-      pageViewEvents.add(combo.name);
-    }
-    if (isVisitor) {
-      visitorEvents.add(combo.name);
-    }
-    if (isBounce) {
-      totalBounceEvents += comboCount;
-      bounceEvents.add(combo.name);
-    }
-
-    items.push({
-      eventName: combo.name,
-      slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
-      count: comboCount,
-      uniqueSessions,
-      valueSum: comboValue,
-      lastTimestamp: lastTs || null,
-      lastDate: lastTs ? new Date(lastTs).toISOString() : null,
-    });
+async function getSummaryFromRedis(options = {}) {
+  const range = normalizeRange(options.startDate, options.endDate);
+  const dateKeys = rangeToDateKeys(range);
+  const limit = clampLimit(options.limit, 50);
+  const combosRaw = await fetchCatalogFromRedis();
+  const catalog = buildCatalogFromCombos(combosRaw);
+  const combos = filterCombos(combosRaw, {
+    eventName: options.eventName,
+    slug: options.slug,
   });
-
-  items.sort((a, b) => b.count - a.count);
-  const limitedItems = limit ? items.slice(0, limit) : items;
-
-  const timeseries = Object.entries(timeseriesRaw)
-    .map(([date, value]) => {
-      const count = Number(value?.count) || 0;
-      const sumValue = Number(value?.value) || 0;
-      return { date, count, valueSum: sumValue };
-    })
-    .filter((entry) => entry.count > 0 || entry.valueSum > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  const visitors = totalUnique;
-  const effectivePageViews = pageViewEvents.size ? totalPageViews : totalCount;
-  const bounceRate = visitors > 0 ? totalBounceEvents / visitors : 0;
-
-  return {
-    items: limitedItems,
-    totals: {
-      count: totalCount,
-      uniqueSessions: totalUnique,
-      visitors,
-      pageViews: effectivePageViews,
-      bounceEvents: totalBounceEvents,
-      bounceRate,
-      pageViewEventNames: Array.from(pageViewEvents),
-      visitorEventNames: Array.from(visitorEvents),
-      bounceEventNames: Array.from(bounceEvents),
-    },
-    timeseries,
-    catalog,
-  };
-}
-
-async function getSummaryFromRedisFallback({ combos, dateKeys, limit, catalog }) {
-  if (!combos.length || !dateKeys.length) {
-    return createEmptySummaryResult(catalog);
-  }
 
   const items = [];
   const timeseriesMap = new Map();
@@ -757,48 +496,6 @@ async function getSummaryFromRedisFallback({ combos, dateKeys, limit, catalog })
   };
 }
 
-async function getSummaryFromRedis(options = {}) {
-  const range = normalizeRange(options.startDate, options.endDate);
-  const dateKeys = rangeToDateKeys(range);
-  const limit = clampLimit(options.limit, 50);
-  const combosRaw = await fetchCatalogFromRedis();
-  const catalog = buildCatalogFromCombos(combosRaw);
-  const combos = filterCombos(combosRaw, {
-    eventName: options.eventName,
-    slug: options.slug,
-  });
-
-  if (!combos.length || !dateKeys.length) {
-    return createEmptySummaryResult(catalog);
-  }
-
-  const payload = combos.map((combo) => {
-    const slugKey = combo.slug || GLOBAL_SLUG;
-    return {
-      name: combo.name,
-      slug: slugKey,
-      comboKey: serializeCombo(combo.name, slugKey),
-    };
-  });
-
-  try {
-    const rawResult = await redisEvalScript(
-      SUMMARY_LUA_SCRIPT,
-      [],
-      [JSON.stringify(dateKeys), JSON.stringify(payload)],
-      { allowReadOnly: true }
-    );
-    const parsed = parseSummaryScriptResult(rawResult);
-    if (!parsed) {
-      throw new Error('invalid summary script response');
-    }
-    return buildSummaryFromScriptData({ combos, limit, catalog, scriptData: parsed });
-  } catch (error) {
-    console.warn('[events] summary script failed, falling back to manual aggregation', error);
-    return getSummaryFromRedisFallback({ combos, dateKeys, limit, catalog });
-  }
-}
-
 function getSummaryFromMemory(options = {}) {
   const store = ensureMemoryStore();
   const range = normalizeRange(options.startDate, options.endDate);
@@ -903,11 +600,13 @@ export async function ingestEvents(events, context = {}) {
     return { ingested: 0 };
   }
 
+  const limitedEvents = events.slice(0, MAX_EVENTS_PER_BATCH);
+
   if (await hasRedis()) {
-    return ingestWithRedis(events, context);
+    return ingestWithRedis(limitedEvents, context);
   }
 
-  return ingestWithMemory(events, context);
+  return ingestWithMemory(limitedEvents, context);
 }
 
 export async function getEventSummary(options = {}) {

@@ -14,10 +14,12 @@ async function parseBody(req) {
   }
 }
 
+const MAX_EVENTS_PER_BATCH = 10;
+
 function normalizeEvents(rawEvents) {
   if (!Array.isArray(rawEvents)) return [];
   return rawEvents
-    .slice(0, 100)
+    .slice(0, MAX_EVENTS_PER_BATCH)
     .map((event) => {
       if (!event || typeof event !== 'object') return null;
       const name = typeof event.name === 'string' ? event.name.trim() : '';

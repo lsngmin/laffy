@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import HeatmapGrid from './HeatmapGrid';
 import HeatmapBreakdown from './HeatmapBreakdown';
+import RealtimeNotice from '../common/RealtimeNotice';
 
 function formatDefaultPercent(value) {
   if (!Number.isFinite(value)) return '0%';
@@ -118,6 +119,12 @@ export default function HeatmapPanel({
             <p className="mt-1 text-sm text-slate-400">
               콘텐츠 상세 페이지에서 수집한 좌표 기반 이벤트를 시각화하고, 섹션/이벤트 유형별 분포를 분석할 수 있어요.
             </p>
+            <div className="mt-4">
+              <RealtimeNotice
+                title="Redis 실시간 히트맵"
+                description="최근 3~5분 이내에 기록된 좌표만 Redis에 집계해서 보여줘요. 과거 히스토리는 별도 저장소 연결 후 확인할 수 있습니다."
+              />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button

@@ -20,6 +20,7 @@ import EventTrendChart from '../components/admin/events/EventTrendChart';
 import EventAdCorrelation from '../components/admin/insights/EventAdCorrelation';
 import EventKeyMetrics from '../components/admin/events/EventKeyMetrics';
 import IntegratedInsightHighlights from '../components/admin/insights/IntegratedInsightHighlights';
+import RealtimeNotice from '../components/admin/common/RealtimeNotice';
 import MetricsModal from '../components/admin/modals/MetricsModal';
 import AnalyticsHistoryPanel from '../components/admin/analytics/AnalyticsHistoryPanel';
 import AnalyticsCsvUploadModal from '../components/admin/modals/AnalyticsCsvUploadModal';
@@ -903,6 +904,10 @@ export default function AdminPage() {
                 {eventAnalytics.loading ? '불러오는 중…' : '새로고침'}
               </button>
             </div>
+            <RealtimeNotice
+              title="Redis 실시간 이벤트"
+              description="최근 3~5분 사이에 수집된 이벤트만 Redis에서 실시간으로 집계해요. 더 오래된 데이터는 별도 저장소 연결 전까지는 제공되지 않습니다."
+            />
             <EventFilters
               startDate={analyticsStartDate}
               endDate={analyticsEndDate}

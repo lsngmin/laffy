@@ -1,5 +1,6 @@
 const FIELD_DELIMITER = '|';
 const DEFAULT_BUCKET = 'default';
+const MAX_CELLS_PER_BATCH = 30;
 
 function sanitizeSegment(value, fallback, maxLength = 48) {
   if (typeof value !== 'string') return fallback;
@@ -23,7 +24,7 @@ function heatmapKey(slug) {
 
 function normalizeCells(cells) {
   if (!Array.isArray(cells)) return [];
-  const result = [];
+  const merged = new Map();
   for (const entry of cells) {
     const index = Number(entry?.cell);
     if (!Number.isFinite(index) || index < 0) continue;
@@ -31,14 +32,16 @@ function normalizeCells(cells) {
     if (!Number.isFinite(count) || count <= 0) continue;
     const type = sanitizeSegment(entry?.type, 'generic', 24);
     const section = sanitizeSegment(entry?.section, 'root', 32);
-    result.push({
-      cell: Math.floor(index),
-      count: Math.max(1, Math.round(count)),
-      type,
-      section,
-    });
+    const cell = Math.floor(index);
+    const key = `${section}${FIELD_DELIMITER}${type}${FIELD_DELIMITER}${cell}`;
+    const existing = merged.get(key) || { cell, count: 0, type, section };
+    existing.count += Math.max(1, Math.round(count));
+    merged.set(key, existing);
+    if (merged.size >= MAX_CELLS_PER_BATCH) {
+      break;
+    }
   }
-  return result;
+  return Array.from(merged.values());
 }
 
 function formatField(bucket, section, type, cell) {
