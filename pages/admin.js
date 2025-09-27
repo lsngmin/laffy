@@ -37,6 +37,8 @@ import useHeatmapAnalytics from '../hooks/admin/useHeatmapAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
 import useAdminCatalog from '../hooks/admin/useAdminCatalog';
+import useVisitEvents from '../hooks/admin/useVisitEvents';
+import VisitLogTable from '../components/admin/visits/VisitLogTable';
 
 const NAV_ITEMS = [
   { key: 'uploads', label: '업로드', ariaLabel: '업로드 관리', requiresToken: false },
@@ -45,7 +47,9 @@ const NAV_ITEMS = [
   { key: 'ads', label: '수익', ariaLabel: '수익 분석', requiresToken: true },
   { key: 'insights', label: '인사이트', ariaLabel: '통합 인사이트', requiresToken: true },
   { key: 'heatmap', label: '히트맵', ariaLabel: '히트맵 분석', requiresToken: true },
+  { key: 'visits', label: '방문 로그', ariaLabel: 'x_visit 원시 로그', requiresToken: true },
 ];
+const DEFAULT_VISIT_LIMIT = 50;
 
 function parseKstDateLike(value) {
   if (!value) return null;
@@ -155,6 +159,8 @@ export default function AdminPage() {
     return stored && NAV_KEYS.has(stored) ? stored : 'uploads';
   });
   const [heatmapSlug, setHeatmapSlug] = useState('');
+  const [visitSlug, setVisitSlug] = useState('');
+  const [visitLimit, setVisitLimit] = useState(DEFAULT_VISIT_LIMIT);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [orientation, setOrientation] = useState('landscape');
@@ -211,6 +217,13 @@ export default function AdminPage() {
     enabled: hasToken && view === 'heatmap',
     token,
     slug: heatmapSlug.trim(),
+  });
+
+  const visitEvents = useVisitEvents({
+    enabled: hasToken && view === 'visits',
+    token,
+    slug: visitSlug.trim(),
+    limit: visitLimit,
   });
 
   useEffect(() => {
@@ -366,7 +379,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isRouterReady) return;
-    if (!hasToken && (view === 'analytics' || view === 'events' || view === 'ads' || view === 'insights' || view === 'heatmap')) {
+    if (!hasToken && (view === 'analytics' || view === 'events' || view === 'ads' || view === 'insights' || view === 'heatmap' || view === 'visits')) {
       setView('uploads');
     }
   }, [hasToken, isRouterReady, view]);
@@ -1020,6 +1033,76 @@ export default function AdminPage() {
             formatNumber={formatNumber}
             formatPercent={formatPercent}
           />
+        )}
+
+        {view === 'visits' && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">방문 로그 (x_visit)</h2>
+                <p className="text-sm text-slate-400">콘텐츠별 방문 이벤트를 원시 데이터로 확인할 수 있어요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={visitEvents.refresh}
+                disabled={visitEvents.loading}
+                className="self-start rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-emerald-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {visitEvents.loading ? '불러오는 중…' : '새로고침'}
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:flex sm:items-end sm:gap-4">
+              <label className="flex w-full flex-col gap-2 sm:max-w-xs">
+                <span className="text-xs uppercase tracking-[0.3em] text-slate-400">Slug 필터</span>
+                <input
+                  type="text"
+                  value={visitSlug}
+                  onChange={(event) => setVisitSlug(event.target.value)}
+                  placeholder="예: funny-cat"
+                  className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 focus:border-emerald-400 focus:outline-none"
+                />
+              </label>
+              <label className="flex w-full flex-col gap-2 sm:w-32">
+                <span className="text-xs uppercase tracking-[0.3em] text-slate-400">표시 개수</span>
+                <select
+                  value={String(visitLimit)}
+                  onChange={(event) => {
+                    const parsed = Number.parseInt(event.target.value, 10);
+                    if (Number.isFinite(parsed)) {
+                      setVisitLimit(Math.max(1, Math.min(200, parsed)));
+                    } else {
+                      setVisitLimit(DEFAULT_VISIT_LIMIT);
+                    }
+                  }}
+                  className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 focus:border-emerald-400 focus:outline-none"
+                >
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                </select>
+              </label>
+            </div>
+
+            {visitEvents.error && (
+              <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+                {visitEvents.error}
+              </div>
+            )}
+
+            {visitEvents.loading && visitEvents.items.length === 0 ? (
+              <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 text-center text-sm text-slate-400">
+                방문 로그를 불러오는 중이에요…
+              </div>
+            ) : (
+              <VisitLogTable items={visitEvents.items} />
+            )}
+
+            {visitEvents.loading && visitEvents.items.length > 0 && (
+              <p className="text-xs text-slate-500">새로운 데이터로 업데이트 중…</p>
+            )}
+          </div>
         )}
       </div>
 

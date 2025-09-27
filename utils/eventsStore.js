@@ -21,6 +21,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
 });
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const ALLOWED_EVENT_NAMES = new Set(['x_visit']);
+const RAW_TABLE_PATH = 'events_raw';
 
 function formatDateKey(date) {
   try {
@@ -166,6 +167,63 @@ function isVisitorEvent(name) {
   const normalized = name.trim();
   if (!normalized) return false;
   return ALLOWED_EVENT_NAMES.has(normalized);
+}
+
+function buildRawEventRows(events, context = {}) {
+  if (!Array.isArray(events)) return [];
+  const rows = [];
+  for (const rawEvent of events) {
+    if (!rawEvent || typeof rawEvent !== 'object') continue;
+    const name = typeof rawEvent.name === 'string' ? rawEvent.name.trim() : '';
+    if (!name || !ALLOWED_EVENT_NAMES.has(name)) continue;
+
+    const slug = normalizeSlug(rawEvent.slug || rawEvent.props?.slug || rawEvent.props?.path || '');
+    const tsValue = Number(rawEvent.ts ?? Date.now());
+    const timestamp = Number.isFinite(tsValue) ? tsValue : Date.now();
+    const sessionIdRaw = typeof rawEvent.sessionId === 'string' ? rawEvent.sessionId.trim() : '';
+    const contextSession = typeof context.sessionId === 'string' ? context.sessionId.trim() : '';
+    const sessionId = sessionIdRaw || contextSession || null;
+
+    const props = rawEvent.props && typeof rawEvent.props === 'object' ? { ...rawEvent.props } : {};
+    if (!props.slug && slug) {
+      props.slug = slug;
+    }
+
+    const contextMeta = {};
+    if (context.ip) contextMeta.ip = context.ip;
+    if (context.referer) contextMeta.referer = context.referer;
+    if (context.origin) contextMeta.origin = context.origin;
+    if (context.userAgent) contextMeta.userAgent = context.userAgent;
+    if (context.receivedAt) contextMeta.receivedAt = context.receivedAt;
+    if (Object.keys(contextMeta).length > 0) {
+      props.__context = contextMeta;
+    }
+
+    rows.push({
+      event_name: name,
+      slug,
+      ts: new Date(timestamp).toISOString(),
+      session_id: sessionId,
+      payload: props,
+    });
+  }
+  return rows;
+}
+
+async function persistRawEventsToSupabase(events, context = {}) {
+  if (!hasSupabaseConfig()) return;
+  const rows = buildRawEventRows(events, context);
+  if (!rows.length) return;
+
+  try {
+    await supabaseRest(RAW_TABLE_PATH, {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: rows,
+    });
+  } catch (error) {
+    console.warn('[events] supabase raw ingest failed', error);
+  }
 }
 
 async function redisCommand(command, options) {
@@ -767,6 +825,12 @@ export async function ingestEvents(events, context = {}) {
   }
 
   const limitedEvents = events.slice(0, MAX_EVENTS_PER_BATCH);
+
+  try {
+    await persistRawEventsToSupabase(limitedEvents, context);
+  } catch (error) {
+    console.warn('[events] failed to persist raw events', error);
+  }
 
   if (await hasRedis()) {
     return ingestWithRedis(limitedEvents, context);
