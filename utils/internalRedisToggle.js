@@ -1,4 +1,5 @@
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
+const FALSY = new Set(['0', 'false', 'no', 'off']);
 
 function normalize(value) {
   if (typeof value !== 'string') return '';
@@ -6,13 +7,27 @@ function normalize(value) {
 }
 
 export function isInternalRedisIngestionDisabled() {
-  const raw = process.env.DISABLE_INTERNAL_REDIS_EVENTS ?? process.env.DISABLE_INTERNAL_REDIS;
-  if (!raw) return false;
-  const normalized = normalize(raw);
-  if (!normalized) return false;
-  if (TRUTHY.has(normalized)) return true;
-  if (normalized === '0' || normalized === 'false' || normalized === 'off' || normalized === 'no') {
-    return false;
+  const enableRaw = process.env.ENABLE_INTERNAL_REDIS_EVENTS ?? process.env.ENABLE_INTERNAL_REDIS;
+  if (enableRaw) {
+    const normalized = normalize(enableRaw);
+    if (TRUTHY.has(normalized)) {
+      return false;
+    }
+    if (FALSY.has(normalized)) {
+      return true;
+    }
   }
+
+  const disableRaw = process.env.DISABLE_INTERNAL_REDIS_EVENTS ?? process.env.DISABLE_INTERNAL_REDIS;
+  if (disableRaw) {
+    const normalized = normalize(disableRaw);
+    if (TRUTHY.has(normalized)) {
+      return true;
+    }
+    if (FALSY.has(normalized)) {
+      return false;
+    }
+  }
+
   return true;
 }

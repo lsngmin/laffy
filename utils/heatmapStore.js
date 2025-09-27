@@ -9,6 +9,14 @@ const FIELD_DELIMITER = '|';
 const DEFAULT_BUCKET = 'default';
 const MAX_CELLS_PER_BATCH = 30;
 
+async function isRedisAvailable() {
+  if (isInternalRedisIngestionDisabled()) {
+    return false;
+  }
+  const { hasUpstash } = await import('./redisClient');
+  return hasUpstash();
+}
+
 function sanitizeSegment(value, fallback, maxLength = 48) {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
@@ -216,11 +224,10 @@ export async function recordHeatmapSamples(slug, options = {}) {
 
   const timestamp = Number.isFinite(Number(options.timestamp)) ? Number(options.timestamp) : Date.now();
 
-  const { hasUpstash } = await import('./redisClient');
   let recorded = 0;
   let redisSucceeded = false;
 
-  if (!isInternalRedisIngestionDisabled() && hasUpstash()) {
+  if (await isRedisAvailable()) {
     try {
       recorded = await recordWithRedis(normalizedSlug, bucket, cells);
       redisSucceeded = true;
@@ -242,8 +249,7 @@ export async function getHeatmapSnapshot(slug) {
   const normalizedSlug = typeof slug === 'string' ? slug.trim() : '';
   if (!normalizedSlug) return { slug: '', buckets: [] };
 
-  const { hasUpstash } = await import('./redisClient');
-  if (!isInternalRedisIngestionDisabled() && hasUpstash()) {
+  if (await isRedisAvailable()) {
     try {
       const entries = await loadFromRedis(normalizedSlug);
       return { slug: normalizedSlug, buckets: aggregateEntries(entries) };
