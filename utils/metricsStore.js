@@ -1,5 +1,15 @@
+import { isInternalRedisIngestionDisabled } from './internalRedisToggle';
+
 const VIEW_DEDUPE_TTL_SECONDS = 60 * 60 * 24; // 24 hours
 const LIKE_SESSION_TTL_SECONDS = 60 * 60 * 24 * 90; // 90 days
+
+async function isRedisAvailable() {
+  if (isInternalRedisIngestionDisabled()) {
+    return false;
+  }
+  const { hasUpstash } = await import('./redisClient');
+  return hasUpstash();
+}
 
 function metricsKey(slug) {
   return `metrics:${slug}`;
@@ -109,8 +119,7 @@ export async function getMetrics(slug, options = {}) {
   const { viewerId, includeHistory = true } = options;
   const startDate = includeHistory ? normalizeDateInput(options.startDate) : null;
   const endDate = includeHistory ? normalizeDateInput(options.endDate) : null;
-  const { hasUpstash } = await import('./redisClient');
-  if (hasUpstash()) {
+  if (await isRedisAvailable()) {
     try {
       return await getMetricsFromRedis(slug, viewerId, {
         startDate,
@@ -145,8 +154,7 @@ export async function getMetrics(slug, options = {}) {
 
 export async function bumpView(slug, options = {}) {
   const { viewerId } = options;
-  const { hasUpstash } = await import('./redisClient');
-  if (hasUpstash()) {
+  if (await isRedisAvailable()) {
     try {
       return await bumpViewWithRedis(slug, viewerId);
     } catch (error) {
@@ -183,8 +191,7 @@ export async function bumpView(slug, options = {}) {
 
 export async function setLikeState(slug, options = {}) {
   const { viewerId, liked: desiredState } = options;
-  const { hasUpstash } = await import('./redisClient');
-  if (hasUpstash()) {
+  if (await isRedisAvailable()) {
     try {
       return await setLikeStateWithRedis(slug, viewerId, desiredState);
     } catch (error) {
@@ -228,9 +235,7 @@ export async function overwriteMetrics(slug, metrics = {}) {
   const viewsValue = normalizeMetricValue(metrics.views);
   const likesValue = normalizeMetricValue(metrics.likes);
   const historyValue = Array.isArray(metrics.history) ? normalizeHistoryEntries(metrics.history) : null;
-  const { hasUpstash } = await import('./redisClient');
-
-  if (hasUpstash()) {
+  if (await isRedisAvailable()) {
     try {
       const { redisCommand } = await import('./redisClient');
       const key = metricsKey(slug);
@@ -376,8 +381,7 @@ async function setLikeStateWithRedis(slug, viewerId, desiredState) {
 }
 
 async function getStore() {
-  const { hasUpstash } = await import('./redisClient');
-  if (hasUpstash()) return noopStore();
+  if (await isRedisAvailable()) return noopStore();
   if (process.env.BLOB_READ_WRITE_TOKEN) return blobStore();
   return memoryStore();
 }

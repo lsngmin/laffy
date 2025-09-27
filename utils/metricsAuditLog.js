@@ -1,3 +1,5 @@
+import { isInternalRedisIngestionDisabled } from './internalRedisToggle';
+
 const AUDIT_GLOBAL_KEY = 'metrics:audit-log';
 const AUDIT_BLOB_KEY = 'metrics/audit-log.json';
 const AUDIT_MAX_ENTRIES = 500;
@@ -45,7 +47,10 @@ function ensureMemoryStore() {
   return global.__metricsAuditLog;
 }
 
-async function hasUpstash() {
+async function hasRedis() {
+  if (isInternalRedisIngestionDisabled()) {
+    return false;
+  }
   const { hasUpstash } = await import('./redisClient');
   return hasUpstash();
 }
@@ -144,7 +149,7 @@ export async function recordMetricsAudit(entries) {
   const sanitized = entries.map(sanitizeEntry).filter(Boolean);
   if (!sanitized.length) return;
 
-  if (await hasUpstash()) {
+  if (await hasRedis()) {
     await redisRecord(sanitized);
     return;
   }
@@ -161,7 +166,7 @@ export async function listMetricsAudit({ slugs = [], limit = 50 } = {}) {
   const normalizedLimit = Number(limit);
   const safeLimit = Number.isFinite(normalizedLimit) && normalizedLimit > 0 ? Math.min(normalizedLimit, AUDIT_MAX_ENTRIES) : 50;
 
-  if (await hasUpstash()) {
+  if (await hasRedis()) {
     return redisList({ slugs, limit: safeLimit });
   }
 
