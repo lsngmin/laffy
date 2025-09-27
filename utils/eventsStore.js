@@ -5,6 +5,7 @@ import {
   SUPABASE_EVENTS_ROLLUP_FUNCTION,
   SUPABASE_EVENTS_ROLLUP_TABLE,
 } from './supabaseClient';
+import { isInternalRedisIngestionDisabled } from './internalRedisToggle';
 
 const DEFAULT_RANGE_DAYS = 6;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -165,6 +166,9 @@ async function redisCommand(command, options) {
 }
 
 async function hasRedis() {
+  if (isInternalRedisIngestionDisabled()) {
+    return false;
+  }
   const { hasUpstash } = await import('./redisClient');
   return hasUpstash();
 }

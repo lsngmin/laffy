@@ -3,6 +3,7 @@ import {
   callSupabaseRpc,
   SUPABASE_HEATMAP_ROLLUP_FUNCTION,
 } from './supabaseClient';
+import { isInternalRedisIngestionDisabled } from './internalRedisToggle';
 
 const FIELD_DELIMITER = '|';
 const DEFAULT_BUCKET = 'default';
@@ -219,7 +220,7 @@ export async function recordHeatmapSamples(slug, options = {}) {
   let recorded = 0;
   let redisSucceeded = false;
 
-  if (hasUpstash()) {
+  if (!isInternalRedisIngestionDisabled() && hasUpstash()) {
     try {
       recorded = await recordWithRedis(normalizedSlug, bucket, cells);
       redisSucceeded = true;
@@ -242,7 +243,7 @@ export async function getHeatmapSnapshot(slug) {
   if (!normalizedSlug) return { slug: '', buckets: [] };
 
   const { hasUpstash } = await import('./redisClient');
-  if (hasUpstash()) {
+  if (!isInternalRedisIngestionDisabled() && hasUpstash()) {
     try {
       const entries = await loadFromRedis(normalizedSlug);
       return { slug: normalizedSlug, buckets: aggregateEntries(entries) };
