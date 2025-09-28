@@ -3,7 +3,6 @@ import { useTranslation } from "next-i18next";
 
 import { LikeButton, ShareButton, BookmarkButton } from "@/components/x/button";
 import { useLikes } from "@/hooks/useLikes";
-import { useHeatmapTracker } from "@/hooks/useHeatmapTracker";
 import { formatCount, formatRelativeTime, getOrientationClass } from "@/lib/formatters";
 import { loadFavorites } from "@/utils/storage";
 import VideoCard from "@/components/x/video/VideoCard";
@@ -38,7 +37,6 @@ export default function ContentDetailPage({
   const [serverCounts, setServerCounts] = useState({ views: null, likes: null });
   const [ctaHref, setCtaHref] = useState(SPONSOR_SMART_LINK_URL);
   const ctaRef = useRef(null);
-  const { containerRef: heatmapRef } = useHeatmapTracker({ slug: meme?.slug });
 
   if (!meme) return null;
 
@@ -193,11 +191,7 @@ export default function ContentDetailPage({
       )}
 
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-        <main
-          ref={heatmapRef}
-          className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6"
-          data-heatmap-section="page"
-        >
+        <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-10 sm:px-6">
           <div className="mt-6 mb-6 text-center">
             <LogoText size={"4xl"}/>
           </div>
@@ -207,7 +201,6 @@ export default function ContentDetailPage({
             activeKey={activeCategoryKey}
             onItemClick={openSmartLink}
             ariaLabel={t("nav.label", "navigation")}
-            data-heatmap-section="nav"
           />
 
           <article className="mt-6 space-y-7 rounded-3xl bg-slate-900/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.9)] ring-1 ring-slate-800/70 sm:p-9">
@@ -229,7 +222,6 @@ export default function ContentDetailPage({
                 disablePlay={disableVideo}
                 onEngagement={onPreviewEngaged}
                 durationSeconds={meme.durationSeconds}
-                data-heatmap-section="video"
               />
               <div className="mt-8 flex w-full justify-center">
                 <a
@@ -238,7 +230,6 @@ export default function ContentDetailPage({
                   target="_blank"
                   rel="noopener"
                   onClick={handleCtaClick}
-                  data-heatmap-section="cta"
                   className="inline-flex items-center gap-3 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-7 py-3 text-base font-semibold text-white shadow-[0_16px_40px_rgba(79,70,229,0.45)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-200 hover:brightness-110 active:scale-95 sm:px-9 sm:py-3.5 sm:text-lg"
                   aria-label="스폰서 링크로 이동"
                 >

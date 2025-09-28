@@ -12,7 +12,6 @@ import AdsterraControls from '../components/admin/adsterra/AdsterraControls';
 import AdsterraSummaryCards from '../components/admin/adsterra/AdsterraSummaryCards';
 import AdsterraStatsTable from '../components/admin/adsterra/AdsterraStatsTable';
 import AdsterraChartPanel from '../components/admin/adsterra/AdsterraChartPanel';
-import HeatmapPanel from '../components/admin/heatmap/HeatmapPanel';
 import EventSummaryCards from '../components/admin/events/EventSummaryCards';
 import EventFilters from '../components/admin/events/EventFilters';
 import EventTable from '../components/admin/events/EventTable';
@@ -33,7 +32,6 @@ import useAdminItems from '../hooks/admin/useAdminItems';
 import useAnalyticsMetrics from '../hooks/admin/useAnalyticsMetrics';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
 import useEventAnalytics from '../hooks/admin/useEventAnalytics';
-import useHeatmapAnalytics from '../hooks/admin/useHeatmapAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
 import { downloadAnalyticsCsv } from '../components/admin/analytics/export/AnalyticsCsvExporter';
 import useAdminCatalog from '../hooks/admin/useAdminCatalog';
@@ -46,7 +44,6 @@ const NAV_ITEMS = [
   { key: 'events', label: '분석', ariaLabel: '커스텀 이벤트 분석', requiresToken: true },
   { key: 'ads', label: '수익', ariaLabel: '수익 분석', requiresToken: true },
   { key: 'insights', label: '인사이트', ariaLabel: '통합 인사이트', requiresToken: true },
-  { key: 'heatmap', label: '히트맵', ariaLabel: '히트맵 분석', requiresToken: true },
   { key: 'visits', label: '방문 로그', ariaLabel: 'x_visit 원시 로그', requiresToken: true },
 ];
 const DEFAULT_VISIT_LIMIT = 50;
@@ -158,7 +155,6 @@ export default function AdminPage() {
     const stored = window.localStorage.getItem('laffy-admin-view');
     return stored && NAV_KEYS.has(stored) ? stored : 'uploads';
   });
-  const [heatmapSlug, setHeatmapSlug] = useState('');
   const [visitSlug, setVisitSlug] = useState('');
   const [visitLimit, setVisitLimit] = useState(DEFAULT_VISIT_LIMIT);
   const [title, setTitle] = useState('');
@@ -210,29 +206,12 @@ export default function AdminPage() {
     filters: { ...eventFilters, limit: 200 },
   });
 
-  const heatmapAnalytics = useHeatmapAnalytics({
-    enabled: hasToken && view === 'heatmap',
-    token,
-    slug: heatmapSlug.trim(),
-  });
-
   const visitEvents = useVisitEvents({
     enabled: hasToken && view === 'visits',
     token,
     slug: visitSlug.trim(),
     limit: visitLimit,
   });
-
-  useEffect(() => {
-    if (view !== 'heatmap') return;
-    if (heatmapSlug) return;
-    const nextItem = Array.isArray(catalog.items)
-      ? catalog.items.find((item) => item?.slug)
-      : null;
-    if (nextItem?.slug) {
-      setHeatmapSlug(nextItem.slug);
-    }
-  }, [catalog.items, heatmapSlug, view]);
 
   const fetchHistory = useCallback(
     async (options = {}) => {
@@ -376,7 +355,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isRouterReady) return;
-    if (!hasToken && (view === 'analytics' || view === 'events' || view === 'ads' || view === 'insights' || view === 'heatmap' || view === 'visits')) {
+    if (!hasToken && (view === 'analytics' || view === 'events' || view === 'ads' || view === 'insights' || view === 'visits')) {
       setView('uploads');
     }
   }, [hasToken, isRouterReady, view]);
@@ -525,16 +504,6 @@ export default function AdminPage() {
   const handleUploadFiltersChange = useCallback((nextFilters) => {
     setUploadFilters((prev) => ({ ...prev, ...nextFilters }));
   }, []);
-
-  useEffect(() => {
-    if (view !== 'heatmap') return;
-    if (heatmapSlug && heatmapSlug.trim()) return;
-    const source = Array.isArray(catalog.items) ? catalog.items : [];
-    const firstSlug = source.find((item) => item?.slug)?.slug;
-    if (firstSlug) {
-      setHeatmapSlug(firstSlug);
-    }
-  }, [catalog.items, heatmapSlug, view]);
 
   const handleEventFilterChange = useCallback((next) => {
     setEventFilters((prev) => ({ ...prev, ...next }));
@@ -997,9 +966,7 @@ export default function AdminPage() {
             <AdsterraSummaryCards
               totals={adsterra.totals}
               rows={adsterra.filteredStats}
-              placementLabelMap={adsterra.placementLabelMap}
               formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
               formatCurrency={formatCurrency}
             />
             <AdsterraChartPanel
@@ -1035,20 +1002,6 @@ export default function AdminPage() {
               formatDecimal={formatDecimal}
             />
           </div>
-        )}
-
-        {view === 'heatmap' && (
-          <HeatmapPanel
-            slug={heatmapSlug}
-            onSlugChange={setHeatmapSlug}
-            items={catalog.items}
-            data={heatmapAnalytics.data}
-            loading={heatmapAnalytics.loading}
-            error={heatmapAnalytics.error}
-            onRefresh={heatmapAnalytics.refresh}
-            formatNumber={formatNumber}
-            formatPercent={formatPercent}
-          />
         )}
 
         {view === 'visits' && (
