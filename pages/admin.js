@@ -162,7 +162,6 @@ export default function AdminPage() {
   const [visitSlug, setVisitSlug] = useState('');
   const [visitLimit, setVisitLimit] = useState(DEFAULT_VISIT_LIMIT);
   const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState('0');
   const [channel, setChannel] = useState('l');
 
   const {
@@ -446,14 +445,12 @@ export default function AdminPage() {
   const uploadFormState = useMemo(
     () => ({
       title,
-      duration,
       channel,
       setTitle,
-      setDuration,
       setChannel,
       handleUploadUrl: `/api/blob/upload${qs}`,
     }),
-    [channel, duration, qs, title]
+    [channel, qs, title]
   );
 
   const registerMeta = useCallback(
@@ -468,10 +465,6 @@ export default function AdminPage() {
       const hasImageExtension = imageExtPattern.test(lowerPathname) || imageExtPattern.test(lowerUrl);
       const isImage = contentType.startsWith('image/') || hasImageExtension;
       const normalizedType = isImage ? 'image' : 'video';
-      const durationSeconds = (() => {
-        const parsed = Number(duration);
-        return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 0;
-      })();
       const normalizedChannel = channel === 'l' ? 'l' : 'x';
 
       try {
@@ -487,7 +480,7 @@ export default function AdminPage() {
             socialTitle: fallbackTitle,
             cardTitle: fallbackTitle,
             summary: fallbackTitle,
-            runtimeSec: durationSeconds,
+            runtimeSec: 0,
           },
           media: {
             assetUrl: blob.url,
@@ -518,7 +511,6 @@ export default function AdminPage() {
           return false;
         }
         setTitle('');
-        setDuration('0');
         setChannel('l');
         refreshAll();
         return true;
@@ -527,7 +519,7 @@ export default function AdminPage() {
         return false;
       }
     },
-    [channel, duration, hasToken, qs, refreshAll, title]
+    [channel, hasToken, qs, refreshAll, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {

@@ -268,9 +268,9 @@ export default function UploadsSection({
   );
 
   const activeChannelLabel = useMemo(() => {
-    if (channelFilter === 'l') return 'L 채널';
-    if (channelFilter === 'x') return 'X 채널';
-    return '전체 채널';
+    if (channelFilter === 'l') return 'L 채널 콘텐츠';
+    if (channelFilter === 'x') return 'X 채널 콘텐츠';
+    return '전체 채널 콘텐츠';
   }, [channelFilter]);
 
   const handleUploadComplete = useCallback(
@@ -292,10 +292,10 @@ export default function UploadsSection({
       <div className="space-y-6 rounded-3xl border border-slate-800/60 bg-gradient-to-r from-[#050916]/90 via-[#060b1c]/80 to-[#0a1124]/90 p-6 shadow-lg shadow-cyan-900/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
-            <p className="text-[11px] uppercase tracking-[0.48em] text-slate-500">Channel Matrix</p>
-            <h2 className="text-2xl font-semibold text-slate-50">L 라우트 업로드 허브</h2>
-            <p className="text-sm text-slate-400">
-              {activeChannelLabel} 기준으로 정렬된 콘텐츠 {items.length}개를 관리할 수 있어요.
+            <p className="text-[11px] font-semibold uppercase tracking-[0.48em] text-slate-400">콘텐츠 관리</p>
+            <h2 className="text-2xl font-semibold text-slate-50">업로드한 자료를 한눈에 살펴보세요</h2>
+            <p className="text-sm text-slate-300">
+              {activeChannelLabel} {items.length}개를 손쉽게 정리하고 공유할 수 있어요.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -305,7 +305,7 @@ export default function UploadsSection({
                 onClick={() => setUploadModalOpen(true)}
                 className="rounded-full bg-gradient-to-r from-sky-500 via-cyan-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/40 transition hover:from-sky-400 hover:via-cyan-400 hover:to-indigo-400"
               >
-                네뷸라 업로드 포털
+                새 콘텐츠 업로드
               </button>
             )}
             <button
@@ -314,7 +314,7 @@ export default function UploadsSection({
               disabled={isLoading}
               className="rounded-full border border-slate-700/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:border-slate-900 disabled:text-slate-600"
             >
-              새로고침
+              목록 새로고침
             </button>
           </div>
         </div>
@@ -334,7 +334,7 @@ export default function UploadsSection({
         <div className="space-y-3 rounded-3xl border border-slate-800/60 bg-slate-950/50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.28em] text-slate-300">
+              <label className="flex items-center gap-2 rounded-lg bg-slate-900/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.28em] text-slate-300">
                 <input
                   ref={selectAllRef}
                   type="checkbox"
@@ -432,7 +432,7 @@ export default function UploadsSection({
           </form>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           {items.map((item) => (
             <UploadedItemCard
               key={item.pathname || item.slug || item.routePath || item.url}
@@ -495,13 +495,12 @@ export default function UploadsSection({
             <UploadForm
               hasToken={hasToken}
               title={uploadFormState.title}
-              duration={uploadFormState.duration}
               channel={uploadFormState.channel}
               onTitleChange={uploadFormState.setTitle}
-              onDurationChange={uploadFormState.setDuration}
               onChannelChange={uploadFormState.setChannel}
               handleUploadUrl={uploadFormState.handleUploadUrl}
               onUploaded={handleUploadComplete}
+              onClose={handleCloseUploadModal}
             />
           </div>
         </div>
