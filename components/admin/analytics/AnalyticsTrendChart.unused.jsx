@@ -1,4 +1,7 @@
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+/**
+ * NOTE: This component is archived and not currently used in the admin UI.
+ */
 import { useMemo } from 'react';
 
 function normalizeHistory(history) {

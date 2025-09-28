@@ -69,28 +69,12 @@ export default function EditContentModal({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-widest text-slate-400">Duration (seconds)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    inputMode="numeric"
-                    value={editForm.durationSeconds}
-                    onChange={(event) => onFieldChange('durationSeconds', event.target.value)}
-                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    placeholder="예: 123"
-                  />
-                  <p className="text-xs text-slate-500">초 단위로 입력해 주세요. 비워두면 기존 값이 유지됩니다.</p>
-                </div>
-
-                <div className="space-y-2">
                   <label className="text-xs uppercase tracking-widest text-slate-400">Channel</label>
                   <select
-                    value={editForm.channel || 'x'}
+                    value={editForm.channel || 'l'}
                     onChange={(event) => onFieldChange('channel', event.target.value)}
                     className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                   >
-                    <option value="x">x</option>
                     <option value="l">l</option>
                   </select>
                 </div>

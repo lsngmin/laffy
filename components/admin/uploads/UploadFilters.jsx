@@ -1,13 +1,6 @@
 const SORT_OPTIONS = [
   { value: 'recent', label: '최신순' },
   { value: 'title', label: '제목순' },
-  { value: 'duration', label: '재생시간' },
-];
-
-const CHANNEL_TABS = [
-  { value: 'l', label: 'L 채널' },
-  { value: 'x', label: 'X 채널' },
-  { value: '', label: '전체 보기' },
 ];
 
 export default function UploadFilters({
@@ -15,31 +8,16 @@ export default function UploadFilters({
   onSearchChange,
   typeFilter,
   onTypeFilterChange,
-  channelFilter,
-  onChannelFilterChange,
   sortOption,
   onSortOptionChange,
 }) {
   return (
     <div className="space-y-4 rounded-3xl border border-slate-800/60 bg-[#050916]/80 p-5 shadow-inner shadow-slate-900/40">
-      <div className="flex flex-wrap items-center gap-2 rounded-full bg-slate-950/40 p-1">
-        {CHANNEL_TABS.map((tab) => {
-          const isActive = channelFilter === tab.value;
-          return (
-            <button
-              key={tab.value || 'all'}
-              type="button"
-              onClick={() => onChannelFilterChange(tab.value)}
-              className={`flex-1 min-w-[96px] rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] transition ${
-                isActive
-                  ? 'bg-gradient-to-r from-sky-500/80 via-cyan-400/80 to-indigo-500/80 text-slate-950 shadow-lg shadow-cyan-500/20'
-                  : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+      <div className="flex items-center justify-between rounded-2xl border border-slate-900/70 bg-slate-950/40 px-4 py-3 text-[12px] text-slate-300">
+        <span className="font-semibold uppercase tracking-[0.32em] text-slate-400">채널</span>
+        <span className="rounded-full border border-sky-400/40 bg-sky-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-200">
+          L 전용 라우트
+        </span>
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(200px,1fr)_minmax(140px,200px)_minmax(140px,200px)]">
         <label className="group flex items-center gap-2 rounded-2xl border border-slate-900/60 bg-slate-950/40 px-3 py-2 text-sm text-slate-300 transition hover:border-sky-500/40">

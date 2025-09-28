@@ -1,3 +1,6 @@
+/**
+ * NOTE: This component is archived and not currently used in the admin UI.
+ */
 export default function AnalyticsToolbar({
   sortKey,
   sortDirection,

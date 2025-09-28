@@ -1,3 +1,6 @@
+/**
+ * NOTE: This component is archived and not currently used in the admin UI.
+ */
 export default function AnalyticsOverview({ itemCount, totals, averageViews, formatNumber }) {
   return (
     <div className="grid gap-4 md:grid-cols-3">

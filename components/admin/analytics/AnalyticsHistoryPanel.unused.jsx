@@ -1,3 +1,6 @@
+/**
+ * NOTE: This component is archived and not currently used in the admin UI.
+ */
 import { useMemo } from 'react';
 import ModalPortal from '../modals/ModalPortal';
 
