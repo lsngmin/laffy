@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
@@ -6,22 +6,63 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import ImageSocialMeta from '@/components/x/meta/ImageSocialMeta';
 import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
+import usePageviewTracker from '@/hooks/usePageviewTracker';
+import { vaTrack } from '@/lib/va';
 
 export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
   const { t } = useTranslation('common');
+  const slug = meme?.slug || '';
+  const title = meme?.title || '';
+
+  const visitMatch = useCallback((event) => {
+    if (!event || typeof window === 'undefined') return false;
+    try {
+      const origin = window.location.origin || undefined;
+      const eventUrl = event.url ? new URL(event.url, origin) : null;
+      if (!eventUrl) return false;
+      return eventUrl.pathname === window.location.pathname;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const visitPayload = useMemo(
+    () =>
+      () => ({
+        slug,
+        title,
+        referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+      }),
+    [slug, title]
+  );
+
+  usePageviewTracker({
+    eventName: 'l_visit',
+    match: visitMatch,
+    getPayload: visitPayload,
+    enabled: Boolean(slug),
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     if (!redirectUrl) return undefined;
 
+    try {
+      vaTrack('l_redirect_initiated', {
+        slug,
+        title,
+        target: redirectUrl,
+      });
+    } catch {}
+
     const timer = window.setTimeout(() => {
       try {
         window.location.replace(redirectUrl);
       } catch {}
-    }, 0);
+    }, 120);
 
     return () => window.clearTimeout(timer);
-  }, [redirectUrl]);
+  }, [redirectUrl, slug, title]);
 
   if (!meme) return null;
 
@@ -53,6 +94,15 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
           </div>
           <a
             href={redirectUrl}
+            onClick={() => {
+              try {
+                vaTrack('l_redirect_cta_click', {
+                  slug,
+                  title,
+                  target: redirectUrl,
+                });
+              } catch {}
+            }}
             className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(99,102,241,0.35)] transition hover:brightness-110"
           >
             {fallbackCta}
