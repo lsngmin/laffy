@@ -22,15 +22,17 @@ export default function UploadedItemCard({
   return (
     <div className={`relative overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur ${ringClass}`}>
       {selectable && (
-        <label className="absolute left-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 shadow-lg">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-emerald-400"
-            onChange={onToggleSelect}
-            checked={selected}
-          />
-          <span className="sr-only">콘텐츠 선택</span>
-        </label>
+        <div className="absolute left-4 top-4 z-20">
+          <label className="flex items-center gap-2 rounded-md border border-slate-800/70 bg-slate-950/80 px-2 py-1 text-[11px] font-medium text-slate-200 shadow-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-emerald-400"
+              onChange={onToggleSelect}
+              checked={selected}
+            />
+            선택
+          </label>
+        </div>
       )}
       <div className="grid gap-4 p-4 sm:grid-cols-[140px,1fr]">
         <div className="relative overflow-hidden rounded-2xl border border-slate-900/60 bg-slate-950/70">
@@ -46,18 +48,18 @@ export default function UploadedItemCard({
           )}
         </div>
         <div className="flex flex-col justify-between gap-3">
-          <div className="space-y-2">
-            <div className="text-sm font-semibold text-slate-100">
-              {item.title || item.slug}
+          <div className="space-y-3">
+            <div className="font-mono text-base font-semibold tracking-tight text-cyan-200">
+              {item.slug}
             </div>
-            <div className="text-[12px] text-slate-400">
-              <span className="rounded bg-slate-900/70 px-2 py-0.5 font-mono text-[11px] tracking-wide text-slate-300">
-                {item.slug}
-              </span>
-            </div>
+            {item.title && (
+              <div className="text-sm font-medium text-slate-100">{item.title}</div>
+            )}
             <UploadTagChips item={item} />
             {item.routePath && (
-              <p className="truncate text-[11px] text-slate-500">{item.routePath}</p>
+              <p className="truncate text-[11px] text-slate-400">
+                연결 경로: <span className="text-slate-300">{item.routePath}</span>
+              </p>
             )}
             {item._error && (
               <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-[12px] text-rose-200">
