@@ -7,6 +7,13 @@ const PLACEMENT_SUMMARY_TEXT = ADSTERRA_PLACEMENT_PRESETS.map(
   ({ id, label }) => `${label}(${id})`
 ).join(' + ');
 
+const parseNumericMetric = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const normalized = typeof value === 'string' ? value.replace(/,/g, '') : value;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export default function AdsterraStatsTable({
   rows,
   loading,
@@ -46,13 +53,13 @@ export default function AdsterraStatsTable({
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {rows.map((row, index) => {
-              const impressionsRaw =
-                row?.impressionsValue ?? Number(row?.impression ?? row?.impressions ?? 0) || 0;
-              const clicksRaw = row?.clicksValue ?? Number(row?.clicks ?? row?.click ?? 0) || 0;
-              const revenueRaw = row?.revenueValue ?? Number(row?.revenue ?? 0) || 0;
-              const impressions = Number.isFinite(impressionsRaw) ? impressionsRaw : 0;
-              const clicks = Number.isFinite(clicksRaw) ? clicksRaw : 0;
-              const revenue = Number.isFinite(revenueRaw) ? revenueRaw : 0;
+              const impressions = parseNumericMetric(
+                row?.impressionsValue ?? row?.impression ?? row?.impressions
+              );
+              const clicks = parseNumericMetric(
+                row?.clicksValue ?? row?.clicks ?? row?.click
+              );
+              const revenue = parseNumericMetric(row?.revenueValue ?? row?.revenue);
               const cpmRaw =
                 Number(
                   row?.cpm ??
