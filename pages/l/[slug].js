@@ -3,14 +3,14 @@ import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useRouter } from 'next/router';
 
-import { getAllContent, getContentBySlug } from '@/utils/contentSource';
+import { getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import ImageSocialMeta from '@/components/x/meta/ImageSocialMeta';
 import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
 import usePageviewTracker from '@/hooks/usePageviewTracker';
 import { vaTrack } from '@/lib/va';
 
-export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
+export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverride }) {
   const { t, i18n } = useTranslation('common');
   const router = useRouter();
   const slug = meme?.slug || '';
@@ -22,11 +22,11 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
 
     const queryRaw = router.query?.l;
     const flag = Array.isArray(queryRaw) ? queryRaw[0] : queryRaw;
-    const targetLocale = flag === '1' ? 'ko' : router.locale || i18n.language;
+    const targetLocale = flag === '1' ? 'ko' : localeOverride || router.locale || i18n.language;
 
     if (!targetLocale || i18n.language === targetLocale) return;
     i18n.changeLanguage(targetLocale).catch(() => {});
-  }, [router.isReady, router.query?.l, router.locale, i18n]);
+  }, [router.isReady, router.query?.l, router.locale, localeOverride, i18n]);
 
   const visitMatch = useCallback((event) => {
     if (!event || typeof window === 'undefined') return false;
@@ -142,19 +142,7 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
   );
 }
 
-export async function getStaticPaths({ locales }) {
-  const { items } = await getAllContent();
-  const paths = items
-    .filter((item) => (item.type || '').toLowerCase() === 'image')
-    .filter((item) => ((item.channel || 'x').toLowerCase() === 'l'))
-    .map((meme) =>
-      locales.map((locale) => ({ params: { slug: meme.slug }, locale }))
-    )
-    .flat();
-  return { paths, fallback: 'blocking' };
-}
-
-export async function getStaticProps({ params, locale }) {
+export async function getServerSideProps({ params, locale, query, res }) {
   const { meme } = await getContentBySlug(params.slug);
   if (!meme) return { notFound: true };
   if ((meme.type || '').toLowerCase() !== 'image') {
@@ -163,6 +151,9 @@ export async function getStaticProps({ params, locale }) {
   if (((meme.channel || 'x').toLowerCase()) !== 'l') {
     return { notFound: true };
   }
+
+  const localeParam = Array.isArray(query.l) ? query.l[0] : query.l;
+  const resolvedLocale = localeParam === '1' ? 'ko' : locale || 'en';
 
   const normalizedMeme = { ...meme };
 
@@ -186,12 +177,16 @@ export async function getStaticProps({ params, locale }) {
   };
   normalizedMeme.__seo = { canonicalUrl, hreflangs, jsonLd, metaImage: thumb };
 
+  if (res?.setHeader) {
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=30');
+  }
+
   return {
     props: {
       meme: normalizedMeme,
       redirectUrl: SPONSOR_SMART_LINK_URL,
-      ...(await serverSideTranslations(locale, ['common'])),
+      localeOverride: resolvedLocale,
+      ...(await serverSideTranslations(resolvedLocale, ['common'])),
     },
-    revalidate: 60,
   };
 }
