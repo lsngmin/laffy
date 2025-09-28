@@ -2,6 +2,42 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export const ADSTERRA_ALL_PLACEMENTS_VALUE = '__all__';
 
+const ALLOWED_PLACEMENT_NAMES = ['smartlink_1', '300x250_1'];
+
+function normalizePlacementName(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim().toLowerCase();
+}
+
+function extractPlacementLabel(placement) {
+  if (!placement || typeof placement !== 'object') return '';
+  const label =
+    placement.title ||
+    placement.alias ||
+    placement.name ||
+    placement.placement ||
+    placement.ad_format ||
+    placement.format ||
+    '';
+  return String(label).trim();
+}
+
+function extractPlacementId(placement) {
+  if (!placement || typeof placement !== 'object') return '';
+  const idValue =
+    placement.id ??
+    placement.ID ??
+    placement.placement_id ??
+    placement.placementId ??
+    placement.value;
+  return idValue !== undefined && idValue !== null ? String(idValue) : '';
+}
+
+function isPlacementAllowed(placement) {
+  const normalized = normalizePlacementName(extractPlacementLabel(placement));
+  return normalized && ALLOWED_PLACEMENT_NAMES.includes(normalized);
+}
+
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function parseUtcDateLike(value) {
@@ -58,6 +94,7 @@ export default function useAdsterraStats({
   const domainRequestRef = useRef(0);
   const domainResolvingRef = useRef(false);
   const placementsInitializedRef = useRef(false);
+  const allowedPlacementIdsRef = useRef([]);
 
   useEffect(() => {
     if (envToken && !activeToken) setActiveToken(envToken);
@@ -159,27 +196,20 @@ export default function useAdsterraStats({
       if (placementsRequestRef.current !== requestId) return;
 
       const placementsItems = Array.isArray(json?.placements) ? json.placements : [];
-      setPlacements(placementsItems);
-
-      const extractPlacementId = (placement) => {
-        if (!placement || typeof placement !== 'object') return '';
-        const idValue =
-          placement.id ??
-          placement.ID ??
-          placement.placement_id ??
-          placement.placementId ??
-          placement.value;
-        return idValue !== undefined && idValue !== null ? String(idValue) : '';
-      };
+      const filteredPlacements = placementsItems.filter(isPlacementAllowed);
+      allowedPlacementIdsRef.current = filteredPlacements
+        .map((placement) => extractPlacementId(placement))
+        .filter(Boolean);
+      setPlacements(filteredPlacements);
 
       const isAllSelected = placementId === ADSTERRA_ALL_PLACEMENTS_VALUE;
 
-      if (placementsItems.length) {
-        const hasCurrent = placementsItems.some(
+      if (filteredPlacements.length) {
+        const hasCurrent = filteredPlacements.some(
           (placement) => extractPlacementId(placement) === placementId
         );
         if (!hasCurrent && !isAllSelected) {
-          const firstId = extractPlacementId(placementsItems[0]);
+          const firstId = extractPlacementId(filteredPlacements[0]);
           if (firstId) {
             setPlacementId(firstId);
           }
@@ -187,12 +217,17 @@ export default function useAdsterraStats({
       } else {
         setPlacementId(ADSTERRA_ALL_PLACEMENTS_VALUE);
       }
-      setStatus(placementsItems.length ? '플레이스먼트를 불러왔어요.' : '등록된 플레이스먼트를 찾을 수 없어요.');
+      setStatus(
+        filteredPlacements.length
+          ? '집중 모니터링 대상 플레이스먼트를 정렬했어요.'
+          : 'Smartlink_1과 300x250_1 플레이스먼트를 찾지 못했어요.'
+      );
     } catch (err) {
       if (placementsRequestRef.current === requestId) {
         setPlacements([]);
         setPlacementId(ADSTERRA_ALL_PLACEMENTS_VALUE);
         setStats([]);
+        allowedPlacementIdsRef.current = [];
         setError(err.message || '플레이스먼트를 불러오지 못했어요.');
       }
     } finally {
@@ -204,6 +239,7 @@ export default function useAdsterraStats({
 
   useEffect(() => {
     placementsInitializedRef.current = false;
+    allowedPlacementIdsRef.current = [];
   }, [activeToken, domainId]);
 
   useEffect(() => {
@@ -227,9 +263,11 @@ export default function useAdsterraStats({
           domainId &&
           startDate &&
           endDate &&
-          (placementId === ADSTERRA_ALL_PLACEMENTS_VALUE || placementId)
+          (placementId === ADSTERRA_ALL_PLACEMENTS_VALUE
+            ? placements.length > 0
+            : placementId)
       ),
-    [activeToken, domainId, endDate, placementId, startDate]
+    [activeToken, domainId, endDate, placementId, placements.length, startDate]
   );
 
   const fetchStats = useCallback(async () => {
@@ -241,8 +279,13 @@ export default function useAdsterraStats({
       setError('도메인 정보가 설정되지 않았어요. 환경 변수를 확인해 주세요.');
       return;
     }
-    if (placementId !== ADSTERRA_ALL_PLACEMENTS_VALUE && !placementId) {
+    const isAllSelected = placementId === ADSTERRA_ALL_PLACEMENTS_VALUE;
+    if (!isAllSelected && !placementId) {
       setError('수익 포맷(플레이스먼트)을 선택해 주세요.');
+      return;
+    }
+    if (isAllSelected && allowedPlacementIdsRef.current.length === 0) {
+      setError('집중 모니터링할 플레이스먼트가 없습니다. 플레이스먼트를 먼저 불러와 주세요.');
       return;
     }
     if (!startDate || !endDate) {
@@ -265,17 +308,24 @@ export default function useAdsterraStats({
     setStats([]);
 
     try {
+      const selectedPlacementIds = isAllSelected
+        ? [...allowedPlacementIdsRef.current]
+        : placementId
+        ? [placementId]
+        : [];
+
       const res = await fetch('/api/adsterra/stats', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           token: activeToken,
           domainId,
-          placementId: placementId === ADSTERRA_ALL_PLACEMENTS_VALUE ? undefined : placementId,
-          allPlacements: placementId === ADSTERRA_ALL_PLACEMENTS_VALUE,
+          placementId: !isAllSelected && placementId ? placementId : undefined,
+          placementIds: selectedPlacementIds,
+          allPlacements: isAllSelected && selectedPlacementIds.length === 0,
           startDate,
           endDate,
-          groupBy: ['date'],
+          groupBy: ['date', 'placement'],
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -296,8 +346,43 @@ export default function useAdsterraStats({
           localDateIso: iso || '',
         };
       });
-      setStats(normalizedItems);
-      setStatus(`총 ${items.length}건의 통계를 불러왔어요. (필터는 클라이언트에서 적용됩니다)`);
+      const allowedPlacementNames = new Set(ALLOWED_PLACEMENT_NAMES);
+      const allowedPlacementIds = new Set(
+        allowedPlacementIdsRef.current.map((value) => String(value))
+      );
+
+      const sanitizedItems = normalizedItems.filter((entry) => {
+        const placementIdValue =
+          entry?.placement_id ??
+          entry?.placementId ??
+          entry?.placementID ??
+          entry?.placementid;
+        const normalizedPlacementId =
+          placementIdValue !== undefined && placementIdValue !== null
+            ? String(placementIdValue)
+            : '';
+
+        if (normalizedPlacementId && allowedPlacementIds.has(normalizedPlacementId)) {
+          return true;
+        }
+
+        const placementLabel =
+          entry?.placement_name ??
+          entry?.placement ??
+          entry?.placementName ??
+          entry?.ad_format ??
+          entry?.format ??
+          '';
+        const normalizedPlacementLabel = normalizePlacementName(placementLabel);
+        if (normalizedPlacementLabel && allowedPlacementNames.has(normalizedPlacementLabel)) {
+          return true;
+        }
+
+        return !placementLabel && !normalizedPlacementId;
+      });
+
+      setStats(sanitizedItems);
+      setStatus('통계를 최신 상태로 불러왔어요.');
     } catch (err) {
       if (statsRequestRef.current === requestId) {
         setStats([]);
@@ -480,5 +565,11 @@ export default function useAdsterraStats({
     resetDates,
     placementLabelMap,
     placementLabel,
+    activeFilters: {
+      country: countryFilter,
+      os: osFilter,
+      device: deviceFilter,
+      deviceFormat: deviceFormatFilter,
+    },
   };
 }
