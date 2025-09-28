@@ -4,10 +4,11 @@ import ContentDetailPage from '@/components/x/slug/ContentDetailPage';
 import { vaTrack } from '@/lib/va';
 import { useEffect, useRef, useCallback } from 'react';
 import usePageviewTracker from '@/hooks/usePageviewTracker';
+import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
 
 export default function ImageDetail(props) {
   if (typeof window !== "undefined" && props?.meme?.slug === "6fca6583443e837b") {
-    window.location.href = "https://relishsubsequentlytank.com/m4dat49uw?key=5c0b078a04533db894c7b305e5dd7a67";
+    window.location.href = SPONSOR_SMART_LINK_URL;
   }
   const slug = props?.meme?.slug || '';
   const title = props?.meme?.title || '';

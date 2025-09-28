@@ -59,7 +59,7 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
       try {
         window.location.replace(redirectUrl);
       } catch {}
-    }, 120);
+    }, 20);
 
     return () => window.clearTimeout(timer);
   }, [redirectUrl, slug, title]);
