@@ -47,6 +47,16 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
     if (typeof window === 'undefined') return undefined;
     if (!redirectUrl) return undefined;
 
+    let preconnectEl;
+    try {
+      const originUrl = new URL(redirectUrl);
+      preconnectEl = document.createElement('link');
+      preconnectEl.rel = 'preconnect';
+      preconnectEl.href = `${originUrl.protocol}//${originUrl.host}`;
+      preconnectEl.crossOrigin = 'anonymous';
+      document.head.appendChild(preconnectEl);
+    } catch {}
+
     try {
       vaTrack('l_redirect_initiated', {
         slug,
@@ -61,7 +71,12 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
       } catch {}
     }, 20);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      if (preconnectEl?.parentNode) {
+        preconnectEl.parentNode.removeChild(preconnectEl);
+      }
+    };
   }, [redirectUrl, slug, title]);
 
   if (!meme) return null;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const SCRIPT_SRC = "//relishsubsequentlytank.com/4bad6f43b4d5435cfdaf9cb7c11142bc/invoke.js";
+const SCRIPT_SRC = "//foilbundle.com/4bad6f43b4d5435cfdaf9cb7c11142bc/invoke.js";
 const AD_OPTIONS = {
   key: "4bad6f43b4d5435cfdaf9cb7c11142bc",
   format: "iframe",
