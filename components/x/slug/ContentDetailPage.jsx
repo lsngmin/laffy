@@ -13,7 +13,6 @@ import dynamic from "next/dynamic";
 import { SPONSOR_SMART_LINK_URL } from "@/components/x/ads/constants";
 import ImageSocialMeta from "@/components/x/meta/ImageSocialMeta";
 import ElevatedNoticePanel from "./ElevatedNoticePanel";
-import RecommendedGrid from "@/components/x/collections/RecommendedGrid";
 import { vaTrack } from "@/lib/va";
 import {
   buildSmartLinkUrl,
@@ -29,7 +28,6 @@ export default function ContentDetailPage({
   disableVideo = false,
   onPreviewEngaged,
   onCtaClick,
-  allMemes,
 }) {
   const { t, i18n } = useTranslation("common");
   const { isLiked, setLikedState, ready: likesReady } = useLikes();
@@ -271,12 +269,6 @@ export default function ContentDetailPage({
           </div>
           <ElevatedNoticePanel />
 
-          <RecommendedGrid
-            t={t}
-            locale={locale}
-            items={allMemes}
-            currentSlug={meme.slug}
-          />
         </main>
       </div>
     </>
