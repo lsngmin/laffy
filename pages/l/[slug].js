@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { useRouter } from 'next/router';
 
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
@@ -10,9 +11,22 @@ import usePageviewTracker from '@/hooks/usePageviewTracker';
 import { vaTrack } from '@/lib/va';
 
 export default function SmartLinkRedirectPage({ meme, redirectUrl }) {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const router = useRouter();
   const slug = meme?.slug || '';
   const title = meme?.title || '';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!router.isReady || !i18n?.changeLanguage) return;
+
+    const queryRaw = router.query?.l;
+    const flag = Array.isArray(queryRaw) ? queryRaw[0] : queryRaw;
+    const targetLocale = flag === '1' ? 'ko' : router.locale || i18n.language;
+
+    if (!targetLocale || i18n.language === targetLocale) return;
+    i18n.changeLanguage(targetLocale).catch(() => {});
+  }, [router.isReady, router.query?.l, router.locale, i18n]);
 
   const visitMatch = useCallback((event) => {
     if (!event || typeof window === 'undefined') return false;

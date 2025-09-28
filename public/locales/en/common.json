@@ -58,8 +58,8 @@
     }
   },
   "redirect": {
-    "heading": "Redirecting…",
-    "description": "Hang tight, we’re opening the smart link for you.",
-    "cta": "Tap here if nothing happens."
+    "heading": "Opening the video…",
+    "description": "One moment—we’re taking you straight to the clip.",
+    "cta": "Open video manually"
   }
 }
