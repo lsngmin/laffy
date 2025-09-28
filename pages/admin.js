@@ -402,6 +402,10 @@ export default function AdminPage() {
     () => new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
     []
   );
+  const decimalFormatterFive = useMemo(
+    () => new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 5, maximumFractionDigits: 5 }),
+    []
+  );
 
   const formatNumber = useCallback(
     (value) => {
@@ -415,20 +419,34 @@ export default function AdminPage() {
     (value, digits = 2) => {
       const numeric = Number(value);
       if (!Number.isFinite(numeric)) {
-        return digits === 3
-          ? decimalFormatterThree.format(0)
-          : decimalFormatterTwo.format(0);
+        if (digits === 3) return decimalFormatterThree.format(0);
+        if (digits === 5) return decimalFormatterFive.format(0);
+        return decimalFormatterTwo.format(0);
       }
-      const formatter = digits === 3 ? decimalFormatterThree : decimalFormatterTwo;
+      const formatter =
+        digits === 3
+          ? decimalFormatterThree
+          : digits === 5
+          ? decimalFormatterFive
+          : decimalFormatterTwo;
       return formatter.format(numeric);
     },
-    [decimalFormatterThree, decimalFormatterTwo]
+    [decimalFormatterFive, decimalFormatterThree, decimalFormatterTwo]
   );
 
   const formatPercent = useCallback((value) => {
     if (!Number.isFinite(value)) return '0%';
     return `${(value * 100).toFixed(1)}%`;
   }, []);
+
+  const formatCurrency = useCallback(
+    (value, digits = 3) => {
+      const numeric = Number(value);
+      const safeDigits = digits === 5 ? 5 : digits === 3 ? 3 : 2;
+      return `$${formatDecimal(Number.isFinite(numeric) ? numeric : 0, safeDigits)}`;
+    },
+    [formatDecimal]
+  );
 
   const uploadFormState = useMemo(
     () => ({
@@ -998,15 +1016,27 @@ export default function AdminPage() {
               onSavePreset={handleSavePreset}
               onApplyPreset={handleApplyPreset}
             />
-            <AdsterraSummaryCards totals={adsterra.totals} formatNumber={formatNumber} formatDecimal={formatDecimal} />
-            <AdsterraChartPanel rows={adsterra.filteredStats} formatNumber={formatNumber} />
+            <AdsterraSummaryCards
+              totals={adsterra.totals}
+              rows={adsterra.filteredStats}
+              placementLabelMap={adsterra.placementLabelMap}
+              formatNumber={formatNumber}
+              formatDecimal={formatDecimal}
+              formatCurrency={formatCurrency}
+            />
+            <AdsterraChartPanel
+              rows={adsterra.filteredStats}
+              formatNumber={formatNumber}
+              formatCurrency={formatCurrency}
+            />
             <AdsterraStatsTable
               rows={adsterra.filteredStats}
               loading={adsterra.loadingStats}
               formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
+              formatCurrency={formatCurrency}
               placementLabelMap={adsterra.placementLabelMap}
               selectedPlacementId={adsterra.placementId}
+              activeFilters={adsterra.activeFilters}
             />
           </div>
         )}

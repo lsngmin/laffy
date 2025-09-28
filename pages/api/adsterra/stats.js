@@ -3,7 +3,15 @@ import { fetchAdsterraJson } from '@/utils/adsterraClient';
 import { applyRateLimit, setRateLimitHeaders } from '@/utils/apiRateLimit';
 import { resolveWithCache } from '@/utils/serverCache';
 
-function buildStatsEndpoint({ domainId, placementId, includeAllPlacements = false, startDate, endDate, groupBy = ['date'] }) {
+function buildStatsEndpoint({
+  domainId,
+  placementId,
+  placementIds = [],
+  includeAllPlacements = false,
+  startDate,
+  endDate,
+  groupBy = ['date'],
+}) {
   const params = new URLSearchParams();
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('finish_date', endDate);
@@ -14,8 +22,21 @@ function buildStatsEndpoint({ domainId, placementId, includeAllPlacements = fals
     if (value) params.append('group_by[]', value);
   });
 
-  if (!includeAllPlacements && placementId) {
-    params.append('placement_ids[]', placementId);
+  if (!includeAllPlacements) {
+    const placementValueSet = new Set();
+    if (placementId) {
+      placementValueSet.add(String(placementId));
+    }
+    if (Array.isArray(placementIds)) {
+      placementIds.forEach((value) => {
+        if (value === null || value === undefined) return;
+        const normalized = String(value).trim();
+        if (normalized) placementValueSet.add(normalized);
+      });
+    }
+    placementValueSet.forEach((value) => {
+      params.append('placement_ids[]', value);
+    });
   }
 
   const query = params.toString();
@@ -30,11 +51,25 @@ export default async function handler(req, res) {
 
   const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
   const domainId = typeof req.body?.domainId === 'string' ? req.body.domainId.trim() : '';
-  const includeAllPlacements = req.body?.allPlacements === true;
   const placementId = typeof req.body?.placementId === 'string' ? req.body.placementId.trim() : '';
+  const placementIds = Array.isArray(req.body?.placementIds)
+    ? req.body.placementIds
+        .map((value) => {
+          if (typeof value === 'number' || typeof value === 'string') {
+            const normalized = String(value).trim();
+            return normalized;
+          }
+          return '';
+        })
+        .filter(Boolean)
+    : [];
+  const includeAllPlacementsFlag = req.body?.allPlacements === true;
   const startDate = typeof req.body?.startDate === 'string' ? req.body.startDate.trim() : '';
   const endDate = typeof req.body?.endDate === 'string' ? req.body.endDate.trim() : '';
   const groupBy = Array.isArray(req.body?.groupBy) ? req.body.groupBy : undefined;
+
+  const includeAllPlacements =
+    includeAllPlacementsFlag && placementIds.length === 0 && !placementId;
 
   if (!token) {
     return res.status(400).json({ error: 'Missing Adsterra API token.' });
@@ -42,7 +77,7 @@ export default async function handler(req, res) {
   if (!domainId) {
     return res.status(400).json({ error: 'Missing domain id.' });
   }
-  if (!includeAllPlacements && !placementId) {
+  if (!includeAllPlacements && !placementId && placementIds.length === 0) {
     return res.status(400).json({ error: 'Missing placement id.' });
   }
   if (!startDate || !endDate) {
@@ -59,12 +94,16 @@ export default async function handler(req, res) {
     const normalizedGroupBy = Array.isArray(groupBy)
       ? groupBy.filter((value) => typeof value === 'string' && value).map((value) => value.trim()).sort()
       : [];
+    const normalizedPlacementIds = placementIds.length
+      ? [...new Set(placementIds.map((value) => String(value).trim()).filter(Boolean))].sort()
+      : [];
     const tokenHash = createHash('sha1').update(token).digest('hex');
     const cacheKey = JSON.stringify({
       token: tokenHash,
       domainId,
       includeAllPlacements,
       placementId: includeAllPlacements ? '' : placementId,
+      placementIds: includeAllPlacements ? [] : normalizedPlacementIds,
       startDate,
       endDate,
       groupBy: normalizedGroupBy,
@@ -73,6 +112,7 @@ export default async function handler(req, res) {
     const endpoint = buildStatsEndpoint({
       domainId,
       placementId: includeAllPlacements ? undefined : placementId,
+      placementIds: normalizedPlacementIds,
       includeAllPlacements,
       startDate,
       endDate,
