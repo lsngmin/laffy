@@ -1,6 +1,19 @@
-import { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../../../hooks/admin/useAdsterraStats';
+import {
+  ADSTERRA_ALL_PLACEMENTS_VALUE,
+  ADSTERRA_PLACEMENT_PRESETS,
+  ADSTERRA_REQUIRED_PLACEMENT_SUMMARY,
+} from '../../../hooks/admin/useAdsterraStats';
 import AdsterraFilterChips from './filters/AdsterraFilterChips';
 import AdsterraPresetControls from './AdsterraPresetControls';
+
+const PLACEMENT_LABEL_LIST = ADSTERRA_PLACEMENT_PRESETS.map(
+  ({ id, label }) => `${label}(${id})`
+);
+const PLACEMENT_SUMMARY_TEXT = PLACEMENT_LABEL_LIST.join(' + ');
+const PLACEMENT_ERROR_TEXT = PLACEMENT_LABEL_LIST.join(' 또는 ');
+const PLACEMENT_MONITOR_TEXT = ADSTERRA_PLACEMENT_PRESETS.map(
+  ({ id, label }) => `${label} (ID ${id})`
+).join('과 ');
 
 export default function AdsterraControls({
   domainName,
@@ -60,7 +73,7 @@ export default function AdsterraControls({
             )}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            환경 변수에 저장된 토큰으로 인증돼 Smartlink_1과 300x250_1 플레이스먼트를 집중 모니터링합니다.
+            환경 변수에 저장된 토큰으로 인증돼 {PLACEMENT_MONITOR_TEXT} 플레이스먼트를 집중 모니터링합니다.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 text-xs text-slate-300 lg:items-end">
@@ -73,7 +86,7 @@ export default function AdsterraControls({
             {loadingPlacements ? '플레이스먼트 정리 중…' : '플레이스먼트 동기화'}
           </button>
           <span className={helperClass}>
-            전체 보기에서는 Smartlink_1과 300x250_1 데이터를 함께 분석해요.
+            전체 보기에서는 {ADSTERRA_REQUIRED_PLACEMENT_SUMMARY} 데이터를 함께 분석해요.
           </span>
         </div>
       </div>
@@ -116,7 +129,7 @@ export default function AdsterraControls({
             disabled={loadingPlacements || noPlacements}
             className={fieldClass}
           >
-            <option value={ADSTERRA_ALL_PLACEMENTS_VALUE}>전체 보기 · Smartlink + 300x250</option>
+            <option value={ADSTERRA_ALL_PLACEMENTS_VALUE}>전체 보기 · {PLACEMENT_SUMMARY_TEXT}</option>
             {placements.map((placement) => {
               const rawId =
                 placement?.id ??
@@ -142,7 +155,7 @@ export default function AdsterraControls({
           </select>
           {noPlacements && !loadingPlacements && (
             <p className="mt-2 text-[11px] text-rose-200/80">
-              Smartlink_1 또는 300x250_1 플레이스먼트를 찾지 못했어요. 도메인 구성을 확인해 주세요.
+              {PLACEMENT_ERROR_TEXT} 플레이스먼트를 찾지 못했어요. 도메인 구성을 확인해 주세요.
             </p>
           )}
         </div>

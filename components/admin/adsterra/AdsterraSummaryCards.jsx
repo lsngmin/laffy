@@ -1,4 +1,9 @@
 import { useMemo } from 'react';
+import { ADSTERRA_PLACEMENT_PRESETS } from '../../../hooks/admin/useAdsterraStats';
+
+const PLACEMENT_SUMMARY_TEXT = ADSTERRA_PLACEMENT_PRESETS.map(
+  ({ id, label }) => `${label}(${id})`
+).join(' + ');
 
 export default function AdsterraSummaryCards({
   totals,
@@ -93,7 +98,7 @@ export default function AdsterraSummaryCards({
         <p className="text-xs uppercase tracking-[0.35em] text-slate-400">총 노출수</p>
         <p className="mt-3 text-2xl font-semibold text-white">{formatNumber(totals.impressions)}</p>
         <p className="mt-2 text-[12px] text-slate-400">
-          필터를 적용한 집계 · Smartlink_1 + 300x250_1 기준
+          필터를 적용한 집계 · {PLACEMENT_SUMMARY_TEXT} 기준
         </p>
       </div>
 

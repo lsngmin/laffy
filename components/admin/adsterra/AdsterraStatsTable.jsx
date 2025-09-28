@@ -1,4 +1,11 @@
-import { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../../../hooks/admin/useAdsterraStats';
+import {
+  ADSTERRA_ALL_PLACEMENTS_VALUE,
+  ADSTERRA_PLACEMENT_PRESETS,
+} from '../../../hooks/admin/useAdsterraStats';
+
+const PLACEMENT_SUMMARY_TEXT = ADSTERRA_PLACEMENT_PRESETS.map(
+  ({ id, label }) => `${label}(${id})`
+).join(' + ');
 
 export default function AdsterraStatsTable({
   rows,
@@ -68,7 +75,7 @@ export default function AdsterraStatsTable({
                   ? placementLabelMap.get(String(placementId)) || ''
                   : '') ||
                 (allSelected
-                  ? 'Smartlink + 300x250'
+                  ? PLACEMENT_SUMMARY_TEXT
                   : placementLabelMap.get(String(selectedPlacementId)) || '—');
               const rowKey = `${row?.localDateIso || dateLabel}-${index}-${placementId ?? ''}-${countryLabel}-${osLabel}-${deviceLabel}-${deviceFormatLabel}`;
               return (

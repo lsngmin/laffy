@@ -2,11 +2,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export const ADSTERRA_ALL_PLACEMENTS_VALUE = '__all__';
 
+export const ADSTERRA_PLACEMENT_PRESETS = [
+  { id: '27624780', label: 'Smartlink' },
+  { id: '27611711', label: '300x250' },
+];
+
+const ALLOWED_PLACEMENT_IDS = ADSTERRA_PLACEMENT_PRESETS.map(({ id }) => id);
 const ALLOWED_PLACEMENT_NAMES = ['smartlink_1', '300x250_1'];
+const PLACEMENT_LABEL_PRESETS = ADSTERRA_PLACEMENT_PRESETS.reduce((acc, preset) => {
+  acc[preset.id] = preset.label;
+  return acc;
+}, {});
+export const ADSTERRA_REQUIRED_PLACEMENT_SUMMARY = ADSTERRA_PLACEMENT_PRESETS.map(
+  ({ id, label }) => `${label}(${id})`
+).join('과 ');
 
 function normalizePlacementName(value) {
   if (value === null || value === undefined) return '';
   return String(value).trim().toLowerCase();
+}
+
+function normalizePlacementId(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
 }
 
 function extractPlacementLabel(placement) {
@@ -34,6 +52,10 @@ function extractPlacementId(placement) {
 }
 
 function isPlacementAllowed(placement) {
+  const idValue = normalizePlacementId(extractPlacementId(placement));
+  if (idValue && ALLOWED_PLACEMENT_IDS.includes(idValue)) {
+    return true;
+  }
   const normalized = normalizePlacementName(extractPlacementLabel(placement));
   return normalized && ALLOWED_PLACEMENT_NAMES.includes(normalized);
 }
@@ -197,9 +219,14 @@ export default function useAdsterraStats({
 
       const placementsItems = Array.isArray(json?.placements) ? json.placements : [];
       const filteredPlacements = placementsItems.filter(isPlacementAllowed);
-      allowedPlacementIdsRef.current = filteredPlacements
-        .map((placement) => extractPlacementId(placement))
-        .filter(Boolean);
+      const collectedIds = new Set(ALLOWED_PLACEMENT_IDS);
+      filteredPlacements.forEach((placement) => {
+        const placementIdValue = extractPlacementId(placement);
+        if (placementIdValue) {
+          collectedIds.add(String(placementIdValue));
+        }
+      });
+      allowedPlacementIdsRef.current = Array.from(collectedIds);
       setPlacements(filteredPlacements);
 
       const isAllSelected = placementId === ADSTERRA_ALL_PLACEMENTS_VALUE;
@@ -220,7 +247,7 @@ export default function useAdsterraStats({
       setStatus(
         filteredPlacements.length
           ? '집중 모니터링 대상 플레이스먼트를 정렬했어요.'
-          : 'Smartlink_1과 300x250_1 플레이스먼트를 찾지 못했어요.'
+          : `${ADSTERRA_REQUIRED_PLACEMENT_SUMMARY} 플레이스먼트를 찾지 못했어요.`
       );
     } catch (err) {
       if (placementsRequestRef.current === requestId) {
@@ -347,9 +374,12 @@ export default function useAdsterraStats({
         };
       });
       const allowedPlacementNames = new Set(ALLOWED_PLACEMENT_NAMES);
-      const allowedPlacementIds = new Set(
-        allowedPlacementIdsRef.current.map((value) => String(value))
-      );
+      const allowedPlacementIds = new Set(ALLOWED_PLACEMENT_IDS);
+      allowedPlacementIdsRef.current.forEach((value) => {
+        if (value !== undefined && value !== null) {
+          allowedPlacementIds.add(String(value));
+        }
+      });
 
       const sanitizedItems = normalizedItems.filter((entry) => {
         const placementIdValue =
@@ -407,6 +437,7 @@ export default function useAdsterraStats({
       if (!placement || typeof placement !== 'object') return;
       const id = placement.id ?? placement.ID ?? placement.placement_id ?? placement.placementId;
       if (!id && id !== 0) return;
+      const idKey = String(id);
       const label =
         placement.title ||
         placement.alias ||
@@ -414,8 +445,9 @@ export default function useAdsterraStats({
         placement.placement ||
         placement.ad_format ||
         placement.format ||
-        String(id);
-      map.set(String(id), label);
+        PLACEMENT_LABEL_PRESETS[idKey] ||
+        idKey;
+      map.set(idKey, label);
     });
     return map;
   }, [placements]);
@@ -521,7 +553,8 @@ export default function useAdsterraStats({
   const placementLabel = useCallback(
     (id) => {
       if (id === ADSTERRA_ALL_PLACEMENTS_VALUE) return '전체 보기';
-      return placementLabelMap.get(String(id)) || '';
+      const key = String(id);
+      return placementLabelMap.get(key) || PLACEMENT_LABEL_PRESETS[key] || '';
     },
     [placementLabelMap]
   );
