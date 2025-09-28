@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import AnalyticsEmptyState from './AnalyticsEmptyState';
-import AnalyticsRow from './AnalyticsRow';
+import AnalyticsEmptyState from './AnalyticsEmptyState.unused';
+import AnalyticsRow from './AnalyticsRow.unused';
 
 export default function AnalyticsTable({
   rows,

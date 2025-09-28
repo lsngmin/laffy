@@ -20,7 +20,7 @@ export default function UploadedItemCard({
       : 'border border-slate-800/60';
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur ${ringClass}`}>
+    <div className={`relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur ${ringClass}`}>
       {selectable && (
         <div className="absolute left-4 top-4 z-20">
           <label className="flex items-center gap-2 rounded-md border border-slate-800/70 bg-slate-950/80 px-2 py-1 text-[11px] font-medium text-slate-200 shadow-sm">
@@ -34,12 +34,12 @@ export default function UploadedItemCard({
           </label>
         </div>
       )}
-      <div className="grid gap-4 p-4 sm:grid-cols-[140px,1fr]">
-        <div className="relative overflow-hidden rounded-2xl border border-slate-900/60 bg-slate-950/70">
+      <div className="grid gap-5 p-5 sm:grid-cols-[200px,1fr] lg:grid-cols-[260px,1fr]">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/80 shadow-inner shadow-slate-900/40">
           {item.preview ? (
-            <img src={item.preview} alt={item.title || item.slug} className="h-36 w-full object-cover" />
+            <img src={item.preview} alt={item.title || item.slug} className="h-48 w-full object-cover" />
           ) : (
-            <div className="grid h-36 place-items-center text-xs uppercase tracking-[0.3em] text-slate-500">No Preview</div>
+            <div className="grid h-48 place-items-center text-xs uppercase tracking-[0.3em] text-slate-500">No Preview</div>
           )}
           {item._error && (
             <span className="absolute right-3 top-3 rounded-full bg-rose-600/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-lg">

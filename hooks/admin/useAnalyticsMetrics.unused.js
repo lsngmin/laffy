@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildAnalyticsCsv } from '../../components/admin/analytics/export/AnalyticsCsvExporter';
+import { buildAnalyticsCsv } from '../../components/admin/analytics/export/AnalyticsCsvExporter.unused';
 
 const DEFAULT_COLUMNS = {
   views: true,

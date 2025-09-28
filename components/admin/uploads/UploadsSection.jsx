@@ -267,11 +267,7 @@ export default function UploadsSection({
     [bulkTagForm, handleRefresh, hasToken, queryString, selectedItems]
   );
 
-  const activeChannelLabel = useMemo(() => {
-    if (channelFilter === 'l') return 'L 채널 콘텐츠';
-    if (channelFilter === 'x') return 'X 채널 콘텐츠';
-    return '전체 채널 콘텐츠';
-  }, [channelFilter]);
+  const activeChannelLabel = useMemo(() => 'L 채널 콘텐츠', []);
 
   const handleUploadComplete = useCallback(
     async (blob) => {
@@ -432,7 +428,7 @@ export default function UploadsSection({
           </form>
         )}
 
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           {items.map((item) => (
             <UploadedItemCard
               key={item.pathname || item.slug || item.routePath || item.url}
