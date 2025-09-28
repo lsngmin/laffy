@@ -969,6 +969,7 @@ export default function AdminPage() {
               placementLabelMap={adsterra.placementLabelMap}
               formatNumber={formatNumber}
               formatCurrency={formatCurrency}
+              formatDecimal={formatDecimal}
             />
             <AdsterraChartPanel
               rows={adsterra.filteredStats}

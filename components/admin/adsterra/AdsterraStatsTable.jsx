@@ -3,9 +3,10 @@ import {
   ADSTERRA_PLACEMENT_PRESETS,
 } from '../../../hooks/admin/useAdsterraStats';
 
-const PLACEMENT_SUMMARY_TEXT = ADSTERRA_PLACEMENT_PRESETS.map(
-  ({ id, label }) => `${label}(${id})`
-).join(' + ');
+const FRIENDLY_FORMAT_LABELS = ADSTERRA_PLACEMENT_PRESETS.reduce((acc, preset) => {
+  acc[preset.id] = preset.label;
+  return acc;
+}, {});
 
 const parseNumericMetric = (value) => {
   if (value === null || value === undefined || value === '') return 0;
@@ -14,6 +15,71 @@ const parseNumericMetric = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+function normalizeRow(row, placementLabelMap) {
+  const dateLabel = row?.localDateLabel || row?.localDate || row?.date || row?.day || row?.Day || row?.group;
+  const dateIso = row?.localDateIso || dateLabel;
+  const impressions = parseNumericMetric(row?.impressionsValue ?? row?.impression ?? row?.impressions);
+  const revenue = parseNumericMetric(row?.revenueValue ?? row?.revenue ?? row?.earnings ?? row?.income);
+  const cpm = impressions > 0 ? (revenue / impressions) * 1000 : 0;
+
+  const placementId = row?.placement_id ?? row?.placementId ?? row?.placementID ?? row?.placementid;
+  const placementKey = placementId !== undefined && placementId !== null ? String(placementId) : '';
+  const friendlyLabel =
+    FRIENDLY_FORMAT_LABELS[placementKey] ||
+    placementLabelMap.get(placementKey) ||
+    row?.placement_name ||
+    row?.placement ||
+    row?.placementName ||
+    row?.ad_format ||
+    row?.format ||
+    (placementKey ? `기타(${placementKey})` : '포맷 미지정');
+
+  return {
+    dateLabel,
+    dateIso,
+    impressions,
+    revenue,
+    cpm,
+    placementLabel: friendlyLabel,
+  };
+}
+
+function buildTableRows(rows, placementLabelMap, selectedPlacementId) {
+  if (!Array.isArray(rows) || !rows.length) {
+    return [];
+  }
+
+  const normalized = rows
+    .map((row) => normalizeRow(row, placementLabelMap))
+    .filter((row) => row.dateLabel);
+
+  if (selectedPlacementId === ADSTERRA_ALL_PLACEMENTS_VALUE) {
+    const bucket = new Map();
+    normalized.forEach((row) => {
+      const key = row.dateIso || row.dateLabel;
+      const current = bucket.get(key) || {
+        dateLabel: row.dateLabel,
+        dateIso: row.dateIso,
+        impressions: 0,
+        revenue: 0,
+      };
+      current.impressions += row.impressions;
+      current.revenue += row.revenue;
+      bucket.set(key, current);
+    });
+
+    return Array.from(bucket.values())
+      .map((row) => ({
+        ...row,
+        cpm: row.impressions > 0 ? (row.revenue / row.impressions) * 1000 : 0,
+        placementLabel: '스마트링크 + 배너광고',
+      }))
+      .sort((a, b) => new Date(a.dateIso || a.dateLabel) - new Date(b.dateIso || b.dateLabel));
+  }
+
+  return normalized.sort((a, b) => new Date(a.dateIso || a.dateLabel) - new Date(b.dateIso || b.dateLabel));
+}
+
 export default function AdsterraStatsTable({
   rows,
   loading,
@@ -21,110 +87,60 @@ export default function AdsterraStatsTable({
   formatCurrency,
   placementLabelMap,
   selectedPlacementId,
-  activeFilters,
 }) {
-  const allSelected = selectedPlacementId === ADSTERRA_ALL_PLACEMENTS_VALUE;
-  const hasActiveFilters = Boolean(
-    activeFilters && Object.values(activeFilters).some((value) => Boolean(value))
-  );
-  const showExtendedColumns = hasActiveFilters || !allSelected;
+  const displayRows = buildTableRows(rows, placementLabelMap, selectedPlacementId);
+  const hasData = displayRows.length > 0;
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/75 shadow-xl shadow-slate-950/40">
+    <section className="overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/75 shadow-xl shadow-slate-950/40">
+      <header className="flex flex-col gap-2 border-b border-slate-800/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h4 className="text-base font-semibold text-white">원시 통계 표</h4>
+          <p className="text-sm text-slate-400">
+            {selectedPlacementId === ADSTERRA_ALL_PLACEMENTS_VALUE
+              ? '스마트링크와 배너광고를 합산해 날짜 기준으로 정리했습니다.'
+              : '선택한 포맷의 일별 지표를 확인할 수 있습니다.'}
+          </p>
+        </div>
+      </header>
+
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-800/70 text-sm">
-          <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-[0.35em] text-slate-400">
+        <table className="min-w-full divide-y divide-slate-800/60 text-sm">
+          <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-[0.3em] text-slate-500">
             <tr>
-              <th className="px-5 py-3 font-semibold">날짜</th>
-              <th className="px-5 py-3 font-semibold">포맷</th>
-              {showExtendedColumns && (
-                <>
-                  <th className="px-5 py-3 font-semibold">국가</th>
-                  <th className="px-5 py-3 font-semibold">OS</th>
-                  <th className="px-5 py-3 font-semibold">디바이스</th>
-                  <th className="px-5 py-3 font-semibold">디바이스 포맷</th>
-                  <th className="px-5 py-3 text-right font-semibold">클릭수</th>
-                </>
-              )}
-              <th className="px-5 py-3 text-right font-semibold">노출 수</th>
-              <th className="px-5 py-3 text-right font-semibold">평균 CPM</th>
-              <th className="px-5 py-3 text-right font-semibold">수익</th>
+              <th className="px-6 py-3 font-semibold">날짜</th>
+              <th className="px-6 py-3 font-semibold">포맷</th>
+              <th className="px-6 py-3 text-right font-semibold">노출</th>
+              <th className="px-6 py-3 text-right font-semibold">CPM</th>
+              <th className="px-6 py-3 text-right font-semibold">수익</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {rows.map((row, index) => {
-              const impressions = parseNumericMetric(
-                row?.impressionsValue ?? row?.impression ?? row?.impressions
-              );
-              const clicks = parseNumericMetric(
-                row?.clicksValue ?? row?.clicks ?? row?.click
-              );
-              const revenue = parseNumericMetric(row?.revenueValue ?? row?.revenue);
-              const cpmRaw =
-                Number(
-                  row?.cpm ??
-                    (impressions > 0 && revenue >= 0 ? (revenue / impressions) * 1000 : 0)
-                ) || 0;
-              const dateLabel = row?.localDate || row?.date || row?.day || row?.Day || row?.group || `#${index + 1}`;
-              const dateDetail = row?.localDateLabel || dateLabel;
-              const countryLabel = row?.country ?? row?.Country ?? row?.geo ?? row?.Geo ?? '—';
-              const osLabel = row?.os ?? row?.OS ?? row?.platform ?? row?.Platform ?? '—';
-              const deviceLabel = row?.device ?? row?.Device ?? row?.device_type ?? row?.deviceType ?? '—';
-              const deviceFormatLabel =
-                row?.device_format ?? row?.deviceFormat ?? row?.DeviceFormat ?? '—';
-              const placementId =
-                row?.placement_id ?? row?.placementId ?? row?.placementID ?? row?.placementid;
-              const placementName =
-                row?.placement_name ??
-                row?.placement ??
-                row?.placementName ??
-                row?.ad_format ??
-                '';
-              const placementDisplay =
-                placementName ||
-                (placementId !== undefined && placementId !== null
-                  ? placementLabelMap.get(String(placementId)) || ''
-                  : '') ||
-                (allSelected
-                  ? PLACEMENT_SUMMARY_TEXT
-                  : placementLabelMap.get(String(selectedPlacementId)) || '—');
-              const rowKey = `${row?.localDateIso || dateLabel}-${index}-${placementId ?? ''}-${countryLabel}-${osLabel}-${deviceLabel}-${deviceFormatLabel}`;
-              return (
-                <tr key={rowKey} className="hover:bg-slate-900/60">
-                  <td className="px-5 py-3 font-semibold text-slate-100" title={dateDetail}>
-                    {dateLabel}
-                  </td>
-                  <td className="px-5 py-3 text-slate-100">{placementDisplay}</td>
-                  {showExtendedColumns && (
-                    <>
-                      <td className="px-5 py-3 text-slate-200">{countryLabel}</td>
-                      <td className="px-5 py-3 text-slate-200">{osLabel}</td>
-                      <td className="px-5 py-3 text-slate-200">{deviceLabel}</td>
-                      <td className="px-5 py-3 text-slate-200">{deviceFormatLabel}</td>
-                      <td className="px-5 py-3 text-right text-slate-100">{formatNumber(clicks)}</td>
-                    </>
-                  )}
-                  <td className="px-5 py-3 text-right text-slate-100">{formatNumber(impressions)}</td>
-                  <td className="px-5 py-3 text-right text-slate-100">{formatCurrency(cpmRaw, 3)}</td>
-                  <td className="px-5 py-3 text-right text-slate-100">{formatCurrency(revenue, 3)}</td>
-                </tr>
-              );
-            })}
-            {!rows.length && !loading && (
+            {displayRows.map((row) => (
+              <tr key={`${row.dateIso || row.dateLabel}-${row.placementLabel}`} className="hover:bg-slate-900/60">
+                <td className="px-6 py-3 font-semibold text-slate-100">{row.dateLabel}</td>
+                <td className="px-6 py-3 text-slate-200">{row.placementLabel}</td>
+                <td className="px-6 py-3 text-right text-slate-100">{formatNumber(row.impressions)}</td>
+                <td className="px-6 py-3 text-right text-slate-100">{formatCurrency(row.cpm, 3)}</td>
+                <td className="px-6 py-3 text-right text-slate-100">{formatCurrency(row.revenue)}</td>
+              </tr>
+            ))}
+            {!hasData && !loading && (
               <tr>
-                <td colSpan={showExtendedColumns ? 10 : 5} className="px-5 py-12 text-center text-sm text-slate-400">
-                  통계를 불러오면 기간별 노출 · 수익 지표가 여기에 정렬됩니다.
+                <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">
+                  조건에 맞는 통계가 없습니다. 날짜 범위나 포맷을 다시 선택해 보세요.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
       {loading && (
-        <div className="border-t border-slate-800/70 bg-slate-900/70 px-5 py-3 text-right text-xs text-slate-400">
-          통계를 정리하는 중입니다…
+        <div className="border-t border-slate-800/70 bg-slate-900/70 px-6 py-3 text-right text-xs text-slate-400">
+          통계를 불러오는 중입니다…
         </div>
       )}
-    </div>
+    </section>
   );
 }

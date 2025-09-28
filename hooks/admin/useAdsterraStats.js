@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 export const ADSTERRA_ALL_PLACEMENTS_VALUE = '__all__';
 
 export const ADSTERRA_PLACEMENT_PRESETS = [
-  { id: '27624780', label: 'Smartlink' },
-  { id: '27611711', label: '300x250' },
+  { id: '27624780', label: '스마트링크' },
+  { id: '27611711', label: '배너광고' },
 ];
 
 const ALLOWED_PLACEMENT_IDS = ADSTERRA_PLACEMENT_PRESETS.map(({ id }) => id);
