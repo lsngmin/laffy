@@ -72,6 +72,4 @@ export async function supabaseRest(path, { method = 'GET', headers = {}, body } 
 }
 
 export const SUPABASE_EVENTS_ROLLUP_FUNCTION = process.env?.SUPABASE_EVENTS_ROLLUP_FUNCTION?.trim() || 'ingest_events_daily';
-export const SUPABASE_HEATMAP_ROLLUP_FUNCTION = process.env?.SUPABASE_HEATMAP_ROLLUP_FUNCTION?.trim() || 'ingest_heatmap_daily';
 export const SUPABASE_EVENTS_ROLLUP_TABLE = process.env?.SUPABASE_EVENTS_ROLLUP_TABLE?.trim() || 'events_daily_rollups';
-export const SUPABASE_HEATMAP_ROLLUP_TABLE = process.env?.SUPABASE_HEATMAP_ROLLUP_TABLE?.trim() || 'heatmap_daily_rollups';
