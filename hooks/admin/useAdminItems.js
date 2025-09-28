@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const POLL_INTERVAL = 15000;
 const DEFAULT_PAGE_SIZE = 6;
 
 const buildMetaKey = (item) => item?.pathname || item?.slug || item?.url || '';
@@ -14,7 +13,6 @@ export default function useAdminItems({ enabled, queryString, pageSize = DEFAULT
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const refreshRef = useRef(null);
   const baseQuery = useMemo(() => (queryString || '').replace(/^\?/, ''), [queryString]);
 
   const fetchPage = useCallback(
@@ -102,12 +100,6 @@ export default function useAdminItems({ enabled, queryString, pageSize = DEFAULT
     if (!hasMore || !nextCursor || isLoadingMore) return;
     fetchPage({ mode: 'append', cursor: nextCursor });
   }, [fetchPage, hasMore, isLoadingMore, nextCursor]);
-  const refreshFirstPage = useCallback(() => fetchPage({ mode: 'refresh-first' }), [fetchPage]);
-
-  useEffect(() => {
-    refreshRef.current = refreshFirstPage;
-  }, [refreshFirstPage]);
-
   useEffect(() => {
     if (!enabled) {
       setItems([]);
@@ -117,23 +109,7 @@ export default function useAdminItems({ enabled, queryString, pageSize = DEFAULT
     }
 
     refresh();
-
-    const interval = setInterval(() => {
-      refreshRef.current?.();
-    }, POLL_INTERVAL);
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        refreshRef.current?.();
-      }
-    };
-
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
+    return undefined;
   }, [enabled, refresh]);
 
   return {

@@ -18,7 +18,6 @@ export default function UploadsSection({
   hasMore,
   isLoading,
   isLoadingMore,
-  isRefreshing,
   error,
   filters,
   onFiltersChange,
@@ -28,7 +27,8 @@ export default function UploadsSection({
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkFeedback, setBulkFeedback] = useState({ status: 'idle', message: '' });
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
-  const [bulkTagForm, setBulkTagForm] = useState({ type: '', orientation: '' });
+  const [isUploadModalOpen, setUploadModalOpen] = useState(false);
+  const [bulkTagForm, setBulkTagForm] = useState({ type: '' });
   const [isTagSubmitting, setIsTagSubmitting] = useState(false);
   const handleRefresh = onRefresh || (() => {});
   const handleLoadMore = onLoadMore || (() => {});
@@ -36,7 +36,6 @@ export default function UploadsSection({
   const {
     search = '',
     type: typeFilter = '',
-    orientation: orientationFilter = '',
     sort: sortOption = 'recent',
     channel: channelFilter = '',
   } =
@@ -53,7 +52,6 @@ export default function UploadsSection({
 
   const handleSearchChange = useCallback((value) => changeFilters({ search: value }), [changeFilters]);
   const handleTypeFilterChange = useCallback((value) => changeFilters({ type: value }), [changeFilters]);
-  const handleOrientationFilterChange = useCallback((value) => changeFilters({ orientation: value }), [changeFilters]);
   const handleSortChange = useCallback((value) => changeFilters({ sort: value }), [changeFilters]);
   const handleChannelFilterChange = useCallback((value) => changeFilters({ channel: value }), [changeFilters]);
 
@@ -125,7 +123,6 @@ export default function UploadsSection({
   const isFiltering = Boolean(
     search ||
       typeFilter ||
-      orientationFilter ||
       channelFilter ||
       (sortOption && sortOption !== 'recent')
   );
@@ -214,7 +211,7 @@ export default function UploadsSection({
   }, [selectedItems]);
 
   const handleOpenTagDialog = useCallback(() => {
-    setBulkTagForm({ type: '', orientation: '' });
+    setBulkTagForm({ type: '' });
     setTagDialogOpen(true);
     setBulkFeedback({ status: 'idle', message: '' });
   }, []);
@@ -222,7 +219,7 @@ export default function UploadsSection({
   const handleCloseTagDialog = useCallback(() => {
     if (isTagSubmitting) return;
     setTagDialogOpen(false);
-    setBulkTagForm({ type: '', orientation: '' });
+    setBulkTagForm({ type: '' });
   }, [isTagSubmitting]);
 
   const handleBulkTagSubmit = useCallback(
@@ -230,9 +227,9 @@ export default function UploadsSection({
       event.preventDefault();
       if (!hasToken || !selectedItems.length) return;
 
-      const { type, orientation } = bulkTagForm;
-      if (!type && !orientation) {
-        setBulkFeedback({ status: 'error', message: '변경할 태그를 선택해 주세요.' });
+      const { type } = bulkTagForm;
+      if (!type) {
+        setBulkFeedback({ status: 'error', message: '변경할 타입을 선택해 주세요.' });
         return;
       }
 
@@ -244,10 +241,6 @@ export default function UploadsSection({
           const payload = buildRegisterPayload(item);
           if (!payload) continue;
           if (type) payload.type = type;
-          if (orientation) {
-            payload.media = payload.media || {};
-            payload.media.orientation = orientation;
-          }
           if (item.url) payload.metaUrl = item.url;
 
           const res = await fetch(`/api/admin/register${queryString}`, {
@@ -260,13 +253,13 @@ export default function UploadsSection({
           }
         }
 
-        setBulkFeedback({ status: 'success', message: `${selectedItems.length}개 항목의 태그를 변경했습니다.` });
+        setBulkFeedback({ status: 'success', message: `${selectedItems.length}개 항목의 타입을 변경했습니다.` });
         setTagDialogOpen(false);
         setSelectedIds(new Set());
         handleRefresh();
       } catch (error) {
         console.error('Bulk tag update failed', error);
-        setBulkFeedback({ status: 'error', message: '태그 변경에 실패했어요. 잠시 후 다시 시도해 주세요.' });
+        setBulkFeedback({ status: 'error', message: '타입 변경에 실패했어요. 잠시 후 다시 시도해 주세요.' });
       } finally {
         setIsTagSubmitting(false);
       }
@@ -274,49 +267,52 @@ export default function UploadsSection({
     [bulkTagForm, handleRefresh, hasToken, queryString, selectedItems]
   );
 
-  return (
-    <section className="space-y-8">
-      <UploadForm
-        hasToken={hasToken}
-        title={uploadFormState.title}
-        description={uploadFormState.description}
-        orientation={uploadFormState.orientation}
-        duration={uploadFormState.duration}
-        channel={uploadFormState.channel}
-        onTitleChange={uploadFormState.setTitle}
-        onDescriptionChange={uploadFormState.setDescription}
-        onOrientationChange={uploadFormState.setOrientation}
-        onDurationChange={uploadFormState.setDuration}
-        onChannelChange={uploadFormState.setChannel}
-        handleUploadUrl={uploadFormState.handleUploadUrl}
-        onUploaded={registerMeta}
-      />
+  const activeChannelLabel = useMemo(() => {
+    if (channelFilter === 'l') return 'L 채널';
+    if (channelFilter === 'x') return 'X 채널';
+    return '전체 채널';
+  }, [channelFilter]);
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Uploaded ({items.length})</h2>
-            <label className="flex items-center gap-2 rounded-full bg-slate-900/60 px-3 py-1 text-xs text-slate-300">
-              <input
-                ref={selectAllRef}
-                type="checkbox"
-                className="h-4 w-4 accent-emerald-400"
-                onChange={toggleSelectAll}
-                checked={allSelected}
-              />
-              전체 선택
-            </label>
-            {selectedCount > 0 && (
-              <span className="text-xs font-medium text-emerald-300">{selectedCount}개 선택됨</span>
-            )}
+  const handleUploadComplete = useCallback(
+    async (blob) => {
+      const result = await registerMeta(blob);
+      if (result) {
+        setUploadModalOpen(false);
+      }
+    },
+    [registerMeta, setUploadModalOpen]
+  );
+
+  const handleCloseUploadModal = useCallback(() => {
+    setUploadModalOpen(false);
+  }, []);
+
+  return (
+    <section className="space-y-6">
+      <div className="space-y-6 rounded-3xl border border-slate-800/60 bg-gradient-to-r from-[#050916]/90 via-[#060b1c]/80 to-[#0a1124]/90 p-6 shadow-lg shadow-cyan-900/20">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-[11px] uppercase tracking-[0.48em] text-slate-500">Channel Matrix</p>
+            <h2 className="text-2xl font-semibold text-slate-50">L 라우트 업로드 허브</h2>
+            <p className="text-sm text-slate-400">
+              {activeChannelLabel} 기준으로 정렬된 콘텐츠 {items.length}개를 관리할 수 있어요.
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            {isRefreshing && <span className="hidden sm:inline">자동 새로고침 중…</span>}
+          <div className="flex flex-wrap items-center gap-2">
+            {hasToken && (
+              <button
+                type="button"
+                onClick={() => setUploadModalOpen(true)}
+                className="rounded-full bg-gradient-to-r from-sky-500 via-cyan-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/40 transition hover:from-sky-400 hover:via-cyan-400 hover:to-indigo-400"
+              >
+                네뷸라 업로드 포털
+              </button>
+            )}
             <button
               type="button"
               onClick={handleRefresh}
-              disabled={isLoading || isRefreshing}
-              className="rounded-full border border-slate-700 px-3 py-1 font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+              disabled={isLoading}
+              className="rounded-full border border-slate-700/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:border-slate-900 disabled:text-slate-600"
             >
               새로고침
             </button>
@@ -327,51 +323,70 @@ export default function UploadsSection({
           onSearchChange={handleSearchChange}
           typeFilter={typeFilter}
           onTypeFilterChange={handleTypeFilterChange}
-          orientationFilter={orientationFilter}
-          onOrientationFilterChange={handleOrientationFilterChange}
           channelFilter={channelFilter}
           onChannelFilterChange={handleChannelFilterChange}
           sortOption={sortOption}
           onSortOptionChange={handleSortChange}
         />
+      </div>
 
-        {selectedCount > 0 && (
-          <div className="flex flex-col gap-3 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-slate-200">선택한 {selectedCount}개 항목</div>
+      <div className="space-y-4">
+        <div className="space-y-3 rounded-3xl border border-slate-800/60 bg-slate-950/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 rounded-full bg-slate-900/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.28em] text-slate-300">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  className="h-4 w-4 accent-emerald-400"
+                  onChange={toggleSelectAll}
+                  checked={allSelected}
+                />
+                전체 선택
+              </label>
+              <span className="rounded-full bg-slate-900/40 px-3 py-1 text-xs text-slate-400">전체 {items.length}개</span>
+              {selectedCount > 0 && (
+                <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
+                  {selectedCount}개 선택됨
+                </span>
+              )}
+            </div>
+          </div>
+          {selectedCount > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleBulkCopy}
-                className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-200 transition hover:bg-slate-700"
+                className="rounded-full bg-slate-800 px-4 py-1.5 text-sm text-slate-200 transition hover:bg-slate-700"
               >
                 링크 복사
               </button>
               <button
                 type="button"
                 onClick={handleOpenTagDialog}
-                className="rounded-full bg-indigo-600 px-3 py-1 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                className="rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
               >
-                태그 변경
+                타입 변경
               </button>
               <button
                 type="button"
                 onClick={handleBulkDelete}
-                className="rounded-full bg-rose-600 px-3 py-1 text-sm font-semibold text-white transition hover:bg-rose-500"
+                className="rounded-full bg-rose-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-500"
               >
                 삭제
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {bulkFeedback.message && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
+            className={`rounded-3xl border px-4 py-3 text-sm shadow ${
               bulkFeedback.status === 'error'
-                ? 'border-rose-500/60 bg-rose-500/10 text-rose-200'
+                ? 'border-rose-500/70 bg-rose-500/15 text-rose-200 shadow-rose-900/30'
                 : bulkFeedback.status === 'pending'
-                  ? 'border-slate-600/60 bg-slate-800/60 text-slate-100'
-                  : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
+                  ? 'border-sky-500/40 bg-sky-500/10 text-sky-200 shadow-sky-900/30'
+                  : 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200 shadow-emerald-900/20'
             }`}
           >
             {bulkFeedback.message}
@@ -381,47 +396,35 @@ export default function UploadsSection({
         {tagDialogOpen && (
           <form
             onSubmit={handleBulkTagSubmit}
-            className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200"
+            className="space-y-4 rounded-3xl border border-slate-800/70 bg-[#060b1c]/90 p-5 text-sm text-slate-200 shadow-inner shadow-slate-900/40"
           >
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-4">
               <label className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">타입</span>
+                <span className="text-xs uppercase tracking-[0.28em] text-slate-400">타입</span>
                 <select
                   value={bulkTagForm.type}
                   onChange={(event) => setBulkTagForm((prev) => ({ ...prev, type: event.target.value }))}
-                  className="rounded bg-slate-900/80 px-2 py-1 text-slate-100"
+                  className="rounded-xl border border-slate-800/60 bg-black/40 px-3 py-1 text-sm text-slate-100"
                 >
                   <option value="">변경 없음</option>
                   <option value="video">영상</option>
                   <option value="image">이미지</option>
                 </select>
               </label>
-              <label className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">방향</span>
-                <select
-                  value={bulkTagForm.orientation}
-                  onChange={(event) => setBulkTagForm((prev) => ({ ...prev, orientation: event.target.value }))}
-                  className="rounded bg-slate-900/80 px-2 py-1 text-slate-100"
-                >
-                  <option value="">변경 없음</option>
-                  <option value="landscape">가로</option>
-                  <option value="portrait">세로</option>
-                  <option value="square">정사각형</option>
-                </select>
-              </label>
+              <span className="text-xs text-slate-500">선택된 항목에 동일한 타입을 적용합니다.</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="submit"
                 disabled={isTagSubmitting}
-                className="rounded-full bg-emerald-600 px-4 py-1 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-900 disabled:text-emerald-300"
+                className="rounded-full bg-emerald-600 px-5 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-900 disabled:text-emerald-300"
               >
                 {isTagSubmitting ? '적용 중…' : '적용하기'}
               </button>
               <button
                 type="button"
                 onClick={handleCloseTagDialog}
-                className="rounded-full bg-slate-800 px-4 py-1 text-sm text-slate-200 transition hover:bg-slate-700"
+                className="rounded-full bg-slate-800 px-5 py-1.5 text-sm text-slate-200 transition hover:bg-slate-700"
               >
                 취소
               </button>
@@ -429,7 +432,7 @@ export default function UploadsSection({
           </form>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           {items.map((item) => (
             <UploadedItemCard
               key={item.pathname || item.slug || item.routePath || item.url}
@@ -446,19 +449,19 @@ export default function UploadsSection({
           ))}
 
           {isLoading && !items.length && (
-            <div className="col-span-full rounded-2xl border border-dashed border-slate-700 px-4 py-12 text-center text-sm text-slate-400">
+            <div className="col-span-full rounded-3xl border border-dashed border-slate-700 px-4 py-12 text-center text-sm text-slate-400">
               콘텐츠를 불러오는 중입니다…
             </div>
           )}
 
           {error && !isLoading && !items.length && (
-            <div className="col-span-full rounded-2xl border border-dashed border-red-500/60 px-4 py-12 text-center text-sm text-red-300">
+            <div className="col-span-full rounded-3xl border border-dashed border-rose-500/70 px-4 py-12 text-center text-sm text-rose-200">
               콘텐츠를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
             </div>
           )}
 
           {showEmptyState && (
-            <div className="col-span-full rounded-2xl border border-dashed border-slate-700 px-4 py-12 text-center text-sm text-slate-400">
+            <div className="col-span-full rounded-3xl border border-dashed border-slate-700 px-4 py-12 text-center text-sm text-slate-400">
               {isFiltering ? '조건에 맞는 콘텐츠가 없습니다.' : '표시할 콘텐츠가 없습니다.'}
             </div>
           )}
@@ -477,6 +480,32 @@ export default function UploadsSection({
           )}
         </div>
       </div>
+
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur">
+          <div className="relative w-full max-w-3xl">
+            <button
+              type="button"
+              onClick={handleCloseUploadModal}
+              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-slate-700/80 bg-black/40 text-slate-300 transition hover:border-slate-500 hover:text-white"
+            >
+              <span className="sr-only">업로드 포털 닫기</span>
+              ×
+            </button>
+            <UploadForm
+              hasToken={hasToken}
+              title={uploadFormState.title}
+              duration={uploadFormState.duration}
+              channel={uploadFormState.channel}
+              onTitleChange={uploadFormState.setTitle}
+              onDurationChange={uploadFormState.setDuration}
+              onChannelChange={uploadFormState.setChannel}
+              handleUploadUrl={uploadFormState.handleUploadUrl}
+              onUploaded={handleUploadComplete}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
