@@ -966,6 +966,7 @@ export default function AdminPage() {
             <AdsterraSummaryCards
               totals={adsterra.totals}
               rows={adsterra.filteredStats}
+              placementLabelMap={adsterra.placementLabelMap}
               formatNumber={formatNumber}
               formatCurrency={formatCurrency}
             />

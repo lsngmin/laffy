@@ -5,7 +5,13 @@ const PLACEMENT_SUMMARY_TEXT = ADSTERRA_PLACEMENT_PRESETS.map(
   ({ id, label }) => `${label}(${id})`
 ).join(' + ');
 
-export default function AdsterraSummaryCards({ totals, rows, formatNumber, formatCurrency }) {
+export default function AdsterraSummaryCards({
+  totals,
+  rows,
+  placementLabelMap = new Map(),
+  formatNumber,
+  formatCurrency,
+}) {
   const averageCpm = Number.isFinite(totals.cpm) ? totals.cpm : 0;
   const averageRevenuePerImpression =
     totals.impressions > 0 ? totals.revenue / totals.impressions : 0;
