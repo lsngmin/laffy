@@ -137,9 +137,8 @@ export default function AdminPage() {
   const [uploadFilters, setUploadFilters] = useState({
     search: '',
     type: '',
-    orientation: '',
     sort: 'recent',
-    channel: '',
+    channel: 'l',
   });
 
   const uploadsQueryString = useMemo(() => {
@@ -148,7 +147,6 @@ export default function AdminPage() {
     params.set('token', token);
     if (uploadFilters.search.trim()) params.set('search', uploadFilters.search.trim());
     if (uploadFilters.type) params.set('type', uploadFilters.type);
-    if (uploadFilters.orientation) params.set('orientation', uploadFilters.orientation);
     if (uploadFilters.sort && uploadFilters.sort !== 'recent') params.set('sort', uploadFilters.sort);
     if (uploadFilters.channel) params.set('channel', uploadFilters.channel);
     const serialized = params.toString();
@@ -164,10 +162,8 @@ export default function AdminPage() {
   const [visitSlug, setVisitSlug] = useState('');
   const [visitLimit, setVisitLimit] = useState(DEFAULT_VISIT_LIMIT);
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [orientation, setOrientation] = useState('landscape');
   const [duration, setDuration] = useState('0');
-  const [channel, setChannel] = useState('x');
+  const [channel, setChannel] = useState('l');
 
   const {
     items: uploadItems,
@@ -177,7 +173,6 @@ export default function AdminPage() {
     hasMore,
     isLoading,
     isLoadingMore,
-    isRefreshing,
     error: itemsError,
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
   const catalog = useAdminCatalog({ enabled: hasToken, queryString: qs });
@@ -451,23 +446,19 @@ export default function AdminPage() {
   const uploadFormState = useMemo(
     () => ({
       title,
-      description,
-      orientation,
       duration,
       channel,
       setTitle,
-      setDescription,
-      setOrientation,
       setDuration,
       setChannel,
       handleUploadUrl: `/api/blob/upload${qs}`,
     }),
-    [channel, description, duration, orientation, qs, title]
+    [channel, duration, qs, title]
   );
 
   const registerMeta = useCallback(
     async (blob) => {
-      if (!hasToken) return;
+      if (!hasToken) return false;
       const slug = await generateSlug(blob);
       const contentType = typeof blob?.contentType === 'string' ? blob.contentType : '';
       const pathname = typeof blob?.pathname === 'string' ? blob.pathname : '';
@@ -485,11 +476,7 @@ export default function AdminPage() {
 
       try {
         const trimmedTitle = (title || '').trim();
-        const trimmedDescription = (description || '').trim();
-        const orientationValue = typeof orientation === 'string' ? orientation.toLowerCase() : '';
-        const normalizedOrientation = ['landscape', 'portrait', 'square'].includes(orientationValue)
-          ? orientationValue
-          : 'landscape';
+        const fallbackTitle = trimmedTitle || slug;
 
         const payload = {
           schemaVersion: '2024-05',
@@ -497,14 +484,13 @@ export default function AdminPage() {
           type: normalizedType,
           channel: normalizedChannel,
           display: {
-            socialTitle: trimmedTitle || slug,
-            cardTitle: trimmedDescription || trimmedTitle || slug,
-            summary: trimmedDescription || trimmedTitle || slug,
+            socialTitle: fallbackTitle,
+            cardTitle: fallbackTitle,
+            summary: fallbackTitle,
             runtimeSec: durationSeconds,
           },
           media: {
             assetUrl: blob.url,
-            orientation: normalizedOrientation,
           },
           timestamps: {
             publishedAt: new Date().toISOString(),
@@ -529,18 +515,19 @@ export default function AdminPage() {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           alert(`메타 저장 실패: ${err.error || res.status}`);
-          return;
+          return false;
         }
         setTitle('');
-        setDescription('');
         setDuration('0');
-        setChannel('x');
+        setChannel('l');
         refreshAll();
+        return true;
       } catch (error) {
         console.error('Meta register failed', error);
+        return false;
       }
     },
-    [channel, description, duration, hasToken, orientation, qs, refreshAll, title]
+    [channel, duration, hasToken, qs, refreshAll, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {
@@ -870,7 +857,6 @@ export default function AdminPage() {
             hasMore={hasMore}
             isLoading={isLoading}
             isLoadingMore={isLoadingMore}
-            isRefreshing={isRefreshing}
             error={itemsError}
             filters={uploadFilters}
             onFiltersChange={handleUploadFiltersChange}
