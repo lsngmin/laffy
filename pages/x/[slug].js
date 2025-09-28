@@ -332,7 +332,7 @@ export async function getStaticPaths({ locales }) {
 }
 
 export async function getStaticProps({ params, locale }) {
-  const { meme, items } = await getContentBySlug(params.slug);
+  const { meme } = await getContentBySlug(params.slug);
   if (!meme) return { notFound: true };
   if ((meme.type || '').toLowerCase() !== 'image') {
     return { notFound: true };
@@ -342,7 +342,6 @@ export async function getStaticProps({ params, locale }) {
   }
 
   const normalizedMeme = { ...meme };
-  const channelFilteredItems = items.filter((item) => ((item.channel || 'x').toLowerCase() === 'x'));
 
   // SEO data
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -366,7 +365,6 @@ export async function getStaticProps({ params, locale }) {
   return {
     props: {
       meme: { ...normalizedMeme, __seo: { canonicalUrl, hreflangs, jsonLd, metaImage: thumb } },
-      allMemes: channelFilteredItems,
       ...(await serverSideTranslations(locale, ['common'])),
     },
     revalidate: 60,
