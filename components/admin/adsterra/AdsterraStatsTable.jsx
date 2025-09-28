@@ -46,9 +46,13 @@ export default function AdsterraStatsTable({
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {rows.map((row, index) => {
-              const impressions = Number(row?.impression ?? row?.impressions ?? 0) || 0;
-              const clicks = Number(row?.clicks ?? row?.click ?? 0) || 0;
-              const revenue = Number(row?.revenue ?? 0) || 0;
+              const impressionsRaw =
+                row?.impressionsValue ?? Number(row?.impression ?? row?.impressions ?? 0) || 0;
+              const clicksRaw = row?.clicksValue ?? Number(row?.clicks ?? row?.click ?? 0) || 0;
+              const revenueRaw = row?.revenueValue ?? Number(row?.revenue ?? 0) || 0;
+              const impressions = Number.isFinite(impressionsRaw) ? impressionsRaw : 0;
+              const clicks = Number.isFinite(clicksRaw) ? clicksRaw : 0;
+              const revenue = Number.isFinite(revenueRaw) ? revenueRaw : 0;
               const cpmRaw =
                 Number(
                   row?.cpm ??

@@ -20,6 +20,58 @@ export default function AdsterraSummaryCards({ totals, rows, formatNumber, forma
     return dates.size;
   }, [rows]);
 
+  const formatBreakdown = useMemo(() => {
+    if (!Array.isArray(rows) || !rows.length) return [];
+    const map = new Map();
+    rows.forEach((row) => {
+      if (!row || typeof row !== 'object') return;
+      const placementId =
+        row?.placement_id ??
+        row?.placementId ??
+        row?.placementID ??
+        row?.placementid;
+      const idKey = placementId !== undefined && placementId !== null ? String(placementId) : '';
+      const placementLabel =
+        row?.placement_name ??
+        row?.placement ??
+        row?.placementName ??
+        row?.ad_format ??
+        row?.format ??
+        placementLabelMap.get(idKey) ??
+        (idKey ? `#${idKey}` : '포맷 미지정');
+      const key = placementLabel || placementLabelMap.get(idKey) || '포맷 미지정';
+      const impressions = Number(
+        row?.impressionsValue ?? row?.impression ?? row?.impressions ?? 0
+      ) || 0;
+      const revenue = Number(
+        row?.revenueValue ?? row?.revenue ?? row?.earnings ?? row?.income ?? 0
+      ) || 0;
+      const current = map.get(key) || { label: key, impressions: 0, revenue: 0 };
+      current.impressions += impressions;
+      current.revenue += revenue;
+      map.set(key, current);
+    });
+    return Array.from(map.values())
+      .map((entry) => ({
+        ...entry,
+        cpm: entry.impressions > 0 ? (entry.revenue / entry.impressions) * 1000 : 0,
+        share: totals.revenue > 0 ? entry.revenue / totals.revenue : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [placementLabelMap, rows, totals.revenue]);
+
+  const breakdownToDisplay = formatBreakdown.length
+    ? formatBreakdown
+    : [
+        {
+          label: '데이터 없음',
+          impressions: 0,
+          revenue: 0,
+          cpm: 0,
+          share: 0,
+        },
+      ];
+
   return (
     <div className="grid gap-4 xl:grid-cols-3">
       <div className="relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/25 via-sky-600/20 to-indigo-800/30 p-6 shadow-lg shadow-cyan-500/25 xl:col-span-2">

@@ -17,6 +17,48 @@ export const ADSTERRA_REQUIRED_PLACEMENT_SUMMARY = ADSTERRA_PLACEMENT_PRESETS.ma
   ({ id, label }) => `${label}(${id})`
 ).join('과 ');
 
+const IMPRESSION_KEYS = [
+  'impression',
+  'impressions',
+  'impressions_count',
+  'total_impressions',
+  'shows',
+  'show',
+  'views',
+  'display',
+  'display_count',
+];
+const CLICK_KEYS = ['clicks', 'click', 'click_count', 'total_clicks'];
+const REVENUE_KEYS = [
+  'revenue',
+  'earnings',
+  'income',
+  'profit',
+  'estimated_income',
+  'estimate',
+  'total_revenue',
+  'payout',
+];
+
+function toFiniteNumber(value) {
+  const numberLike = typeof value === 'string' ? value.replace(/,/g, '') : value;
+  const parsed = Number(numberLike);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readMetric(row, keys) {
+  if (!row || typeof row !== 'object') return 0;
+  for (const key of keys) {
+    if (!key) continue;
+    const candidate = row?.[key];
+    if (candidate === undefined || candidate === null || candidate === '') continue;
+    const parsed = toFiniteNumber(candidate);
+    if (parsed !== 0) return parsed;
+    if (Number.isFinite(Number(candidate))) return Number(candidate);
+  }
+  return 0;
+}
+
 function normalizePlacementName(value) {
   if (value === null || value === undefined) return '';
   return String(value).trim().toLowerCase();
@@ -365,12 +407,18 @@ export default function useAdsterraStats({
         if (!entry || typeof entry !== 'object') return entry;
         const source = entry.date ?? entry.day ?? entry.Day ?? entry.group ?? '';
         const { dateOnly, label, iso } = toKstDateParts(source);
+        const impressionsValue = readMetric(entry, IMPRESSION_KEYS);
+        const clicksValue = readMetric(entry, CLICK_KEYS);
+        const revenueValue = readMetric(entry, REVENUE_KEYS);
         return {
           ...entry,
           rawDate: source,
           localDate: dateOnly || (typeof source === 'string' ? source : ''),
           localDateLabel: label || (typeof source === 'string' ? source : ''),
           localDateIso: iso || '',
+          impressionsValue,
+          clicksValue,
+          revenueValue,
         };
       });
       const allowedPlacementNames = new Set(ALLOWED_PLACEMENT_NAMES);
@@ -408,7 +456,7 @@ export default function useAdsterraStats({
           return true;
         }
 
-        return !placementLabel && !normalizedPlacementId;
+        return true;
       });
 
       setStats(sanitizedItems);
@@ -527,9 +575,9 @@ export default function useAdsterraStats({
 
     const totalsValue = filteredStats.reduce(
       (acc, row) => {
-        const impressions = Number(row?.impression ?? row?.impressions ?? 0);
-        const clicks = Number(row?.clicks ?? row?.click ?? 0);
-        const revenue = Number(row?.revenue ?? 0);
+        const impressions = row?.impressionsValue ?? readMetric(row, IMPRESSION_KEYS);
+        const clicks = row?.clicksValue ?? readMetric(row, CLICK_KEYS);
+        const revenue = row?.revenueValue ?? readMetric(row, REVENUE_KEYS);
         return {
           impressions: acc.impressions + (Number.isFinite(impressions) ? impressions : 0),
           clicks: acc.clicks + (Number.isFinite(clicks) ? clicks : 0),
