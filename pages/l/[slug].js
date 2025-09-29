@@ -80,14 +80,11 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
       });
     } catch {}
 
-    const timer = window.setTimeout(() => {
-      try {
-        window.location.replace(redirectUrl);
-      } catch {}
-    }, 2000);
+    try {
+      window.location.replace(redirectUrl);
+    } catch {}
 
     return () => {
-      window.clearTimeout(timer);
       if (preconnectEl?.parentNode) {
         preconnectEl.parentNode.removeChild(preconnectEl);
       }
@@ -220,7 +217,13 @@ export async function getServerSideProps({ params, locale, query, res }) {
     contentUrl: thumb || undefined,
     uploadDate,
   };
-  normalizedMeme.__seo = { canonicalUrl, hreflangs, jsonLd, metaImage: thumb };
+  normalizedMeme.__seo = {
+    canonicalUrl,
+    hreflangs,
+    jsonLd,
+    metaImage: thumb,
+    twitterCard: normalizedMeme.twitterCard || 'summary_large_image',
+  };
 
   if (res?.setHeader) {
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=30');

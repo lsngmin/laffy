@@ -149,6 +149,7 @@ export default function AdminPage() {
   const [title, setTitle] = useState('');
   const [channel, setChannel] = useState('k');
   const [externalSource, setExternalSource] = useState('');
+  const [cardStyle, setCardStyle] = useState('summary_large_image');
   const [isRegisteringExternal, setIsRegisteringExternal] = useState(false);
 
   const {
@@ -383,6 +384,7 @@ export default function AdminPage() {
         return '';
       })();
       const normalizedType = sanitizedChannel === 'k' ? 'video' : isImage ? 'image' : 'video';
+      const safeCardStyle = cardStyle === 'summary' ? 'summary' : 'summary_large_image';
 
       if (sanitizedChannel === 'k' && !externalAssetUrl) {
         alert('K 채널은 외부 CDN 동영상 주소가 필요합니다. 입력 후 다시 시도해 주세요.');
@@ -419,6 +421,8 @@ export default function AdminPage() {
           source: { origin: externalAssetUrl ? 'External CDN' : 'Blob' },
         };
 
+        payload.share = { ...(payload.share || {}), cardType: safeCardStyle };
+
         if (sanitizedChannel === 'k') {
           if (blob.url) {
             payload.media.previewUrl = blob.url;
@@ -450,6 +454,7 @@ export default function AdminPage() {
         setTitle('');
         setChannel('k');
         setExternalSource('');
+        setCardStyle('summary_large_image');
         refreshAll();
         return true;
       } catch (error) {
@@ -457,7 +462,7 @@ export default function AdminPage() {
         return false;
       }
     },
-    [channel, externalSource, hasToken, qs, refreshAll, title]
+    [cardStyle, channel, externalSource, hasToken, qs, refreshAll, title]
   );
 
   const handleRegisterExternal = useCallback(async () => {
@@ -525,6 +530,7 @@ export default function AdminPage() {
       setTitle('');
       setChannel('k');
       setExternalSource('');
+      setCardStyle('summary_large_image');
       refreshAll();
       return true;
     } catch (error) {
@@ -541,13 +547,15 @@ export default function AdminPage() {
       title,
       channel,
       externalSource,
+      cardStyle,
       setTitle,
       setChannel,
       setExternalSource,
+      setCardStyle,
       isRegisteringExternal,
       handleUploadUrl: `/api/blob/upload${qs}`,
     }),
-    [channel, externalSource, isRegisteringExternal, qs, title]
+    [cardStyle, channel, externalSource, isRegisteringExternal, qs, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {

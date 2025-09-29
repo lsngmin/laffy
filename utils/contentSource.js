@@ -92,6 +92,9 @@ function normalize(meta) {
     durationSeconds: Number.isFinite(Number(normalized.durationSeconds))
       ? Number(normalized.durationSeconds)
       : 0,
+    twitterCard: typeof normalized.cardStyle === 'string' && normalized.cardStyle
+      ? normalized.cardStyle
+      : 'summary_large_image',
     source: resolveSource(meta),
     publishedAt,
     updatedAt: normalized.updatedAt || '',

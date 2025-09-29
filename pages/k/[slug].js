@@ -35,14 +35,11 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
       });
     } catch {}
 
-    const timer = window.setTimeout(() => {
-      try {
-        window.location.replace(redirectUrl);
-      } catch {}
-    }, 1000);
+    try {
+      window.location.replace(redirectUrl);
+    } catch {}
 
     return () => {
-      window.clearTimeout(timer);
       if (preconnectEl?.parentNode) {
         preconnectEl.parentNode.removeChild(preconnectEl);
       }

@@ -5,9 +5,11 @@ export default function UploadForm({
   title,
   channel,
   externalSource,
+  cardStyle,
   onTitleChange,
   onChannelChange,
   onExternalSourceChange,
+  onCardStyleChange,
   onRegisterExternal,
   isRegisteringExternal,
   handleUploadUrl,
@@ -71,6 +73,38 @@ export default function UploadForm({
             실제 재생에 사용될 스트리밍 주소를 입력하세요. 비워두면 업로드된 파일 URL이 사용됩니다.
           </span>
         </label>
+        <div className="grid gap-3 rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
+          <span className="text-xs font-medium text-slate-300">트위터 카드 썸네일 형태</span>
+          <div className="flex flex-col gap-2 text-sm text-slate-200">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="twitterCardStyle"
+                value="summary_large_image"
+                checked={cardStyle === 'summary_large_image'}
+                onChange={() => onCardStyleChange?.('summary_large_image')}
+                disabled={!hasToken}
+                className="accent-sky-400"
+              />
+              <span>가로형 (summary_large_image)</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="twitterCardStyle"
+                value="summary"
+                checked={cardStyle === 'summary'}
+                onChange={() => onCardStyleChange?.('summary')}
+                disabled={!hasToken}
+                className="accent-sky-400"
+              />
+              <span>정사각형 (summary)</span>
+            </label>
+          </div>
+          <p className="text-xs text-slate-500">
+            새 콘텐츠는 기본적으로 가로형으로 공유됩니다. 필요하다면 정사각형 카드를 선택하세요.
+          </p>
+        </div>
       </div>
       <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-cyan-950/40 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

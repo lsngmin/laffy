@@ -494,9 +494,11 @@ export default function UploadsSection({
               title={uploadFormState.title}
               channel={uploadFormState.channel}
               externalSource={uploadFormState.externalSource}
+              cardStyle={uploadFormState.cardStyle}
               onTitleChange={uploadFormState.setTitle}
               onChannelChange={uploadFormState.setChannel}
               onExternalSourceChange={uploadFormState.setExternalSource}
+              onCardStyleChange={uploadFormState.setCardStyle}
               onRegisterExternal={onRegisterExternal}
               isRegisteringExternal={uploadFormState.isRegisteringExternal}
               handleUploadUrl={uploadFormState.handleUploadUrl}
