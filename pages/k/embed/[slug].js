@@ -1,55 +1,15 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import VideoSocialMeta from '@/components/x/meta/VideoSocialMeta';
-import { vaTrack } from '@/lib/va';
 
-export default function KExternalRedirectPage({ meme, redirectUrl }) {
+export default function KEmbedPlayerPage({ meme, embedSrc }) {
   const { t } = useTranslation('common');
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    try {
-      if (window.top && window.top !== window.self) return undefined;
-    } catch {}
-    if (!redirectUrl) return undefined;
-
-    let preconnectEl;
-    try {
-      const originUrl = new URL(redirectUrl);
-      preconnectEl = document.createElement('link');
-      preconnectEl.rel = 'preconnect';
-      preconnectEl.href = `${originUrl.protocol}//${originUrl.host}`;
-      preconnectEl.crossOrigin = 'anonymous';
-      document.head.appendChild(preconnectEl);
-    } catch {}
-
-    try {
-      vaTrack('l_redirect_initiated', {
-        slug: meme?.slug || '',
-        title: meme?.title || '',
-        target: redirectUrl,
-      });
-    } catch {}
-
-    const timer = window.setTimeout(() => {
-      try {
-        window.location.replace(redirectUrl);
-      } catch {}
-    }, 1000);
-
-    return () => {
-      window.clearTimeout(timer);
-      if (preconnectEl?.parentNode) {
-        preconnectEl.parentNode.removeChild(preconnectEl);
-      }
-    };
-  }, [meme?.slug, meme?.title, redirectUrl]);
-
-  if (!meme || !redirectUrl) return null;
+  if (!meme || !embedSrc) return null;
 
   const fallbackDesc = t(
     'kDetail.redirectDescription',
@@ -69,10 +29,6 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
     return base.replace(/\s+/g, ' ').slice(0, 200);
   }, [fallbackDesc, meme?.description]);
 
-  const heading = t('redirect.heading', 'Redirecting…');
-  const description = t('redirect.description', 'Please wait while we open the smart link.');
-  const fallbackCta = t('redirect.cta', 'Tap here if nothing happens.');
-
   return (
     <>
       <TitleNameHead title={safeTitle} description={safeDesc} />
@@ -84,31 +40,18 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
           player={meme.__seo?.player}
         />
       )}
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-        <main className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-6 px-4 text-center text-slate-200">
-          <div className="space-y-3">
-            <span className="inline-flex items-center justify-center rounded-full bg-slate-900/60 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
-              LAFFY · K
-            </span>
-            <h1 className="text-2xl font-semibold text-white sm:text-3xl">{heading}</h1>
-            <p className="text-sm text-slate-400">{description}</p>
+      <div className="flex min-h-screen items-center justify-center bg-black p-4">
+        <div className="w-full max-w-5xl">
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl">
+            <video
+              src={embedSrc}
+              controls
+              playsInline
+              poster={meme.poster || meme.thumbnail || ''}
+              className="h-full w-full object-contain"
+            />
           </div>
-          <a
-            href={redirectUrl}
-            onClick={() => {
-              try {
-                vaTrack('l_redirect_cta_click', {
-                  slug: meme.slug || '',
-                  title: meme.title || '',
-                  target: redirectUrl,
-                });
-              } catch {}
-            }}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(99,102,241,0.35)] transition hover:brightness-110"
-          >
-            {fallbackCta}
-          </a>
-        </main>
+        </div>
       </div>
     </>
   );
@@ -197,7 +140,7 @@ export async function getStaticProps({ params, locale }) {
   return {
     props: {
       meme: normalizedMeme,
-      redirectUrl,
+      embedSrc: absoluteRedirect,
       ...(await serverSideTranslations(locale ?? 'en', ['common'])),
     },
     revalidate: 60,
