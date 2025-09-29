@@ -70,7 +70,8 @@
     "missingSource": "Video source is unavailable.",
     "duration": "Duration",
     "publishedAt": "Published",
-    "openCdn": "Open CDN source"
+    "openCdn": "Open CDN source",
+    "redirectDescription": "Getting your video ready. We will take you to the external player in a moment."
   },
   "redirect": {
     "heading": "Opening the video…",

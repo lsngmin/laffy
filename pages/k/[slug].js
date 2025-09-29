@@ -48,15 +48,23 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
 
   if (!meme || !redirectUrl) return null;
 
+  const fallbackDesc = t(
+    'kDetail.redirectDescription',
+    'Getting your video ready. We will take you to the external player in a moment.'
+  );
+
   const safeTitle = useMemo(() => {
-    if (!meme?.title) return 'Kinetic Preview';
-    return String(meme.title).slice(0, 70);
+    const raw = typeof meme?.title === 'string' ? meme.title : '';
+    const trimmed = raw.trim();
+    return (trimmed || 'Kinetic Preview').slice(0, 70);
   }, [meme?.title]);
 
   const safeDesc = useMemo(() => {
-    if (!meme?.description) return '';
-    return String(meme.description).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').slice(0, 200);
-  }, [meme?.description]);
+    const raw = typeof meme?.description === 'string' ? meme.description : '';
+    const trimmed = raw.replace(/[\r\n\t]+/g, ' ').trim();
+    const base = trimmed || fallbackDesc;
+    return base.replace(/\s+/g, ' ').slice(0, 200);
+  }, [fallbackDesc, meme?.description]);
 
   const heading = t('redirect.heading', 'Redirecting…');
   const description = t('redirect.description', 'Please wait while we open the smart link.');
@@ -64,7 +72,7 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
 
   return (
     <>
-      <TitleNameHead title={safeTitle} />
+      <TitleNameHead title={safeTitle} description={safeDesc} />
       {meme.__seo && <ImageSocialMeta seo={meme.__seo} title={safeTitle} description={safeDesc} />}
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-6 px-4 text-center text-slate-200">
