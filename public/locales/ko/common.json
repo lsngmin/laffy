@@ -57,6 +57,22 @@
       "subtitle": "다음 웃음을 이어가 보세요"
     }
   },
+  "kGallery": {
+    "metaTitle": "K 채널 미리보기",
+    "title": "K 채널 미리보기",
+    "subtitle": "외부 CDN에 올라간 영상을 한눈에 확인해 보세요.",
+    "empty": "아직 등록된 미리보기 영상이 없어요.",
+    "cta": "미리보기 열기",
+    "redirecting": "열리는 중…"
+  },
+  "kDetail": {
+    "videoFallback": "이 브라우저에서는 동영상을 재생할 수 없습니다.",
+    "missingSource": "영상 소스를 찾을 수 없습니다.",
+    "duration": "재생 시간",
+    "publishedAt": "업로드",
+    "openCdn": "CDN 원본 열기",
+    "redirectDescription": "영상을 준비 중입니다. 잠시 후 외부 플레이어로 이동합니다."
+  },
   "redirect": {
     "heading": "영상으로 이동합니다",
     "description": "잠시만요! 접속자가 많으면 조금 더 걸릴 수 있어요.",

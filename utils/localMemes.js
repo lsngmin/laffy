@@ -12,7 +12,8 @@ const localMemes = [
     source: 'Local Sample',
     publishedAt: '2024-03-18T09:12:00.000Z',
     likes: 18400,
-    views: 285000
+    views: 285000,
+    channel: 'k'
   },
   {
     slug: 'local-office-prank',
@@ -27,7 +28,8 @@ const localMemes = [
     source: 'Local Sample',
     publishedAt: '2024-02-27T14:30:00.000Z',
     likes: 7400,
-    views: 165000
+    views: 165000,
+    channel: 'k'
   },
   {
     slug: 'local-latte-art-fail',
@@ -42,7 +44,8 @@ const localMemes = [
     source: 'Local Sample',
     publishedAt: '2024-01-19T02:45:00.000Z',
     likes: 12500,
-    views: 198000
+    views: 198000,
+    channel: 'x'
   },
   {
     slug: 'local-robot-dance-off',
@@ -57,7 +60,8 @@ const localMemes = [
     source: 'Local Sample',
     publishedAt: '2023-12-11T11:20:00.000Z',
     likes: 9800,
-    views: 210000
+    views: 210000,
+    channel: 'x'
   }
 ];
 

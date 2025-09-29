@@ -88,11 +88,12 @@ export default function EditContentModal({
                   <select
                     value={editForm.channel || 'x'}
                     onChange={(event) => onFieldChange('channel', event.target.value)}
-                    className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  >
-                    <option value="x">x</option>
-                    <option value="l">l</option>
-                  </select>
+                  className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                >
+                  <option value="x">x</option>
+                  <option value="l">l</option>
+                  <option value="k">k</option>
+                </select>
                 </div>
 
                 <div className="space-y-3">

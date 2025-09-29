@@ -13,6 +13,7 @@ export default function UploadsSection({
   onDelete,
   registerMeta,
   uploadFormState,
+  onRegisterExternal,
   onRefresh,
   onLoadMore,
   hasMore,
@@ -492,8 +493,12 @@ export default function UploadsSection({
               hasToken={hasToken}
               title={uploadFormState.title}
               channel={uploadFormState.channel}
+              externalSource={uploadFormState.externalSource}
               onTitleChange={uploadFormState.setTitle}
               onChannelChange={uploadFormState.setChannel}
+              onExternalSourceChange={uploadFormState.setExternalSource}
+              onRegisterExternal={onRegisterExternal}
+              isRegisteringExternal={uploadFormState.isRegisteringExternal}
               handleUploadUrl={uploadFormState.handleUploadUrl}
               onUploaded={handleUploadComplete}
               onClose={handleCloseUploadModal}

@@ -44,13 +44,18 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
       return Math.round(parsed);
     })();
 
+    const normalizedChannel = (() => {
+      const value = typeof item.channel === 'string' ? item.channel.toLowerCase() : '';
+      return ['x', 'l', 'k'].includes(value) ? value : 'x';
+    })();
+
     setEditForm({
       title: item.title || item.slug,
       description: item.description || '',
       imageUrl: '',
       previewUrl: initialPreview,
       durationSeconds: String(numericDuration),
-      channel: item.channel === 'l' ? 'l' : 'x',
+      channel: normalizedChannel,
     });
     setEditInitialPreview(initialPreview);
     setEditUploadMessage('');
@@ -185,7 +190,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     const basePreview = editInitialPreview || editingItem.preview || '';
     const rawChannelInput =
       typeof editForm.channel === 'string' ? editForm.channel.trim().toLowerCase() : '';
-    const resolvedChannel = rawChannelInput === 'l' ? 'l' : 'x';
+    const resolvedChannel = ['x', 'l', 'k'].includes(rawChannelInput) ? rawChannelInput : 'x';
 
     const assetUrl = isImageType
       ? newImageUrl || editingItem.src || editingItem.poster || editingItem.thumbnail || basePreview || ''

@@ -40,7 +40,8 @@ function sanitizeOrientation(value) {
 
 function parseChannel(value) {
   const normalized = parseString(value).toLowerCase();
-  return normalized === 'l' ? 'l' : 'x';
+  if (normalized === 'l' || normalized === 'k') return normalized;
+  return 'x';
 }
 
 export default async function handler(req, res) {
@@ -312,6 +313,9 @@ export default async function handler(req, res) {
     if (channel === 'l') {
       revalidateTargets.add('/l');
       revalidateTargets.add(`/l/${slug}`);
+    } else if (channel === 'k') {
+      revalidateTargets.add('/k');
+      revalidateTargets.add(`/k/${slug}`);
     } else if (effectiveType === 'image') {
       revalidateTargets.add('/x');
       revalidateTargets.add(`/x/${slug}`);

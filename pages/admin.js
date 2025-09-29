@@ -124,7 +124,7 @@ export default function AdminPage() {
     search: '',
     type: '',
     sort: 'recent',
-    channel: 'l',
+    channel: 'k',
   });
 
   const uploadsQueryString = useMemo(() => {
@@ -147,7 +147,9 @@ export default function AdminPage() {
   const [visitSlug, setVisitSlug] = useState('');
   const [visitLimit, setVisitLimit] = useState(DEFAULT_VISIT_LIMIT);
   const [title, setTitle] = useState('');
-  const [channel, setChannel] = useState('l');
+  const [channel, setChannel] = useState('k');
+  const [externalSource, setExternalSource] = useState('');
+  const [isRegisteringExternal, setIsRegisteringExternal] = useState(false);
 
   const {
     items: uploadItems,
@@ -357,17 +359,6 @@ export default function AdminPage() {
     [formatDecimal]
   );
 
-  const uploadFormState = useMemo(
-    () => ({
-      title,
-      channel,
-      setTitle,
-      setChannel,
-      handleUploadUrl: `/api/blob/upload${qs}`,
-    }),
-    [channel, qs, title]
-  );
-
   const registerMeta = useCallback(
     async (blob) => {
       if (!hasToken) return false;
@@ -380,7 +371,14 @@ export default function AdminPage() {
       const hasImageExtension = imageExtPattern.test(lowerPathname) || imageExtPattern.test(lowerUrl);
       const isImage = contentType.startsWith('image/') || hasImageExtension;
       const normalizedType = isImage ? 'image' : 'video';
-      const normalizedChannel = channel === 'l' ? 'l' : 'x';
+      const sanitizedChannel = (() => {
+        const value = typeof channel === 'string' ? channel.trim().toLowerCase() : '';
+        return ['l', 'k', 'x'].includes(value) ? value : 'x';
+      })();
+      const trimmedExternalSource =
+        typeof externalSource === 'string' ? externalSource.trim() : '';
+      const externalAssetUrl = !isImage && trimmedExternalSource ? trimmedExternalSource : '';
+      const assetUrl = externalAssetUrl || blob.url;
 
       try {
         const trimmedTitle = (title || '').trim();
@@ -390,7 +388,7 @@ export default function AdminPage() {
           schemaVersion: '2024-05',
           slug,
           type: normalizedType,
-          channel: normalizedChannel,
+          channel: sanitizedChannel,
           display: {
             socialTitle: fallbackTitle,
             cardTitle: fallbackTitle,
@@ -398,7 +396,7 @@ export default function AdminPage() {
             runtimeSec: 0,
           },
           media: {
-            assetUrl: blob.url,
+            assetUrl,
           },
           timestamps: {
             publishedAt: new Date().toISOString(),
@@ -407,12 +405,17 @@ export default function AdminPage() {
             likes: 0,
             views: 0,
           },
-          source: { origin: 'Blob' },
+          source: { origin: externalAssetUrl ? 'External CDN' : 'Blob' },
         };
 
         if (isImage) {
           payload.media.previewUrl = blob.url;
           payload.media.thumbUrl = blob.url;
+        } else if (blob.url) {
+          payload.media.previewUrl = blob.url;
+          if (!payload.media.thumbUrl) {
+            payload.media.thumbUrl = blob.url;
+          }
         }
 
         const res = await fetch(`/api/admin/register${qs}`, {
@@ -426,7 +429,8 @@ export default function AdminPage() {
           return false;
         }
         setTitle('');
-        setChannel('l');
+        setChannel('k');
+        setExternalSource('');
         refreshAll();
         return true;
       } catch (error) {
@@ -434,7 +438,97 @@ export default function AdminPage() {
         return false;
       }
     },
-    [channel, hasToken, qs, refreshAll, title]
+    [channel, externalSource, hasToken, qs, refreshAll, title]
+  );
+
+  const handleRegisterExternal = useCallback(async () => {
+    if (!hasToken) {
+      alert('관리자 토큰이 필요합니다.');
+      return false;
+    }
+    if (channel !== 'k') {
+      alert('외부 CDN 등록은 K 채널에서만 가능합니다.');
+      return false;
+    }
+    const trimmedSource = (externalSource || '').trim();
+    if (!trimmedSource) {
+      alert('외부 CDN 동영상 URL을 입력해 주세요.');
+      return false;
+    }
+    if (!/^https?:\/\//i.test(trimmedSource)) {
+      alert('유효한 URL을 입력해 주세요.');
+      return false;
+    }
+
+    setIsRegisteringExternal(true);
+    try {
+      const slug = await generateSlug({ pathname: trimmedSource, url: trimmedSource });
+      const trimmedTitle = (title || '').trim();
+      const fallbackTitle = trimmedTitle || slug;
+
+      const payload = {
+        schemaVersion: '2024-05',
+        slug,
+        type: 'video',
+        channel: 'k',
+        display: {
+          socialTitle: fallbackTitle,
+          cardTitle: fallbackTitle,
+          summary: fallbackTitle,
+          runtimeSec: 0,
+        },
+        media: {
+          assetUrl: trimmedSource,
+          orientation: 'landscape',
+        },
+        timestamps: {
+          publishedAt: new Date().toISOString(),
+        },
+        metrics: {
+          likes: 0,
+          views: 0,
+        },
+        source: { origin: 'External CDN' },
+      };
+
+      const res = await fetch(`/api/admin/register${qs}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`메타 저장 실패: ${err.error || res.status}`);
+        return false;
+      }
+
+      setTitle('');
+      setChannel('k');
+      setExternalSource('');
+      refreshAll();
+      return true;
+    } catch (error) {
+      console.error('External meta register failed', error);
+      alert('등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      return false;
+    } finally {
+      setIsRegisteringExternal(false);
+    }
+  }, [channel, externalSource, hasToken, qs, refreshAll, title]);
+
+  const uploadFormState = useMemo(
+    () => ({
+      title,
+      channel,
+      externalSource,
+      setTitle,
+      setChannel,
+      setExternalSource,
+      isRegisteringExternal,
+      handleUploadUrl: `/api/blob/upload${qs}`,
+    }),
+    [channel, externalSource, isRegisteringExternal, qs, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {
@@ -541,6 +635,7 @@ export default function AdminPage() {
             onDelete={openDeleteModal}
             registerMeta={registerMeta}
             uploadFormState={uploadFormState}
+            onRegisterExternal={handleRegisterExternal}
             onRefresh={refreshUploads}
             onLoadMore={loadMore}
             hasMore={hasMore}
