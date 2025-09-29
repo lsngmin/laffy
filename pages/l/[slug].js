@@ -84,7 +84,7 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
       try {
         window.location.replace(redirectUrl);
       } catch {}
-    }, 1000);
+    }, 10000);
 
     return () => {
       window.clearTimeout(timer);
