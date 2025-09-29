@@ -72,15 +72,14 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
       document.head.appendChild(preconnectEl);
     } catch {}
 
+    const payload = { slug, title, target: redirectUrl };
+
     try {
-      vaTrack('l_redirect_initiated', {
-        slug,
-        title,
-        target: redirectUrl,
-      });
+      vaTrack('l_redirect_load', payload);
     } catch {}
 
     try {
+      vaTrack('l_redirect_navigation', payload);
       window.location.replace(redirectUrl);
     } catch {}
 

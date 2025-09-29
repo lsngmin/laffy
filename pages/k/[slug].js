@@ -27,15 +27,18 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
       document.head.appendChild(preconnectEl);
     } catch {}
 
+    const payload = {
+      slug: meme?.slug || '',
+      title: meme?.title || '',
+      target: redirectUrl,
+    };
+
     try {
-      vaTrack('l_redirect_initiated', {
-        slug: meme?.slug || '',
-        title: meme?.title || '',
-        target: redirectUrl,
-      });
+      vaTrack('k_redirect_load', payload);
     } catch {}
 
     try {
+      vaTrack('k_redirect_navigation', payload);
       window.location.replace(redirectUrl);
     } catch {}
 
