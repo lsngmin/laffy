@@ -111,7 +111,6 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
     'redirect.subtitle',
     'If you only see an ad landing page in Korean, please open it in an external browser.'
   );
-  const fallbackCta = t('redirect.cta', 'Tap here if nothing happens.');
   const externalCta = t('redirect.externalCta', 'Open in external browser');
   const externalConfirm = t(
     'redirect.externalConfirm',
@@ -136,6 +135,20 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
     } catch {}
   }, [externalConfirm, redirectUrl, slug, title]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const adPreconnect = document.createElement('link');
+    adPreconnect.rel = 'preconnect';
+    adPreconnect.href = 'https://foilbundle.com';
+    adPreconnect.crossOrigin = 'anonymous';
+    document.head.appendChild(adPreconnect);
+    return () => {
+      if (adPreconnect.parentNode) {
+        adPreconnect.parentNode.removeChild(adPreconnect);
+      }
+    };
+  }, []);
+
   return (
     <>
       <TitleNameHead title={meme.description} />
@@ -152,21 +165,6 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
           </div>
           {redirectUrl ? (
             <div className="flex w-full max-w-sm flex-col items-center gap-3">
-              <a
-                href={redirectUrl}
-                onClick={() => {
-                  try {
-                    vaTrack('l_redirect_cta_click', {
-                      slug,
-                      title,
-                      target: redirectUrl,
-                    });
-                  } catch {}
-                }}
-                className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(99,102,241,0.35)] transition hover:brightness-110"
-              >
-                {fallbackCta}
-              </a>
               <button
                 type="button"
                 onClick={handleOpenExternally}
@@ -174,13 +172,13 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
               >
                 {externalCta}
               </button>
-              <div className="w-full">
-                <RelishInvokeAd className="w-full" />
+              <div className="flex w-full justify-center">
+                <RelishInvokeAd className="w-full max-w-xs" />
               </div>
             </div>
           ) : (
             <div className="w-full max-w-sm">
-              <RelishInvokeAd className="w-full" />
+              <RelishInvokeAd className="mx-auto w-full max-w-xs" />
             </div>
           )}
         </main>
