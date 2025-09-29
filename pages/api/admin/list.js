@@ -46,7 +46,7 @@ function parseSort(value) {
 function parseChannel(value) {
   if (typeof value !== 'string') return '';
   const normalized = value.trim().toLowerCase();
-  return ['x', 'l'].includes(normalized) ? normalized : '';
+  return ['x', 'l', 'k'].includes(normalized) ? normalized : '';
 }
 
 function matchesFilters(item, filters) {
@@ -108,11 +108,13 @@ function buildItem(blob, metaInfo) {
   const slug = normalized.slug || fallbackSlug;
   const type = normalized.type || 'video';
   const channelValue = typeof normalized.channel === 'string' ? normalized.channel.toLowerCase() : '';
-  const channel = channelValue === 'l' ? 'l' : 'x';
+  const channel = ['x', 'l', 'k'].includes(channelValue) ? channelValue : 'x';
   let routePath = '';
   if (slug) {
     if (channel === 'l') {
       routePath = `/l/${slug}`;
+    } else if (channel === 'k') {
+      routePath = '/k';
     } else if ((type || '').toLowerCase() === 'image') {
       routePath = `/x/${slug}`;
     } else {

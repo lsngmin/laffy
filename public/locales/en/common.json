@@ -57,6 +57,21 @@
       "subtitle": "Keep the smiles rolling with these picks"
     }
   },
+  "kGallery": {
+    "metaTitle": "Kinetic Preview",
+    "title": "Kinetic Preview",
+    "subtitle": "Preview videos streamed from external CDN sources.",
+    "empty": "No preview videos are available yet.",
+    "cta": "Open preview",
+    "redirecting": "Opening…"
+  },
+  "kDetail": {
+    "videoFallback": "Your browser does not support the video tag.",
+    "missingSource": "Video source is unavailable.",
+    "duration": "Duration",
+    "publishedAt": "Published",
+    "openCdn": "Open CDN source"
+  },
   "redirect": {
     "heading": "Opening the video…",
     "description": "One moment—we’re taking you straight to the clip.",

@@ -492,8 +492,10 @@ export default function UploadsSection({
               hasToken={hasToken}
               title={uploadFormState.title}
               channel={uploadFormState.channel}
+              externalSource={uploadFormState.externalSource}
               onTitleChange={uploadFormState.setTitle}
               onChannelChange={uploadFormState.setChannel}
+              onExternalSourceChange={uploadFormState.setExternalSource}
               handleUploadUrl={uploadFormState.handleUploadUrl}
               onUploaded={handleUploadComplete}
               onClose={handleCloseUploadModal}

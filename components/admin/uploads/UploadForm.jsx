@@ -4,8 +4,10 @@ export default function UploadForm({
   hasToken,
   title,
   channel,
+  externalSource,
   onTitleChange,
   onChannelChange,
+  onExternalSourceChange,
   handleUploadUrl,
   onUploaded,
   onClose,
@@ -41,7 +43,22 @@ export default function UploadForm({
           >
             <option value="l">L 채널</option>
             <option value="x">X 채널</option>
+            <option value="k">K 채널</option>
           </select>
+        </label>
+        <label className="group flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4 transition hover:border-sky-500/40">
+          <span className="text-xs font-medium text-slate-300">외부 CDN 동영상 URL</span>
+          <input
+            disabled={!hasToken}
+            type="url"
+            placeholder="https://cdn.example.com/path/to/video.mp4"
+            value={externalSource}
+            onChange={(event) => onExternalSourceChange(event.target.value)}
+            className="w-full rounded-lg border border-slate-800/40 bg-black/40 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-500/60 group-hover:border-sky-400/40 disabled:opacity-40"
+          />
+          <span className="text-xs text-slate-500">
+            실제 재생에 사용될 스트리밍 주소를 입력하세요. 비워두면 업로드된 파일 URL이 사용됩니다.
+          </span>
         </label>
       </div>
       <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-cyan-950/40 p-5">

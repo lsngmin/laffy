@@ -124,7 +124,7 @@ export default function AdminPage() {
     search: '',
     type: '',
     sort: 'recent',
-    channel: 'l',
+    channel: 'k',
   });
 
   const uploadsQueryString = useMemo(() => {
@@ -147,7 +147,8 @@ export default function AdminPage() {
   const [visitSlug, setVisitSlug] = useState('');
   const [visitLimit, setVisitLimit] = useState(DEFAULT_VISIT_LIMIT);
   const [title, setTitle] = useState('');
-  const [channel, setChannel] = useState('l');
+  const [channel, setChannel] = useState('k');
+  const [externalSource, setExternalSource] = useState('');
 
   const {
     items: uploadItems,
@@ -361,11 +362,13 @@ export default function AdminPage() {
     () => ({
       title,
       channel,
+      externalSource,
       setTitle,
       setChannel,
+      setExternalSource,
       handleUploadUrl: `/api/blob/upload${qs}`,
     }),
-    [channel, qs, title]
+    [channel, externalSource, qs, title]
   );
 
   const registerMeta = useCallback(
@@ -380,7 +383,14 @@ export default function AdminPage() {
       const hasImageExtension = imageExtPattern.test(lowerPathname) || imageExtPattern.test(lowerUrl);
       const isImage = contentType.startsWith('image/') || hasImageExtension;
       const normalizedType = isImage ? 'image' : 'video';
-      const normalizedChannel = channel === 'l' ? 'l' : 'x';
+      const sanitizedChannel = (() => {
+        const value = typeof channel === 'string' ? channel.trim().toLowerCase() : '';
+        return ['l', 'k', 'x'].includes(value) ? value : 'x';
+      })();
+      const trimmedExternalSource =
+        typeof externalSource === 'string' ? externalSource.trim() : '';
+      const externalAssetUrl = !isImage && trimmedExternalSource ? trimmedExternalSource : '';
+      const assetUrl = externalAssetUrl || blob.url;
 
       try {
         const trimmedTitle = (title || '').trim();
@@ -390,7 +400,7 @@ export default function AdminPage() {
           schemaVersion: '2024-05',
           slug,
           type: normalizedType,
-          channel: normalizedChannel,
+          channel: sanitizedChannel,
           display: {
             socialTitle: fallbackTitle,
             cardTitle: fallbackTitle,
@@ -398,7 +408,7 @@ export default function AdminPage() {
             runtimeSec: 0,
           },
           media: {
-            assetUrl: blob.url,
+            assetUrl,
           },
           timestamps: {
             publishedAt: new Date().toISOString(),
@@ -407,12 +417,17 @@ export default function AdminPage() {
             likes: 0,
             views: 0,
           },
-          source: { origin: 'Blob' },
+          source: { origin: externalAssetUrl ? 'External CDN' : 'Blob' },
         };
 
         if (isImage) {
           payload.media.previewUrl = blob.url;
           payload.media.thumbUrl = blob.url;
+        } else if (blob.url) {
+          payload.media.previewUrl = blob.url;
+          if (!payload.media.thumbUrl) {
+            payload.media.thumbUrl = blob.url;
+          }
         }
 
         const res = await fetch(`/api/admin/register${qs}`, {
@@ -426,7 +441,8 @@ export default function AdminPage() {
           return false;
         }
         setTitle('');
-        setChannel('l');
+        setChannel('k');
+        setExternalSource('');
         refreshAll();
         return true;
       } catch (error) {
@@ -434,7 +450,7 @@ export default function AdminPage() {
         return false;
       }
     },
-    [channel, hasToken, qs, refreshAll, title]
+    [channel, externalSource, hasToken, qs, refreshAll, title]
   );
 
   const handleUploadFiltersChange = useCallback((nextFilters) => {
