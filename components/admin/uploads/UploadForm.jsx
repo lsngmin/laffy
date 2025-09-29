@@ -8,10 +8,14 @@ export default function UploadForm({
   onTitleChange,
   onChannelChange,
   onExternalSourceChange,
+  onRegisterExternal,
+  isRegisteringExternal,
   handleUploadUrl,
   onUploaded,
   onClose,
 }) {
+  const isKChannel = channel === 'k';
+
   return (
     <div className="space-y-6 rounded-3xl bg-[#070b1b]/95 p-6 shadow-[0_0_45px_rgba(59,130,246,0.2)] ring-1 ring-slate-800/70 backdrop-blur">
       <div className="space-y-2">
@@ -61,24 +65,36 @@ export default function UploadForm({
           </span>
         </label>
       </div>
-      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-cyan-950/40 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300/80">파일 업로드</p>
-          <span className="text-[11px] text-slate-300">최대 200MB · JPG / PNG / WEBP / MP4</span>
-        </div>
-        {hasToken ? (
-          <ClientBlobUploader
-            handleUploadUrl={handleUploadUrl}
-            accept="image/jpeg,image/png,image/webp,video/mp4"
-            maxSizeMB={200}
-            onUploaded={onUploaded}
-          />
-        ) : (
-          <div className="rounded-xl border border-slate-800/70 bg-black/40 px-4 py-3 text-sm text-slate-300">
-            관리자 토큰이 있어야 업로드할 수 있어요.
+      {!isKChannel && (
+        <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-950/80 via-slate-900/60 to-cyan-950/40 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300/80">파일 업로드</p>
+            <span className="text-[11px] text-slate-300">최대 200MB · JPG / PNG / WEBP / MP4</span>
           </div>
-        )}
-      </div>
+          {hasToken ? (
+            <ClientBlobUploader
+              handleUploadUrl={handleUploadUrl}
+              accept="image/jpeg,image/png,image/webp,video/mp4"
+              maxSizeMB={200}
+              onUploaded={onUploaded}
+            />
+          ) : (
+            <div className="rounded-xl border border-slate-800/70 bg-black/40 px-4 py-3 text-sm text-slate-300">
+              관리자 토큰이 있어야 업로드할 수 있어요.
+            </div>
+          )}
+        </div>
+      )}
+      {isKChannel && (
+        <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-900/50 p-5 text-sm text-slate-300">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+            외부 CDN 전용 업로드
+          </p>
+          <p className="text-sm leading-relaxed text-slate-400">
+            K 채널은 이미지를 올릴 필요가 없습니다. 외부 CDN 동영상 주소만 입력하고 아래 버튼으로 등록하세요.
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap justify-end gap-3">
         {typeof onClose === 'function' && (
           <button
@@ -87,6 +103,16 @@ export default function UploadForm({
             className="rounded-xl border border-slate-700/80 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
           >
             닫기
+          </button>
+        )}
+        {typeof onRegisterExternal === 'function' && isKChannel && (
+          <button
+            type="button"
+            onClick={onRegisterExternal}
+            disabled={!hasToken || !externalSource?.trim() || isRegisteringExternal}
+            className="rounded-xl border border-sky-500/60 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isRegisteringExternal ? '등록 중…' : '외부 CDN으로 등록'}
           </button>
         )}
       </div>
