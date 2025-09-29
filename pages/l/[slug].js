@@ -7,6 +7,7 @@ import { getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import ImageSocialMeta from '@/components/x/meta/ImageSocialMeta';
 import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
+import RelishInvokeAd from '@/components/x/ads/RelishInvokeAd.jsx';
 import usePageviewTracker from '@/hooks/usePageviewTracker';
 import { vaTrack } from '@/lib/va';
 
@@ -83,7 +84,7 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
       try {
         window.location.replace(redirectUrl);
       } catch {}
-    }, 20);
+    }, 1000);
 
     return () => {
       window.clearTimeout(timer);
@@ -106,7 +107,34 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
 
   const heading = t('redirect.heading', 'Redirecting…');
   const description = t('redirect.description', 'Please wait while we open the smart link.');
+  const subtitle = t(
+    'redirect.subtitle',
+    'If you only see an ad landing page in Korean, please open it in an external browser.'
+  );
   const fallbackCta = t('redirect.cta', 'Tap here if nothing happens.');
+  const externalCta = t('redirect.externalCta', 'Open in external browser');
+  const externalConfirm = t(
+    'redirect.externalConfirm',
+    'Open this link in your external browser?'
+  );
+
+  const handleOpenExternally = useCallback(() => {
+    if (typeof window === 'undefined' || !redirectUrl) return;
+    try {
+      const shouldOpen = window.confirm(externalConfirm);
+      if (!shouldOpen) return;
+
+      try {
+        vaTrack('l_redirect_external_open', {
+          slug,
+          title,
+          target: redirectUrl,
+        });
+      } catch {}
+
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+    } catch {}
+  }, [externalConfirm, redirectUrl, slug, title]);
 
   return (
     <>
@@ -120,6 +148,7 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
             </span>
             <h1 className="text-2xl font-semibold text-white sm:text-3xl">{heading}</h1>
             <p className="text-sm text-slate-400">{description}</p>
+            <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
           <a
             href={redirectUrl}
@@ -136,7 +165,17 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
           >
             {fallbackCta}
           </a>
+          <button
+            type="button"
+            onClick={handleOpenExternally}
+            className="inline-flex items-center justify-center rounded-full border border-white/30 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            {externalCta}
+          </button>
         </main>
+        <div className="mx-auto flex w-full max-w-md items-center justify-center px-4 pb-8">
+          <RelishInvokeAd className="w-full max-w-sm" />
+        </div>
       </div>
     </>
   );
