@@ -150,32 +150,40 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
             <p className="text-sm text-slate-400">{description}</p>
             <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
-          <a
-            href={redirectUrl}
-            onClick={() => {
-              try {
-                vaTrack('l_redirect_cta_click', {
-                  slug,
-                  title,
-                  target: redirectUrl,
-                });
-              } catch {}
-            }}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(99,102,241,0.35)] transition hover:brightness-110"
-          >
-            {fallbackCta}
-          </a>
-          <button
-            type="button"
-            onClick={handleOpenExternally}
-            className="inline-flex items-center justify-center rounded-full border border-white/30 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-          >
-            {externalCta}
-          </button>
+          {redirectUrl ? (
+            <div className="flex w-full max-w-sm flex-col items-center gap-3">
+              <a
+                href={redirectUrl}
+                onClick={() => {
+                  try {
+                    vaTrack('l_redirect_cta_click', {
+                      slug,
+                      title,
+                      target: redirectUrl,
+                    });
+                  } catch {}
+                }}
+                className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(99,102,241,0.35)] transition hover:brightness-110"
+              >
+                {fallbackCta}
+              </a>
+              <button
+                type="button"
+                onClick={handleOpenExternally}
+                className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                {externalCta}
+              </button>
+              <div className="w-full">
+                <RelishInvokeAd className="w-full" />
+              </div>
+            </div>
+          ) : (
+            <div className="w-full max-w-sm">
+              <RelishInvokeAd className="w-full" />
+            </div>
+          )}
         </main>
-        <div className="mx-auto flex w-full max-w-md items-center justify-center px-4 pb-8">
-          <RelishInvokeAd className="w-full max-w-sm" />
-        </div>
       </div>
     </>
   );
