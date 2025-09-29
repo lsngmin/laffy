@@ -4,8 +4,10 @@ import {
   supabaseRest,
   SUPABASE_EVENTS_ROLLUP_FUNCTION,
   SUPABASE_EVENTS_ROLLUP_TABLE,
+  SUPABASE_EVENT_METRICS_REFRESH_FUNCTION,
 } from './supabaseClient';
 import { isInternalRedisIngestionDisabled } from './internalRedisToggle';
+import { getVisitSummary, VISIT_EVENT_NAME } from './visitAnalytics';
 
 const DEFAULT_RANGE_DAYS = 6;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,8 +22,27 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const ALLOWED_EVENT_NAMES = new Set(['x_visit']);
+const ALLOWED_EVENT_NAMES = new Set(['l_visit']);
 const RAW_TABLE_PATH = 'events_raw';
+const RAW_QUEUE_KEY = 'events:queue:raw';
+const QUEUE_POP_LIMIT = 500;
+const METRICS_REFRESH_CHUNK = 50;
+const QUEUE_POP_SCRIPT = `
+local key = KEYS[1]
+local count = tonumber(ARGV[1]) or 0
+if count <= 0 then
+  return {}
+end
+local items = {}
+for i = 1, count do
+  local value = redis.call('LPOP', key)
+  if not value then
+    break
+  end
+  table.insert(items, value)
+end
+return items
+`;
 
 function formatDateKey(date) {
   try {
@@ -148,6 +169,15 @@ function normalizeEventPayload(event) {
   };
 }
 
+function toTenMinuteBucket(timestamp) {
+  const date = timestamp instanceof Date ? new Date(timestamp.getTime()) : new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  const minutes = date.getUTCMinutes();
+  const bucketMinutes = minutes - (minutes % 10);
+  date.setUTCMinutes(bucketMinutes, 0, 0);
+  return date.toISOString();
+}
+
 function classifyEventName(name) {
   if (typeof name !== 'string') {
     return { isPageView: false, isVisitor: false, isBounce: false };
@@ -210,9 +240,13 @@ function buildRawEventRows(events, context = {}) {
   return rows;
 }
 
-async function persistRawEventsToSupabase(events, context = {}) {
+async function persistRawEventsToSupabase(eventsOrRows, context = {}) {
   if (!hasSupabaseConfig()) return;
-  const rows = buildRawEventRows(events, context);
+  const rows = Array.isArray(eventsOrRows)
+    ? eventsOrRows.every((item) => item && typeof item.event_name === 'string')
+      ? eventsOrRows.map((row) => ({ ...row }))
+      : buildRawEventRows(eventsOrRows, context)
+    : buildRawEventRows(eventsOrRows, context);
   if (!rows.length) return;
 
   try {
@@ -226,9 +260,148 @@ async function persistRawEventsToSupabase(events, context = {}) {
   }
 }
 
+async function enqueueRawRowsInRedis(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return false;
+  try {
+    const payloads = rows
+      .map((row) => {
+        try {
+          return JSON.stringify(row);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    if (!payloads.length) return false;
+    await redisCommand(['RPUSH', RAW_QUEUE_KEY, ...payloads]);
+    return true;
+  } catch (error) {
+    console.warn('[events] redis enqueue failed', error);
+    return false;
+  }
+}
+
+async function popRawRowsFromRedis(limit = QUEUE_POP_LIMIT) {
+  const count = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), QUEUE_POP_LIMIT) : QUEUE_POP_LIMIT;
+  try {
+    const result = await redisEval(QUEUE_POP_SCRIPT, [RAW_QUEUE_KEY], [String(count)]);
+    if (!Array.isArray(result) || result.length === 0) {
+      return [];
+    }
+    const rows = [];
+    for (const raw of result) {
+      if (typeof raw !== 'string') continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && typeof parsed.event_name === 'string') {
+          rows.push(parsed);
+        }
+      } catch (error) {
+        console.warn('[events] failed to parse queued row', error);
+      }
+    }
+    return rows;
+  } catch (error) {
+    console.warn('[events] redis dequeue failed', error);
+    return [];
+  }
+}
+
+function normalizeRawRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const eventName = typeof row.event_name === 'string' ? row.event_name.trim() : '';
+  if (!eventName || !ALLOWED_EVENT_NAMES.has(eventName)) return null;
+  const slug = typeof row.slug === 'string' ? row.slug : '';
+  const ts = typeof row.ts === 'string' ? row.ts : typeof row.ts === 'number' ? new Date(row.ts).toISOString() : null;
+  if (!ts) return null;
+  const sessionId = typeof row.session_id === 'string' ? row.session_id : row.session_id === null ? null : undefined;
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : null;
+  return {
+    event_name: eventName,
+    slug,
+    ts,
+    session_id: sessionId || null,
+    payload,
+  };
+}
+
+async function refreshTenMinuteMetrics(rows) {
+  if (!hasSupabaseConfig()) return 0;
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+  const combos = new Map();
+  rows.forEach((row) => {
+    const normalized = normalizeRawRow(row);
+    if (!normalized) return;
+    const bucket = row.ts_bucket_10m || toTenMinuteBucket(normalized.ts);
+    if (!bucket) return;
+    const key = `${bucket}::${normalized.event_name}::${normalized.slug}`;
+    if (!combos.has(key)) {
+      combos.set(key, {
+        ts_bucket_10m: bucket,
+        event_name: normalized.event_name,
+        slug: normalized.slug,
+      });
+    }
+  });
+
+  const entries = Array.from(combos.values());
+  if (!entries.length) return 0;
+
+  let processed = 0;
+  for (let index = 0; index < entries.length; index += METRICS_REFRESH_CHUNK) {
+    const chunk = entries.slice(index, index + METRICS_REFRESH_CHUNK);
+    try {
+      await callSupabaseRpc(SUPABASE_EVENT_METRICS_REFRESH_FUNCTION, { entries: chunk });
+      processed += chunk.length;
+    } catch (error) {
+      console.warn('[events] failed to refresh 10m metrics', error);
+    }
+  }
+
+  return processed;
+}
+
+async function persistRowsDirectly(rows, context = {}) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { inserted: 0, refreshed: 0 };
+  }
+
+  await persistRawEventsToSupabase(rows, context);
+  const refreshed = await refreshTenMinuteMetrics(rows);
+  return { inserted: rows.length, refreshed };
+}
+
+export async function flushQueuedEvents({ limit = QUEUE_POP_LIMIT, context = {} } = {}) {
+  if (!(await hasRedis())) {
+    return { processed: 0, inserted: 0, refreshed: 0 };
+  }
+
+  const rawRows = await popRawRowsFromRedis(limit);
+  if (!rawRows.length) {
+    return { processed: 0, inserted: 0, refreshed: 0 };
+  }
+
+  const normalizedRows = rawRows
+    .map((row) => normalizeRawRow(row))
+    .filter(Boolean);
+
+  if (!normalizedRows.length) {
+    return { processed: rawRows.length, inserted: 0, refreshed: 0 };
+  }
+
+  const result = await persistRowsDirectly(normalizedRows, context);
+  return { processed: rawRows.length, ...result };
+}
+
 async function redisCommand(command, options) {
   const { redisCommand: exec } = await import('./redisClient');
   return exec(command, options);
+}
+
+async function redisEval(script, keys, args, options) {
+  const { redisEval: exec } = await import('./redisClient');
+  return exec(script, keys, args, options);
 }
 
 async function hasRedis() {
@@ -825,11 +998,26 @@ export async function ingestEvents(events, context = {}) {
   }
 
   const limitedEvents = events.slice(0, MAX_EVENTS_PER_BATCH);
+  const rawRows = buildRawEventRows(limitedEvents, context);
 
-  try {
-    await persistRawEventsToSupabase(limitedEvents, context);
-  } catch (error) {
-    console.warn('[events] failed to persist raw events', error);
+  if (rawRows.length) {
+    let queued = false;
+    if (await hasRedis()) {
+      queued = await enqueueRawRowsInRedis(rawRows);
+      if (!queued) {
+        try {
+          await persistRowsDirectly(rawRows, context);
+        } catch (error) {
+          console.warn('[events] failed to persist queued rows', error);
+        }
+      }
+    } else {
+      try {
+        await persistRowsDirectly(rawRows, context);
+      } catch (error) {
+        console.warn('[events] failed to persist raw events directly', error);
+      }
+    }
   }
 
   if (await hasRedis()) {
@@ -843,6 +1031,20 @@ export async function ingestEvents(events, context = {}) {
 }
 
 export async function getEventSummary(options = {}) {
+  const eventName = typeof options.eventName === 'string' ? options.eventName.trim() : '';
+  const slug = typeof options.slug === 'string' ? options.slug.trim() : '';
+  const granularity = typeof options.granularity === 'string' ? options.granularity.trim() : '';
+
+  if (!eventName || eventName === VISIT_EVENT_NAME) {
+    return getVisitSummary({
+      startDate: options.startDate,
+      endDate: options.endDate,
+      slug,
+      granularity: granularity || 'day',
+      limit: options.limit,
+    });
+  }
+
   if (await hasRedis()) {
     return getSummaryFromRedis(options);
   }

@@ -17,27 +17,28 @@ const EMPTY_SUMMARY = Object.freeze({
   catalog: { events: [], slugsByEvent: {} },
 });
 
-function sanitizeFilters(filters = {}) {
-  return {
-    eventName: typeof filters.eventName === 'string' ? filters.eventName.trim() : '',
-    slug: typeof filters.slug === 'string' ? filters.slug.trim() : '',
-    limit: typeof filters.limit === 'number' ? filters.limit : undefined,
-  };
-}
-
 export default function useEventAnalytics({
   enabled,
   token,
   startDate,
   endDate,
   filters = {},
+  granularity = 'day',
 }) {
   const [data, setData] = useState(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
 
-  const normalizedFilters = useMemo(() => sanitizeFilters(filters), [filters]);
+  const normalizedFilters = useMemo(
+    () => ({
+      eventName: typeof filters.eventName === 'string' ? filters.eventName.trim() : '',
+      slug: typeof filters.slug === 'string' ? filters.slug.trim() : '',
+      limit: typeof filters.limit === 'number' ? filters.limit : undefined,
+    }),
+    [filters]
+  );
+  const normalizedGranularity = typeof granularity === 'string' ? granularity.trim() : '';
 
   const refresh = useCallback(() => {
     setVersion((prev) => prev + 1);
@@ -58,6 +59,7 @@ export default function useEventAnalytics({
         if (normalizedFilters.eventName) params.set('event', normalizedFilters.eventName);
         if (normalizedFilters.slug) params.set('slug', normalizedFilters.slug);
         if (normalizedFilters.limit) params.set('limit', String(normalizedFilters.limit));
+        if (normalizedGranularity) params.set('granularity', normalizedGranularity);
 
         const res = await fetch(`/api/admin/events/summary?${params.toString()}`, {
           signal: controller.signal,
@@ -85,7 +87,17 @@ export default function useEventAnalytics({
 
     run();
     return () => controller.abort();
-  }, [enabled, endDate, normalizedFilters.eventName, normalizedFilters.limit, normalizedFilters.slug, startDate, token, version]);
+  }, [
+    enabled,
+    endDate,
+    normalizedFilters.eventName,
+    normalizedFilters.limit,
+    normalizedFilters.slug,
+    normalizedGranularity,
+    startDate,
+    token,
+    version,
+  ]);
 
   return {
     data,

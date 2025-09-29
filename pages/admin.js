@@ -33,7 +33,7 @@ const NAV_ITEMS = [
   { key: 'events', label: '분석', ariaLabel: '커스텀 이벤트 분석', requiresToken: true },
   { key: 'ads', label: '수익', ariaLabel: '수익 분석', requiresToken: true },
   { key: 'insights', label: '인사이트', ariaLabel: '통합 인사이트', requiresToken: true },
-  { key: 'visits', label: '방문 로그', ariaLabel: 'x_visit 원시 로그', requiresToken: true },
+  { key: 'visits', label: '방문 로그', ariaLabel: 'l_visit 원시 로그', requiresToken: true },
 ];
 const DEFAULT_VISIT_LIMIT = 50;
 
@@ -167,6 +167,7 @@ export default function AdminPage() {
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
   const [eventFilters, setEventFilters] = useState({ eventName: '', slug: '' });
+  const [analyticsGranularity, setAnalyticsGranularity] = useState('day');
 
   const eventAnalytics = useEventAnalytics({
     enabled: hasToken && view === 'events',
@@ -174,6 +175,7 @@ export default function AdminPage() {
     startDate: analyticsStartDate,
     endDate: analyticsEndDate,
     filters: { ...eventFilters, limit: 200 },
+    granularity: analyticsGranularity,
   });
 
   const visitEvents = useVisitEvents({
@@ -581,11 +583,12 @@ export default function AdminPage() {
               catalog={eventAnalytics.data.catalog}
               loading={eventAnalytics.loading}
               onRefresh={eventAnalytics.refresh}
+              granularity={analyticsGranularity}
+              onGranularityChange={setAnalyticsGranularity}
             />
             <EventSummaryCards
               totals={eventAnalytics.data.totals}
               formatNumber={formatNumber}
-              formatPercent={formatPercent}
             />
             <EventKeyMetrics
               items={eventAnalytics.data.items}
@@ -593,7 +596,11 @@ export default function AdminPage() {
               formatPercent={formatPercent}
             />
             {eventAnalytics.data.timeseries.length > 0 && (
-              <EventTrendChart series={eventAnalytics.data.timeseries} formatNumber={formatNumber} />
+              <EventTrendChart
+                series={eventAnalytics.data.timeseries}
+                formatNumber={formatNumber}
+                granularity={eventAnalytics.data.totals?.granularity || analyticsGranularity}
+              />
             )}
             <EventTable
               rows={eventAnalytics.data.items}
@@ -688,7 +695,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">방문 로그 (x_visit)</h2>
+                <h2 className="text-2xl font-bold text-white">방문 로그 (l_visit)</h2>
                 <p className="text-sm text-slate-400">콘텐츠별 방문 이벤트를 원시 데이터로 확인할 수 있어요.</p>
               </div>
               <button

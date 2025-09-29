@@ -16,6 +16,13 @@ export default async function handler(req, res) {
     const eventName = typeof req.query.event === 'string' ? req.query.event.trim() : '';
     const slug = typeof req.query.slug === 'string' ? req.query.slug.trim() : '';
     const limitRaw = typeof req.query.limit === 'string' ? req.query.limit : undefined;
+    const granularity = typeof req.query.granularity === 'string' ? req.query.granularity.trim() : '';
+    const limitValue = (() => {
+      if (!limitRaw) return undefined;
+      const parsed = Number(limitRaw);
+      if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+      return Math.min(500, Math.round(parsed));
+    })();
 
     const rate = applyRateLimit(req, 'admin:events:summary', { limit: 45, windowMs: 60_000 });
     setRateLimitHeaders(res, rate);
@@ -23,17 +30,18 @@ export default async function handler(req, res) {
       return res.status(429).json({ error: '이벤트 요약 요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.' });
     }
 
-    const cacheKey = JSON.stringify({ startDate, endDate, eventName, slug, limitRaw });
+    const cacheKey = JSON.stringify({ startDate, endDate, eventName, slug, limitRaw, granularity });
     const summary = await resolveWithCache('admin:events:summary', cacheKey, 45_000, async () => {
       const { getEventSummary } = await import('../../../../utils/eventsStore');
-      return getEventSummary({
-        startDate,
-        endDate,
-        eventName,
-        slug,
-        limit: limitRaw,
+        return getEventSummary({
+          startDate,
+          endDate,
+          eventName,
+          slug,
+          limit: limitValue,
+          granularity,
+        });
       });
-    });
 
     return res.status(200).json({
       items: Array.isArray(summary.items) ? summary.items : [],

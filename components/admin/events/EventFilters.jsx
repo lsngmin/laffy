@@ -7,16 +7,19 @@ export default function EventFilters({
   catalog,
   loading,
   onRefresh,
+  granularity = 'day',
+  onGranularityChange,
 }) {
   const events = Array.isArray(catalog?.events) ? catalog.events : [];
   const slugsByEvent = catalog?.slugsByEvent && typeof catalog.slugsByEvent === 'object' ? catalog.slugsByEvent : {};
   const eventValue = filters?.eventName || '';
   const slugOptions = Array.isArray(slugsByEvent[eventValue]) ? slugsByEvent[eventValue] : [];
   const slugValue = filters?.slug || '';
+  const granularityValue = typeof granularity === 'string' && granularity ? granularity : 'day';
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-slate-900/70 p-4 ring-1 ring-slate-800/60">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="flex flex-col gap-1 text-xs text-slate-300">
           <span className="font-semibold uppercase tracking-[0.3em] text-slate-400">시작일</span>
           <input
@@ -64,6 +67,20 @@ export default function EventFilters({
                 {slug}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-300">
+          <span className="font-semibold uppercase tracking-[0.3em] text-slate-400">시간 단위</span>
+          <select
+            value={granularityValue}
+            onChange={(event) => onGranularityChange?.(event.target.value)}
+            className="rounded-lg border border-slate-700/60 bg-slate-950/70 px-3 py-2 text-sm text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60"
+            disabled={loading}
+          >
+            <option value="10m">10분</option>
+            <option value="day">일별</option>
+            <option value="week">주별</option>
+            <option value="month">월별</option>
           </select>
         </label>
       </div>

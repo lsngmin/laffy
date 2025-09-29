@@ -22,18 +22,27 @@ function EventTooltip({ active, payload, label, formatNumber }) {
   );
 }
 
-export default function EventTrendChart({ series, formatNumber }) {
+const GRANULARITY_LABELS = {
+  '10m': '10분 단위 이벤트 추이',
+  day: '일별 이벤트 추이',
+  week: '주별 이벤트 추이',
+  month: '월별 이벤트 추이',
+};
+
+export default function EventTrendChart({ series, formatNumber, granularity = 'day' }) {
   const data = useMemo(() => normalizeSeries(series), [series]);
   if (!data.length) {
     return null;
   }
 
   const maxValue = Math.max(...data.map((entry) => entry.count), 0);
+  const normalizedGranularity = typeof granularity === 'string' ? granularity : 'day';
+  const title = GRANULARITY_LABELS[normalizedGranularity] || '기간별 이벤트 추이';
 
   return (
     <div className="rounded-2xl border border-slate-800/70 bg-slate-900/80 p-4 shadow-inner shadow-black/40">
       <div className="mb-4 flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-400">
-        <span>기간별 이벤트 추이</span>
+        <span>{title}</span>
         <span className="text-[11px] text-slate-300">최대 {formatNumber(maxValue)}건</span>
       </div>
       <div className="h-64 w-full">

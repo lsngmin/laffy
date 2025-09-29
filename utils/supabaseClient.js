@@ -71,5 +71,11 @@ export async function supabaseRest(path, { method = 'GET', headers = {}, body } 
   }
 }
 
-export const SUPABASE_EVENTS_ROLLUP_FUNCTION = process.env?.SUPABASE_EVENTS_ROLLUP_FUNCTION?.trim() || 'ingest_events_daily';
-export const SUPABASE_EVENTS_ROLLUP_TABLE = process.env?.SUPABASE_EVENTS_ROLLUP_TABLE?.trim() || 'events_daily_rollups';
+export const SUPABASE_EVENTS_ROLLUP_FUNCTION =
+  process.env?.SUPABASE_EVENTS_ROLLUP_FUNCTION?.trim() || 'ingest_events_daily';
+export const SUPABASE_EVENTS_ROLLUP_TABLE =
+  process.env?.SUPABASE_EVENTS_ROLLUP_TABLE?.trim() || 'events_daily_rollups';
+export const SUPABASE_EVENT_METRICS_REFRESH_FUNCTION =
+  process.env?.SUPABASE_EVENT_METRICS_REFRESH_FUNCTION?.trim() || 'refresh_event_metrics_10m';
+export const SUPABASE_EVENT_METRICS_TABLE =
+  process.env?.SUPABASE_EVENT_METRICS_TABLE?.trim() || 'event_metrics_10m';

@@ -259,7 +259,7 @@ export default function EventKeyMetrics({ items, formatNumber, formatPercent }) 
   const scrollDepth = getStat('x_scroll_depth');
   const sessionDuration = getStat('x_session_duration_bucket');
   const multiView = getStat('x_multi_view_session');
-  const visits = getStat('x_visit');
+  const visits = getStat('l_visit');
   const ctaFallback = getStat('x_cta_click_unable_to_play');
   const feedImpressions = getStat('x_feed_impression');
   const anyClick = getStat('x_any_click');
