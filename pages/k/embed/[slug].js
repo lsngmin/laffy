@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import VideoSocialMeta from '@/components/x/meta/VideoSocialMeta';
+
+const OVERLAY_DELAY_SECONDS = 5;
 
 export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
   const { t } = useTranslation('common');
@@ -29,7 +31,13 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
     return base.replace(/\s+/g, ' ').slice(0, 200);
   }, [fallbackDesc, meme?.description]);
 
-  const [overlayActive, setOverlayActive] = useState(Boolean(visitUrl));
+  const [overlayActive, setOverlayActive] = useState(false);
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+
+  useEffect(() => {
+    setOverlayActive(false);
+    setOverlayDismissed(false);
+  }, [embedSrc, visitUrl]);
 
   const aspectPadding = useMemo(() => {
     const orientation = (meme?.orientation || '').toLowerCase();
@@ -37,6 +45,14 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
     if (orientation === 'square') return '100%';
     return '56.25%'; // 16:9 default
   }, [meme?.orientation]);
+
+  const handleTimeUpdate = (event) => {
+    if (!visitUrl || overlayDismissed || overlayActive) return;
+    const elapsed = Number(event?.target?.currentTime || 0);
+    if (elapsed >= OVERLAY_DELAY_SECONDS) {
+      setOverlayActive(true);
+    }
+  };
 
   return (
     <>
@@ -61,8 +77,9 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
                 poster={meme.poster || meme.thumbnail || ''}
                 preload="metadata"
                 className="absolute inset-0 h-full w-full object-contain"
+                onTimeUpdate={handleTimeUpdate}
               />
-              {visitUrl && overlayActive ? (
+              {visitUrl && overlayActive && !overlayDismissed ? (
                 <div className="absolute inset-0 z-10 flex h-full w-full items-center justify-center bg-black/70 px-4 text-center text-white">
                   <div className="flex w-full max-w-md flex-col items-center gap-6">
                     <p className="text-base font-semibold leading-snug">
@@ -76,13 +93,20 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
                         href={visitUrl || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => {
+                          setOverlayActive(false);
+                          setOverlayDismissed(true);
+                        }}
                         className="w-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-[0_18px_38px_rgba(99,102,241,0.45)] transition duration-150 ease-out hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-purple-300"
                       >
                         {t('redirect.visitSite', 'Visit Site')}
                       </a>
                       <button
                         type="button"
-                        onClick={() => setOverlayActive(false)}
+                        onClick={() => {
+                          setOverlayActive(false);
+                          setOverlayDismissed(true);
+                        }}
                         className="w-full rounded-full border border-white/30 px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-white/80 transition duration-150 ease-out hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                       >
                         {t('redirect.watchHere', 'Watch Here')}
@@ -98,6 +122,10 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
               href={visitUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => {
+                setOverlayActive(false);
+                setOverlayDismissed(true);
+              }}
               className="flex w-full max-w-5xl items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-5 text-center text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-[0_20px_45px_rgba(79,70,229,0.45)] transition duration-150 ease-out hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-purple-300"
             >
               {t('redirect.visitSite', 'Visit Site')}

@@ -370,14 +370,25 @@ export default function AdminPage() {
       const imageExtPattern = /(\.jpe?g|\.png|\.webp)$/;
       const hasImageExtension = imageExtPattern.test(lowerPathname) || imageExtPattern.test(lowerUrl);
       const isImage = contentType.startsWith('image/') || hasImageExtension;
-      const normalizedType = isImage ? 'image' : 'video';
       const sanitizedChannel = (() => {
         const value = typeof channel === 'string' ? channel.trim().toLowerCase() : '';
         return ['l', 'k', 'x'].includes(value) ? value : 'x';
       })();
       const trimmedExternalSource =
         typeof externalSource === 'string' ? externalSource.trim() : '';
-      const externalAssetUrl = !isImage && trimmedExternalSource ? trimmedExternalSource : '';
+      const externalAssetUrl = (() => {
+        if (!trimmedExternalSource) return '';
+        if (sanitizedChannel === 'k') return trimmedExternalSource;
+        if (!isImage) return trimmedExternalSource;
+        return '';
+      })();
+      const normalizedType = sanitizedChannel === 'k' ? 'video' : isImage ? 'image' : 'video';
+
+      if (sanitizedChannel === 'k' && !externalAssetUrl) {
+        alert('K 채널은 외부 CDN 동영상 주소가 필요합니다. 입력 후 다시 시도해 주세요.');
+        return false;
+      }
+
       const assetUrl = externalAssetUrl || blob.url;
 
       try {
@@ -408,7 +419,15 @@ export default function AdminPage() {
           source: { origin: externalAssetUrl ? 'External CDN' : 'Blob' },
         };
 
-        if (isImage) {
+        if (sanitizedChannel === 'k') {
+          if (blob.url) {
+            payload.media.previewUrl = blob.url;
+            payload.media.thumbUrl = blob.url;
+          }
+          if (!payload.media.orientation) {
+            payload.media.orientation = 'landscape';
+          }
+        } else if (isImage) {
           payload.media.previewUrl = blob.url;
           payload.media.thumbUrl = blob.url;
         } else if (blob.url) {
