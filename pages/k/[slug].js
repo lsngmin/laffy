@@ -4,7 +4,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
-import ImageSocialMeta from '@/components/x/meta/ImageSocialMeta';
+import VideoSocialMeta from '@/components/x/meta/VideoSocialMeta';
 import { vaTrack } from '@/lib/va';
 
 export default function KExternalRedirectPage({ meme, redirectUrl }) {
@@ -73,7 +73,14 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
   return (
     <>
       <TitleNameHead title={safeTitle} description={safeDesc} />
-      {meme.__seo && <ImageSocialMeta seo={meme.__seo} title={safeTitle} description={safeDesc} />}
+      {meme.__seo && (
+        <VideoSocialMeta
+          seo={meme.__seo}
+          title={safeTitle}
+          description={safeDesc}
+          player={meme.__seo?.player}
+        />
+      )}
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <main className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-6 px-4 text-center text-slate-200">
           <div className="space-y-3">
@@ -146,6 +153,7 @@ export async function getStaticProps({ params, locale }) {
 
   const canonicalUrl = origin ? `${origin}/k/${params.slug}` : '';
   const thumb = toAbs(meme.poster || meme.thumbnail || '');
+  const absoluteRedirect = toAbs(redirectUrl);
   const uploadDate = meme.publishedAt || new Date().toISOString();
   const hreflangs = ['ko', 'en'].map((lng) => ({ hrefLang: lng, href: `${origin}/k/${params.slug}?locale=${lng}` }));
   hreflangs.push({ hrefLang: 'x-default', href: `${origin}/k/${params.slug}` });
@@ -156,15 +164,29 @@ export async function getStaticProps({ params, locale }) {
     name: normalizedMeme.title,
     description: normalizedMeme.description,
     thumbnailUrl: thumb || undefined,
-    contentUrl: meme.src || undefined,
+    contentUrl: absoluteRedirect || undefined,
     uploadDate,
   };
+
+  const playerDimensions = (() => {
+    const orientation = (normalizedMeme.orientation || '').toLowerCase();
+    if (orientation === 'portrait') return { width: 720, height: 1280 };
+    if (orientation === 'square') return { width: 1080, height: 1080 };
+    return { width: 1280, height: 720 };
+  })();
 
   normalizedMeme.__seo = {
     canonicalUrl,
     hreflangs,
     jsonLd,
     metaImage: thumb,
+    player: {
+      playerUrl: absoluteRedirect || undefined,
+      streamUrl: absoluteRedirect || undefined,
+      thumbnailUrl: thumb || undefined,
+      width: playerDimensions.width,
+      height: playerDimensions.height,
+    },
   };
 
   return {
