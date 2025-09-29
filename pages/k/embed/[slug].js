@@ -6,7 +6,7 @@ import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import VideoSocialMeta from '@/components/x/meta/VideoSocialMeta';
 
-export default function KEmbedPlayerPage({ meme, embedSrc }) {
+export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
   const { t } = useTranslation('common');
 
   if (!meme || !embedSrc) return null;
@@ -29,6 +29,13 @@ export default function KEmbedPlayerPage({ meme, embedSrc }) {
     return base.replace(/\s+/g, ' ').slice(0, 200);
   }, [fallbackDesc, meme?.description]);
 
+  const aspectPadding = useMemo(() => {
+    const orientation = (meme?.orientation || '').toLowerCase();
+    if (orientation === 'portrait') return '177.78%'; // 9:16
+    if (orientation === 'square') return '100%';
+    return '56.25%'; // 16:9 default
+  }, [meme?.orientation]);
+
   return (
     <>
       <TitleNameHead title={safeTitle} description={safeDesc} />
@@ -40,17 +47,31 @@ export default function KEmbedPlayerPage({ meme, embedSrc }) {
           player={meme.__seo?.player}
         />
       )}
-      <div className="flex min-h-screen items-center justify-center bg-black p-4">
-        <div className="w-full max-w-5xl">
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl">
-            <video
-              src={embedSrc}
-              controls
-              playsInline
-              poster={meme.poster || meme.thumbnail || ''}
-              className="h-full w-full object-contain"
-            />
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 py-8">
+        <div className="flex w-full max-w-5xl flex-col items-center gap-6">
+          <div className="w-full overflow-hidden rounded-2xl bg-black shadow-2xl">
+            <div className="relative w-full" style={{ paddingBottom: aspectPadding }}>
+              <video
+                src={embedSrc}
+                controls
+                autoPlay={false}
+                playsInline
+                poster={meme.poster || meme.thumbnail || ''}
+                preload="metadata"
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+            </div>
           </div>
+          {visitUrl ? (
+            <a
+              href={visitUrl}
+              target="_top"
+              rel="noopener noreferrer"
+              className="flex w-full max-w-5xl items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-5 text-center text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-[0_20px_45px_rgba(79,70,229,0.45)] transition duration-150 ease-out hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-purple-300"
+            >
+              {t('redirect.visitSite', 'Visit Site')}
+            </a>
+          ) : null}
         </div>
       </div>
     </>
@@ -141,6 +162,7 @@ export async function getStaticProps({ params, locale }) {
     props: {
       meme: normalizedMeme,
       embedSrc: absoluteAsset,
+      visitUrl: canonicalUrl || absoluteAsset,
       ...(await serverSideTranslations(locale ?? 'en', ['common'])),
     },
     revalidate: 60,
