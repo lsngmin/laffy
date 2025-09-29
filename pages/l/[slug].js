@@ -7,6 +7,7 @@ import { getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import ImageSocialMeta from '@/components/x/meta/ImageSocialMeta';
 import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
+import RelishInvokeAd from '@/components/x/ads/RelishInvokeAd.jsx';
 import usePageviewTracker from '@/hooks/usePageviewTracker';
 import { vaTrack } from '@/lib/va';
 
@@ -83,7 +84,7 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
       try {
         window.location.replace(redirectUrl);
       } catch {}
-    }, 20);
+    }, 2000);
 
     return () => {
       window.clearTimeout(timer);
@@ -106,7 +107,47 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
 
   const heading = t('redirect.heading', 'Redirecting…');
   const description = t('redirect.description', 'Please wait while we open the smart link.');
-  const fallbackCta = t('redirect.cta', 'Tap here if nothing happens.');
+  const subtitle = t(
+    'redirect.subtitle',
+    'If you only see an ad landing page in Korean, please open it in an external browser.'
+  );
+  const externalCta = t('redirect.externalCta', 'Open in external browser');
+  const externalConfirm = t(
+    'redirect.externalConfirm',
+    'Open this link in your external browser?'
+  );
+
+  const handleOpenExternally = useCallback(() => {
+    if (typeof window === 'undefined' || !redirectUrl) return;
+    try {
+      const shouldOpen = window.confirm(externalConfirm);
+      if (!shouldOpen) return;
+
+      try {
+        vaTrack('l_redirect_external_open', {
+          slug,
+          title,
+          target: redirectUrl,
+        });
+      } catch {}
+
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+    } catch {}
+  }, [externalConfirm, redirectUrl, slug, title]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const adPreconnect = document.createElement('link');
+    adPreconnect.rel = 'preconnect';
+    adPreconnect.href = 'https://foilbundle.com';
+    adPreconnect.crossOrigin = 'anonymous';
+    document.head.appendChild(adPreconnect);
+    return () => {
+      if (adPreconnect.parentNode) {
+        adPreconnect.parentNode.removeChild(adPreconnect);
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -120,22 +161,26 @@ export default function SmartLinkRedirectPage({ meme, redirectUrl, localeOverrid
             </span>
             <h1 className="text-2xl font-semibold text-white sm:text-3xl">{heading}</h1>
             <p className="text-sm text-slate-400">{description}</p>
+            <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
-          <a
-            href={redirectUrl}
-            onClick={() => {
-              try {
-                vaTrack('l_redirect_cta_click', {
-                  slug,
-                  title,
-                  target: redirectUrl,
-                });
-              } catch {}
-            }}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(99,102,241,0.35)] transition hover:brightness-110"
-          >
-            {fallbackCta}
-          </a>
+          {redirectUrl ? (
+            <div className="flex w-full max-w-sm flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={handleOpenExternally}
+                className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-5 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                {externalCta}
+              </button>
+              <div className="flex w-full justify-center">
+                <RelishInvokeAd className="w-full max-w-xs" />
+              </div>
+            </div>
+          ) : (
+            <div className="w-full max-w-sm">
+              <RelishInvokeAd className="mx-auto w-full max-w-xs" />
+            </div>
+          )}
         </main>
       </div>
     </>

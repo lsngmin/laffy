@@ -60,6 +60,9 @@
   "redirect": {
     "heading": "Opening the video…",
     "description": "One moment—we’re taking you straight to the clip.",
-    "cta": "Open video manually"
+    "subtitle": "If you only see an ad landing page in Korean, please switch to an external browser.",
+    "cta": "Open video manually",
+    "externalCta": "Open in external browser",
+    "externalConfirm": "Open this link in your external browser?"
   }
 }
