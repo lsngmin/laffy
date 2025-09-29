@@ -18,12 +18,14 @@ export default function VideoSocialMeta({ seo, title, description, player = {} }
     const safeTitle = typeof title === "string" ? title : "";
     const safeDescription = typeof description === "string" ? description : "";
 
-    const playerUrl = typeof player.playerUrl === "string" ? player.playerUrl : null;
-    const streamUrl = typeof player.streamUrl === "string" ? player.streamUrl : null;
-    const thumbnailUrl = typeof player.thumbnailUrl === "string" ? player.thumbnailUrl : null;
-    const streamContentType = typeof player.streamContentType === "string" ? player.streamContentType : null;
+    const playerUrl = typeof player.playerUrl === "string" ? player.playerUrl.trim() : null;
+    const streamUrl = typeof player.streamUrl === "string" ? player.streamUrl.trim() : null;
+    const thumbnailUrl = typeof player.thumbnailUrl === "string" ? player.thumbnailUrl.trim() : null;
+    const streamContentType =
+        typeof player.streamContentType === "string" ? player.streamContentType.trim() : null;
     const width = Number.isFinite(player.width) ? String(player.width) : null;
     const height = Number.isFinite(player.height) ? String(player.height) : null;
+    const canonicalUrl = canonicalGroup.canonicalUrl;
 
     if (
         !playerUrl &&
@@ -39,8 +41,11 @@ export default function VideoSocialMeta({ seo, title, description, player = {} }
     return (
         <Head>
             {renderCanonicalElements(canonicalGroup)}
+            {canonicalUrl ? <meta property="og:url" content={canonicalUrl} /> : null}
+            <meta property="og:type" content="video.other" />
             {thumbnailUrl ? <meta property="og:image" content={thumbnailUrl} /> : null}
             {streamUrl ? <meta property="og:video" content={streamUrl} /> : null}
+            {streamUrl ? <meta property="og:video:url" content={streamUrl} /> : null}
             {streamUrl ? <meta property="og:video:secure_url" content={streamUrl} /> : null}
             {streamContentType ? <meta property="og:video:type" content={streamContentType} /> : null}
             {width ? <meta property="og:video:width" content={width} /> : null}

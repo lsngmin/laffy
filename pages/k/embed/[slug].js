@@ -83,11 +83,38 @@ export async function getStaticProps({ params, locale }) {
 
   const normalizedMeme = { ...meme };
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL
-    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
-  const origin = siteUrl || '';
+  const resolveOrigin = () => {
+    const candidates = [
+      process.env.NEXT_PUBLIC_SITE_URL,
+      process.env.NEXT_PUBLIC_FALLBACK_SITE_URL,
+      process.env.NEXT_PUBLIC_APP_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : '',
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+      try {
+        const withScheme = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+        const url = new URL(withScheme);
+        return url.origin;
+      } catch {
+        continue;
+      }
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://localhost:3000';
+    }
+
+    return 'https://laffy.ai';
+  };
+
+  const origin = resolveOrigin();
   const toAbs = (u) => {
     if (!u) return '';
     try {
