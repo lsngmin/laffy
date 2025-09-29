@@ -72,19 +72,14 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
                       )}
                     </p>
                     <div className="flex w-full flex-col gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                            if (visitUrl) window.top.location.href = visitUrl;
-                          } catch {
-                            if (visitUrl) window.location.assign(visitUrl);
-                          }
-                        }}
+                      <a
+                        href={visitUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="w-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-[0_18px_38px_rgba(99,102,241,0.45)] transition duration-150 ease-out hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-purple-300"
                       >
                         {t('redirect.visitSite', 'Visit Site')}
-                      </button>
+                      </a>
                       <button
                         type="button"
                         onClick={() => setOverlayActive(false)}
@@ -101,7 +96,7 @@ export default function KEmbedPlayerPage({ meme, embedSrc, visitUrl }) {
           {visitUrl ? (
             <a
               href={visitUrl}
-              target="_top"
+              target="_blank"
               rel="noopener noreferrer"
               className="flex w-full max-w-5xl items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-5 text-center text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-[0_20px_45px_rgba(79,70,229,0.45)] transition duration-150 ease-out hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-purple-300"
             >
