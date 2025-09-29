@@ -23,7 +23,7 @@ export default function useVisitEvents({ enabled, slug, token, limit = 50 }) {
     if (token) params.set('token', token);
     if (slug) params.set('slug', slug);
 
-    fetch(`/api/admin/x-visit?${params.toString()}`)
+    fetch(`/api/admin/l-visit?${params.toString()}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
