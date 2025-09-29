@@ -81,6 +81,7 @@ function normalize(meta) {
     slug: normalized.slug,
     type: normalized.type || 'video',
     src: normalized.src || '',
+    smartLinkUrl: normalized.smartLinkUrl || '',
     poster,
     title: normalized.title || '',
     description: normalized.description || '',
