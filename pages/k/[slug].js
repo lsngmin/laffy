@@ -133,8 +133,11 @@ export async function getStaticProps({ params, locale }) {
     return { notFound: true };
   }
 
-  const redirectUrl = typeof meme.src === 'string' ? meme.src : '';
-  if (!redirectUrl) {
+  const assetUrl = typeof meme.src === 'string' ? meme.src : '';
+  const smartLinkUrl = typeof meme.smartLinkUrl === 'string' ? meme.smartLinkUrl : '';
+  const redirectSource = smartLinkUrl || assetUrl;
+
+  if (!redirectSource) {
     return { notFound: true };
   }
 
@@ -184,7 +187,8 @@ export async function getStaticProps({ params, locale }) {
   const canonicalUrl = origin ? `${origin}/k/${params.slug}` : '';
   const embedUrl = origin ? `${origin}/k/embed/${params.slug}` : '';
   const thumb = toAbs(meme.poster || meme.thumbnail || '');
-  const absoluteRedirect = toAbs(redirectUrl);
+  const absoluteAsset = toAbs(assetUrl);
+  const absoluteRedirect = toAbs(redirectSource);
   const uploadDate = meme.publishedAt || new Date().toISOString();
   const hreflangs = ['ko', 'en'].map((lng) => ({ hrefLang: lng, href: `${origin}/k/${params.slug}?locale=${lng}` }));
   hreflangs.push({ hrefLang: 'x-default', href: `${origin}/k/${params.slug}` });
@@ -195,7 +199,7 @@ export async function getStaticProps({ params, locale }) {
     name: normalizedMeme.title,
     description: normalizedMeme.description,
     thumbnailUrl: thumb || undefined,
-    contentUrl: absoluteRedirect || undefined,
+    contentUrl: absoluteAsset || absoluteRedirect || undefined,
     uploadDate,
   };
 
@@ -211,20 +215,24 @@ export async function getStaticProps({ params, locale }) {
     hreflangs,
     jsonLd,
     metaImage: thumb,
-    player: {
-      playerUrl: embedUrl || undefined,
-      streamUrl: absoluteRedirect || undefined,
-      streamContentType: meme.mimeType || 'video/mp4',
-      thumbnailUrl: thumb || undefined,
-      width: playerDimensions.width,
-      height: playerDimensions.height,
-    },
+    ...(absoluteAsset
+      ? {
+          player: {
+            playerUrl: embedUrl || undefined,
+            streamUrl: absoluteAsset,
+            streamContentType: meme.mimeType || 'video/mp4',
+            thumbnailUrl: thumb || undefined,
+            width: playerDimensions.width,
+            height: playerDimensions.height,
+          },
+        }
+      : {}),
   };
 
   return {
     props: {
       meme: normalizedMeme,
-      redirectUrl,
+      redirectUrl: absoluteRedirect,
       ...(await serverSideTranslations(locale ?? 'en', ['common'])),
     },
     revalidate: 60,
