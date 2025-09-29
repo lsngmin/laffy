@@ -15,6 +15,27 @@ async function parseBody(req) {
 }
 
 const MAX_EVENTS_PER_BATCH = 10;
+const VERCEL_UID_COOKIE = '_vercel_uid';
+
+function parseCookies(req) {
+  const header = typeof req.headers?.cookie === 'string' ? req.headers.cookie : '';
+  if (!header) return {};
+  return header.split(';').reduce((acc, part) => {
+    const segment = part.trim();
+    if (!segment) return acc;
+    const index = segment.indexOf('=');
+    if (index === -1) return acc;
+    const key = segment.slice(0, index).trim();
+    const value = segment.slice(index + 1).trim();
+    if (!key) return acc;
+    try {
+      acc[key] = decodeURIComponent(value);
+    } catch {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
 
 function normalizeEvents(rawEvents) {
   if (!Array.isArray(rawEvents)) return [];
@@ -69,13 +90,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: '잘못된 요청 본문입니다.' });
     }
 
-    const events = normalizeEvents(body.events);
+    const cookies = parseCookies(req);
+    const cookieSessionId = typeof cookies[VERCEL_UID_COOKIE] === 'string' ? cookies[VERCEL_UID_COOKIE].trim() : '';
+    const incomingSessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+    const resolvedSessionId = incomingSessionId || cookieSessionId || '';
+
+    const events = normalizeEvents(body.events).map((event) => ({
+      ...event,
+      sessionId: event.sessionId || resolvedSessionId,
+    }));
     if (!events.length) {
       return res.status(200).json({ ok: true, ingested: 0 });
     }
 
-    const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-    const context = { ...extractContext(req), sessionId, receivedAt: Date.now() };
+    const context = {
+      ...extractContext(req),
+      sessionId: resolvedSessionId,
+      receivedAt: Date.now(),
+    };
 
     const { ingestEvents } = await import('../../../utils/eventsStore');
     const result = await ingestEvents(events, context);
