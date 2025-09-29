@@ -76,8 +76,8 @@ export async function getStaticProps({ params, locale }) {
     return { notFound: true };
   }
 
-  const redirectUrl = typeof meme.src === 'string' ? meme.src : '';
-  if (!redirectUrl) {
+  const assetUrl = typeof meme.src === 'string' ? meme.src : '';
+  if (!assetUrl) {
     return { notFound: true };
   }
 
@@ -100,7 +100,7 @@ export async function getStaticProps({ params, locale }) {
   const canonicalUrl = origin ? `${origin}/k/${params.slug}` : '';
   const embedUrl = origin ? `${origin}/k/embed/${params.slug}` : '';
   const thumb = toAbs(meme.poster || meme.thumbnail || '');
-  const absoluteRedirect = toAbs(redirectUrl);
+  const absoluteAsset = toAbs(assetUrl);
   const uploadDate = meme.publishedAt || new Date().toISOString();
   const hreflangs = ['ko', 'en'].map((lng) => ({ hrefLang: lng, href: `${origin}/k/${params.slug}?locale=${lng}` }));
   hreflangs.push({ hrefLang: 'x-default', href: `${origin}/k/${params.slug}` });
@@ -111,7 +111,7 @@ export async function getStaticProps({ params, locale }) {
     name: normalizedMeme.title,
     description: normalizedMeme.description,
     thumbnailUrl: thumb || undefined,
-    contentUrl: absoluteRedirect || undefined,
+    contentUrl: absoluteAsset || undefined,
     uploadDate,
   };
 
@@ -129,7 +129,7 @@ export async function getStaticProps({ params, locale }) {
     metaImage: thumb,
     player: {
       playerUrl: embedUrl || undefined,
-      streamUrl: absoluteRedirect || undefined,
+      streamUrl: absoluteAsset || undefined,
       streamContentType: meme.mimeType || 'video/mp4',
       thumbnailUrl: thumb || undefined,
       width: playerDimensions.width,
@@ -140,7 +140,7 @@ export async function getStaticProps({ params, locale }) {
   return {
     props: {
       meme: normalizedMeme,
-      embedSrc: absoluteRedirect,
+      embedSrc: absoluteAsset,
       ...(await serverSideTranslations(locale ?? 'en', ['common'])),
     },
     revalidate: 60,
