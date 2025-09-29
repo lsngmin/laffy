@@ -114,7 +114,7 @@ function buildItem(blob, metaInfo) {
     if (channel === 'l') {
       routePath = `/l/${slug}`;
     } else if (channel === 'k') {
-      routePath = '/k';
+      routePath = `/k/${slug}`;
     } else if ((type || '').toLowerCase() === 'image') {
       routePath = `/x/${slug}`;
     } else {

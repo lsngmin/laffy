@@ -23,6 +23,7 @@ export default async function handler(req, res) {
       if (slug) revalidateTargets.add(`/l/${slug}`);
     } else if (normalizedChannel === 'k') {
       revalidateTargets.add('/k');
+      if (slug) revalidateTargets.add(`/k/${slug}`);
     } else if (normalizedType === 'image') {
       revalidateTargets.add('/x');
       if (slug) revalidateTargets.add(`/x/${slug}`);

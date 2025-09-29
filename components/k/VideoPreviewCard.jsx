@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { useMemo } from 'react';
 
 function formatDuration(seconds) {
@@ -9,7 +10,7 @@ function formatDuration(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-export default function VideoPreviewCard({ item, onRedirect, redirecting, ctaLabel, redirectingLabel }) {
+export default function VideoPreviewCard({ item, ctaLabel }) {
   if (!item) return null;
 
   const {
@@ -36,10 +37,9 @@ export default function VideoPreviewCard({ item, onRedirect, redirecting, ctaLab
   const formattedDuration = useMemo(() => formatDuration(durationSeconds), [durationSeconds]);
 
   return (
-    <button
-      type="button"
-      onClick={() => onRedirect?.(item)}
-      className="group flex w-full flex-col overflow-hidden rounded-2xl bg-slate-900/70 ring-1 ring-slate-800/60 transition hover:-translate-y-1 hover:ring-sky-400/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+    <Link
+      href={slug ? `/k/${slug}` : '#'}
+      className="group flex flex-col overflow-hidden rounded-2xl bg-slate-900/70 ring-1 ring-slate-800/60 transition hover:-translate-y-1 hover:ring-sky-400/60"
     >
       <div className="relative w-full overflow-hidden bg-slate-950/60">
         {mediaSource ? (
@@ -76,10 +76,12 @@ export default function VideoPreviewCard({ item, onRedirect, redirecting, ctaLab
         {description ? (
           <p className="text-sm text-slate-400 line-clamp-2">{description}</p>
         ) : null}
-        <span className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-slate-800/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-200 transition group-hover:bg-sky-500/70 group-hover:text-slate-950">
-          {redirecting ? redirectingLabel : ctaLabel}
-        </span>
+        {slug ? (
+          <span className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-slate-800/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-200 transition group-hover:bg-sky-500/70 group-hover:text-slate-950">
+            {ctaLabel}
+          </span>
+        ) : null}
       </div>
-    </button>
+    </Link>
   );
 }

@@ -315,6 +315,7 @@ export default async function handler(req, res) {
       revalidateTargets.add(`/l/${slug}`);
     } else if (channel === 'k') {
       revalidateTargets.add('/k');
+      revalidateTargets.add(`/k/${slug}`);
     } else if (effectiveType === 'image') {
       revalidateTargets.add('/x');
       revalidateTargets.add(`/x/${slug}`);
