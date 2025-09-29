@@ -3,17 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 const EMPTY_SUMMARY = Object.freeze({
   items: [],
   totals: {
-    count: 0,
+    visitCount: 0,
     uniqueSessions: 0,
-    visitors: 0,
-    pageViews: 0,
-    bounceEvents: 0,
-    bounceRate: 0,
-    pageViewEventNames: [],
-    visitorEventNames: [],
-    bounceEventNames: [],
+    lastVisitAt: null,
   },
   timeseries: [],
+  timeseriesByGranularity: {},
   catalog: { events: [], slugsByEvent: {} },
 });
 
@@ -68,8 +63,9 @@ export default function useEventAnalytics({
         }
         setData({
           items: Array.isArray(json.items) ? json.items : [],
-          totals: json.totals || { count: 0, uniqueSessions: 0 },
+          totals: json.totals || { visitCount: 0, uniqueSessions: 0 },
           timeseries: Array.isArray(json.timeseries) ? json.timeseries : [],
+          timeseriesByGranularity: json.timeseriesByGranularity || {},
           catalog: json.catalog || { events: [], slugsByEvent: {} },
         });
       } catch (err) {

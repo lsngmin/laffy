@@ -1,234 +1,120 @@
-import {
-  hasSupabaseConfig,
-  callSupabaseRpc,
-  supabaseRest,
-  SUPABASE_EVENTS_ROLLUP_FUNCTION,
-  SUPABASE_EVENTS_ROLLUP_TABLE,
-} from './supabaseClient';
+import { hasSupabaseConfig, supabaseRest } from './supabaseClient';
 import { isInternalRedisIngestionDisabled } from './internalRedisToggle';
 
-const DEFAULT_RANGE_DAYS = 6;
-const DAY_MS = 24 * 60 * 60 * 1000;
-const CATALOG_KEY = 'events:catalog';
+const ALLOWED_EVENT_NAMES = new Set(['l_visit']);
 const GLOBAL_SLUG = '__global__';
-const MAX_EVENTS_PER_BATCH = 10;
-const KST_TIMEZONE = 'Asia/Seoul';
-const DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
-  timeZone: KST_TIMEZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const ALLOWED_EVENT_NAMES = new Set(['x_visit']);
-const RAW_TABLE_PATH = 'events_raw';
+const REDIS_QUEUE_KEY = 'events:l_visit:queue';
+const REDIS_UNIQUE_PREFIX = 'events:l_visit:unique';
+const UNIQUE_TTL_SECONDS = 60 * 60 * 24 * 90; // 90일 유지
+const MAX_EVENTS_PER_BATCH = 200;
+const MAX_REDIS_FLUSH_BATCH = 500;
+const TEN_MINUTES_MS = 10 * 60 * 1000;
 
-function formatDateKey(date) {
-  try {
-    return DATE_FORMATTER.format(date);
-  } catch (error) {
-    console.warn('[events] failed to format KST date', error);
-    return new Date().toISOString().slice(0, 10);
+function ensureMemoryStore() {
+  if (!global.__visitEventStore) {
+    global.__visitEventStore = {
+      events: [],
+    };
   }
+  return global.__visitEventStore;
 }
 
-function toDateKey(value) {
-  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return formatDateKey(new Date());
-  }
-  return formatDateKey(date);
+function normalizeSlug(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  return trimmed || '';
 }
 
-function startOfDayInKst(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return new Date();
-  }
-  const key = formatDateKey(date);
-  const [yearRaw, monthRaw, dayRaw] = key.split('-');
-  const year = Number(yearRaw);
-  const month = Number(monthRaw);
-  const day = Number(dayRaw);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-    return new Date();
-  }
-  const utcMillis = Date.UTC(year, month - 1, day);
-  return new Date(utcMillis - KST_OFFSET_MS);
+function buildContextPayload(context = {}) {
+  const safeContext = {};
+  if (context.ip) safeContext.ip = context.ip;
+  if (context.referer) safeContext.referer = context.referer;
+  if (context.origin) safeContext.origin = context.origin;
+  if (context.userAgent) safeContext.userAgent = context.userAgent;
+  if (context.receivedAt) safeContext.receivedAt = context.receivedAt;
+  return safeContext;
 }
 
-function clampLimit(value, fallback = 50) {
-  const num = Number(value);
-  if (!Number.isFinite(num) || num <= 0) return fallback;
-  return Math.min(500, Math.round(num));
-}
+function normalizeEventPayload(rawEvent, context = {}) {
+  if (!rawEvent || typeof rawEvent !== 'object') return null;
+  const name = typeof rawEvent.name === 'string' ? rawEvent.name.trim() : '';
+  if (!name || !ALLOWED_EVENT_NAMES.has(name)) return null;
 
-function parseDateInput(value) {
-  if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return startOfDayInKst(value);
+  const slug = normalizeSlug(rawEvent.slug || rawEvent.props?.slug || rawEvent.props?.path || '');
+  const tsValue = Number(rawEvent.ts ?? Date.now());
+  const timestamp = Number.isFinite(tsValue) ? tsValue : Date.now();
+  const sessionRaw = typeof rawEvent.sessionId === 'string' ? rawEvent.sessionId.trim() : '';
+  const contextSession = typeof context.sessionId === 'string' ? context.sessionId.trim() : '';
+  const sessionId = sessionRaw || contextSession || null;
+  const payload = rawEvent.props && typeof rawEvent.props === 'object' ? { ...rawEvent.props } : {};
+  if (!payload.slug && slug) {
+    payload.slug = slug;
   }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : startOfDayInKst(date);
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const iso = trimmed.includes('T') ? trimmed : `${trimmed}T00:00:00+09:00`;
-    const parsed = new Date(iso);
-    if (!Number.isNaN(parsed.getTime())) return startOfDayInKst(parsed);
-  }
-  return null;
-}
-
-function normalizeRange(startInput, endInput) {
-  const now = startOfDayInKst(new Date());
-  const defaultEnd = now;
-  const defaultStart = startOfDayInKst(new Date(now.getTime() - DEFAULT_RANGE_DAYS * DAY_MS));
-
-  const startDate = parseDateInput(startInput) || defaultStart;
-  const endDate = parseDateInput(endInput) || defaultEnd;
-
-  if (startDate > endDate) {
-    return { start: endDate, end: endDate };
+  const contextPayload = buildContextPayload(context);
+  if (Object.keys(contextPayload).length > 0) {
+    payload.__context = contextPayload;
   }
 
-  const start = startOfDayInKst(startDate);
-  const end = startOfDayInKst(endDate);
-  return { start, end };
-}
-
-function rangeToDateKeys(range) {
-  if (!range?.start || !range?.end) return [];
-  const keys = [];
-  const cursor = new Date(range.start.getTime());
-  const endTime = range.end.getTime();
-  while (cursor.getTime() <= endTime) {
-    keys.push(toDateKey(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return keys;
-}
-
-function serializeCombo(name, slug) {
-  return `${name}::${slug || GLOBAL_SLUG}`;
-}
-
-function deserializeCombo(value) {
-  if (typeof value !== 'string') return null;
-  const [name, slug] = value.split('::');
-  if (!name) return null;
-  return { name, slug: slug === undefined ? GLOBAL_SLUG : slug };
-}
-
-function normalizeSlug(slug) {
-  if (typeof slug !== 'string') return '';
-  const trimmed = slug.trim();
-  return trimmed ? trimmed : '';
-}
-
-function normalizeEventPayload(event) {
-  if (!event || typeof event !== 'object') return null;
-  const name = typeof event.name === 'string' ? event.name.trim() : '';
-  if (!name) return null;
-  const slug = normalizeSlug(event.slug || event.props?.slug);
-  const tsRaw = event.ts ?? Date.now();
-  const ts = Number(tsRaw);
-  const timestamp = Number.isFinite(ts) ? ts : Date.now();
-  const sessionId = typeof event.sessionId === 'string' ? event.sessionId.trim() : '';
-  const value = Number(event.value ?? event.props?.value);
-  const numericValue = Number.isFinite(value) ? value : 0;
   return {
-    name,
+    event_name: name,
     slug,
+    ts: new Date(timestamp).toISOString(),
+    session_id: sessionId,
+    payload,
     timestamp,
-    sessionId,
-    value: numericValue,
   };
-}
-
-function classifyEventName(name) {
-  if (typeof name !== 'string') {
-    return { isPageView: false, isVisitor: false, isBounce: false };
-  }
-  const normalized = name.trim().toLowerCase();
-  if (!normalized) {
-    return { isPageView: false, isVisitor: false, isBounce: false };
-  }
-  const isPageView = /page\s*view|view|pv/.test(normalized);
-  const isVisitor = /visit|session|enter|start/.test(normalized);
-  const isBounce = /bounce|exit|leave|drop/.test(normalized);
-  return { isPageView, isVisitor, isBounce };
-}
-
-function isVisitorEvent(name) {
-  if (typeof name !== 'string') return false;
-  const normalized = name.trim();
-  if (!normalized) return false;
-  return ALLOWED_EVENT_NAMES.has(normalized);
 }
 
 function buildRawEventRows(events, context = {}) {
   if (!Array.isArray(events)) return [];
-  const rows = [];
-  for (const rawEvent of events) {
-    if (!rawEvent || typeof rawEvent !== 'object') continue;
-    const name = typeof rawEvent.name === 'string' ? rawEvent.name.trim() : '';
-    if (!name || !ALLOWED_EVENT_NAMES.has(name)) continue;
-
-    const slug = normalizeSlug(rawEvent.slug || rawEvent.props?.slug || rawEvent.props?.path || '');
-    const tsValue = Number(rawEvent.ts ?? Date.now());
-    const timestamp = Number.isFinite(tsValue) ? tsValue : Date.now();
-    const sessionIdRaw = typeof rawEvent.sessionId === 'string' ? rawEvent.sessionId.trim() : '';
-    const contextSession = typeof context.sessionId === 'string' ? context.sessionId.trim() : '';
-    const sessionId = sessionIdRaw || contextSession || null;
-
-    const props = rawEvent.props && typeof rawEvent.props === 'object' ? { ...rawEvent.props } : {};
-    if (!props.slug && slug) {
-      props.slug = slug;
-    }
-
-    const contextMeta = {};
-    if (context.ip) contextMeta.ip = context.ip;
-    if (context.referer) contextMeta.referer = context.referer;
-    if (context.origin) contextMeta.origin = context.origin;
-    if (context.userAgent) contextMeta.userAgent = context.userAgent;
-    if (context.receivedAt) contextMeta.receivedAt = context.receivedAt;
-    if (Object.keys(contextMeta).length > 0) {
-      props.__context = contextMeta;
-    }
-
-    rows.push({
-      event_name: name,
+  return events
+    .map((event) => normalizeEventPayload(event, context))
+    .filter(Boolean)
+    .slice(0, MAX_EVENTS_PER_BATCH)
+    .map(({ event_name, slug, ts, session_id, payload }) => ({
+      event_name,
       slug,
-      ts: new Date(timestamp).toISOString(),
-      session_id: sessionId,
-      payload: props,
-    });
-  }
-  return rows;
+      ts,
+      session_id,
+      payload,
+    }));
 }
 
-async function persistRawEventsToSupabase(events, context = {}) {
-  if (!hasSupabaseConfig()) return;
-  const rows = buildRawEventRows(events, context);
-  if (!rows.length) return;
-
-  try {
-    await supabaseRest(RAW_TABLE_PATH, {
-      method: 'POST',
-      headers: { Prefer: 'return=minimal' },
-      body: rows,
-    });
-  } catch (error) {
-    console.warn('[events] supabase raw ingest failed', error);
+function floorToTenMinuteBucket(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return new Date(Math.floor(Date.now() / TEN_MINUTES_MS) * TEN_MINUTES_MS).toISOString();
   }
+  const bucketStart = Math.floor(date.getTime() / TEN_MINUTES_MS) * TEN_MINUTES_MS;
+  return new Date(bucketStart).toISOString();
 }
 
-async function redisCommand(command, options) {
-  const { redisCommand: exec } = await import('./redisClient');
-  return exec(command, options);
+function aggregateForMetrics(rows) {
+  const aggregates = new Map();
+  for (const row of rows) {
+    if (!row) continue;
+    const timestamp = new Date(row.ts).getTime();
+    const bucket = floorToTenMinuteBucket(timestamp);
+    const slugKey = row.slug || GLOBAL_SLUG;
+    const key = `${bucket}::${row.event_name}::${slugKey}`;
+    if (!aggregates.has(key)) {
+      aggregates.set(key, {
+        bucket,
+        eventName: row.event_name,
+        slug: slugKey === GLOBAL_SLUG ? '' : slugKey,
+        count: 0,
+        sessions: new Set(),
+        lastTimestamp: timestamp,
+      });
+    }
+    const entry = aggregates.get(key);
+    entry.count += 1;
+    entry.lastTimestamp = Math.max(entry.lastTimestamp, timestamp);
+    if (row.session_id) {
+      entry.sessions.add(row.session_id);
+    }
+  }
+  return aggregates;
 }
 
 async function hasRedis() {
@@ -239,620 +125,468 @@ async function hasRedis() {
   return hasUpstash();
 }
 
-function ensureMemoryStore() {
-  if (!global.__eventStore) {
-    global.__eventStore = {
-      catalog: new Set(),
-      daily: new Map(),
-      totals: new Map(),
-    };
+async function enqueueEventsToRedis(rows) {
+  if (!rows.length) return false;
+  const payloads = rows.map((row) => JSON.stringify(row));
+  try {
+    const { redisCommand } = await import('./redisClient');
+    await redisCommand(['RPUSH', REDIS_QUEUE_KEY, ...payloads]);
+    return true;
+  } catch (error) {
+    console.warn('[events] redis enqueue failed', error);
+    return false;
   }
-  return global.__eventStore;
 }
 
-function memoryKey(dateKey, comboKey) {
-  return `${dateKey}::${comboKey}`;
+async function persistRawEvents(rows) {
+  if (!rows.length || !hasSupabaseConfig()) return 0;
+  try {
+    await supabaseRest('events_raw', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: rows,
+    });
+    return rows.length;
+  } catch (error) {
+    console.error('[events] failed to persist raw events to Supabase', error);
+    throw error;
+  }
 }
 
-function aggregateCatalogFromMemory() {
-  const store = ensureMemoryStore();
-  const events = new Set();
-  const slugsByEvent = new Map();
-  store.catalog.forEach((comboKey) => {
-    const combo = deserializeCombo(comboKey);
-    if (!combo) return;
-    if (!isVisitorEvent(combo.name)) return;
-    events.add(combo.name);
-    if (!slugsByEvent.has(combo.name)) slugsByEvent.set(combo.name, new Set());
-    if (combo.slug && combo.slug !== GLOBAL_SLUG) {
-      slugsByEvent.get(combo.name).add(combo.slug);
+async function updateUniqueSessionSets(aggregates) {
+  const results = new Map();
+  if (!aggregates.size) return results;
+
+  const entries = [];
+  aggregates.forEach((entry, mapKey) => {
+    if (entry.sessions && entry.sessions.size > 0) {
+      const slugKey = entry.slug || '';
+      const redisKey = `${REDIS_UNIQUE_PREFIX}:${entry.bucket}:${entry.eventName}:${slugKey || GLOBAL_SLUG}`;
+      entries.push({ mapKey, entry, redisKey });
+    } else {
+      results.set(mapKey, 0);
     }
   });
-  const catalog = {
-    events: Array.from(events).sort((a, b) => a.localeCompare(b)),
-    slugsByEvent: {},
-  };
-  slugsByEvent.forEach((slugSet, eventName) => {
-    catalog.slugsByEvent[eventName] = Array.from(slugSet).sort((a, b) => a.localeCompare(b));
-  });
-  return catalog;
-}
 
-function aggregateEventsForRedis(events, context = {}) {
-  const aggregates = new Map();
-  const comboSet = new Set();
-
-  for (const rawEvent of events) {
-    const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
-    if (!normalized) continue;
-    if (!isVisitorEvent(normalized.name)) continue;
-
-    const slugKey = normalized.slug || GLOBAL_SLUG;
-    const comboKey = serializeCombo(normalized.name, slugKey);
-    comboSet.add(comboKey);
-
-    const dateKey = toDateKey(normalized.timestamp);
-    const aggregateKey = `${dateKey}::${normalized.name}::${slugKey}`;
-    if (!aggregates.has(aggregateKey)) {
-      aggregates.set(aggregateKey, {
-        dateKey,
-        name: normalized.name,
-        slugKey,
-        count: 0,
-        valueSum: 0,
-        sessions: new Set(),
-        lastTimestamp: 0,
-      });
-    }
-
-    const entry = aggregates.get(aggregateKey);
-    entry.count += 1;
-    if (Number.isFinite(normalized.value) && normalized.value !== 0) {
-      entry.valueSum += normalized.value;
-    }
-    if (normalized.sessionId) {
-      entry.sessions.add(normalized.sessionId);
-    }
-    if (normalized.timestamp > entry.lastTimestamp) {
-      entry.lastTimestamp = normalized.timestamp;
-    }
+  if (!entries.length) {
+    return results;
   }
-
-  return {
-    combos: Array.from(comboSet),
-    aggregates: Array.from(aggregates.values()),
-  };
-}
-
-async function persistEventAggregatesToSupabase(aggregates) {
-  if (!Array.isArray(aggregates) || aggregates.length === 0) return;
-  if (!hasSupabaseConfig()) return;
-
-  const rows = aggregates
-    .filter((entry) => entry?.count > 0)
-    .map((entry) => ({
-      date_key: entry.dateKey,
-      event_name: entry.name,
-      slug: entry.slugKey === GLOBAL_SLUG ? null : entry.slugKey,
-      count: entry.count,
-      value_sum: entry.valueSum,
-      uniq_sessions: entry.sessions instanceof Set ? entry.sessions.size : Number(entry.sessionCount || 0),
-      last_ts: entry.lastTimestamp || null,
-    }))
-    .filter((row) => row.count > 0);
-
-  if (!rows.length) return;
 
   try {
-    await callSupabaseRpc(SUPABASE_EVENTS_ROLLUP_FUNCTION, { rows });
+    const { redisBatch, redisCommand } = await import('./redisClient');
+    const commands = entries.map(({ entry, redisKey }) => ['SADD', redisKey, ...entry.sessions]);
+    const responses = await redisBatch(commands);
+
+    entries.forEach(({ mapKey, redisKey }, index) => {
+      const response = responses[index]?.result ?? responses[index];
+      const added = Number(response) || 0;
+      results.set(mapKey, added);
+      redisCommand(['EXPIRE', redisKey, String(UNIQUE_TTL_SECONDS)]).catch(() => {});
+    });
   } catch (error) {
-    console.warn('[events] supabase ingest failed', error);
+    console.warn('[events] failed to update redis unique sets', error);
+    entries.forEach(({ mapKey }) => {
+      results.set(mapKey, 0);
+    });
+  }
+
+  return results;
+}
+
+async function fetchExistingMetricRows(keys) {
+  if (!keys.length || !hasSupabaseConfig()) return new Map();
+  const orConditions = keys
+    .map(({ bucket, eventName, slug }) => {
+      const slugCondition = slug ? `slug.eq.${slug}` : 'slug.is.null';
+      return `and(ts_bucket_10m.eq.${bucket},event_name.eq.${eventName},${slugCondition})`;
+    })
+    .join(',');
+  const params = new URLSearchParams();
+  params.set(
+    'select',
+    'ts_bucket_10m,event_name,slug,visit_count,unique_sessions,last_ts'
+  );
+  if (orConditions) {
+    params.set('or', `(${orConditions})`);
+  }
+
+  try {
+    const rows = await supabaseRest(`event_metrics_10m?${params.toString()}`);
+    const map = new Map();
+    if (Array.isArray(rows)) {
+      rows.forEach((row) => {
+        const slugKey = row.slug === null || row.slug === undefined ? '' : row.slug;
+        const key = `${row.ts_bucket_10m}::${row.event_name}::${slugKey || GLOBAL_SLUG}`;
+        map.set(key, {
+          visit_count: Number(row.visit_count) || 0,
+          unique_sessions: Number(row.unique_sessions) || 0,
+          last_ts: row.last_ts,
+        });
+      });
+    }
+    return map;
+  } catch (error) {
+    console.error('[events] failed to fetch existing metric rows', error);
+    return new Map();
   }
 }
 
-async function fetchEventRollupsFromSupabase({ startDateKey, endDateKey, eventName, slug }) {
-  if (!hasSupabaseConfig()) return [];
-  if (!startDateKey || !endDateKey) return [];
+async function upsertMetricAggregates(aggregates, uniqueDeltas) {
+  if (!aggregates.size || !hasSupabaseConfig()) return;
+  const keys = Array.from(aggregates.values()).map((entry) => ({
+    bucket: entry.bucket,
+    eventName: entry.eventName,
+    slug: entry.slug,
+  }));
+  const existingMap = await fetchExistingMetricRows(keys);
+
+  const rows = Array.from(aggregates.entries()).map(([mapKey, entry]) => {
+    const slugValue = entry.slug || null;
+    const existing = existingMap.get(mapKey) || { visit_count: 0, unique_sessions: 0, last_ts: null };
+    const uniqueDelta = Number(uniqueDeltas.get(mapKey)) || 0;
+    const visitCount = Number(existing.visit_count) + entry.count;
+    const uniqueSessions = Number(existing.unique_sessions) + uniqueDelta;
+    const lastTimestamp = Math.max(Number(existing.last_ts) || 0, entry.lastTimestamp || 0);
+    return {
+      ts_bucket_10m: entry.bucket,
+      event_name: entry.eventName,
+      slug: slugValue,
+      visit_count: visitCount,
+      unique_sessions: uniqueSessions,
+      last_ts: lastTimestamp ? new Date(lastTimestamp).toISOString() : entry.bucket,
+    };
+  });
+
+  try {
+    await supabaseRest('event_metrics_10m?on_conflict=ts_bucket_10m,event_name,slug', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: rows,
+    });
+  } catch (error) {
+    console.error('[events] failed to upsert metric aggregates', error);
+  }
+}
+
+async function flushQueueFromRedis(limit = MAX_REDIS_FLUSH_BATCH) {
+  const { redisCommand } = await import('./redisClient');
+  const raw = await redisCommand(['LPOP', REDIS_QUEUE_KEY, String(limit)]);
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  return [raw];
+}
+
+async function flushRedisQueue(options = {}) {
+  const batchSize = Number(options?.batchSize) > 0 ? Math.min(Number(options.batchSize), MAX_REDIS_FLUSH_BATCH) : MAX_REDIS_FLUSH_BATCH;
+  const redisAvailable = await hasRedis();
+  if (!redisAvailable) {
+    return { flushed: 0, persisted: 0 };
+  }
+
+  const rawItems = await flushQueueFromRedis(batchSize);
+  if (!rawItems.length) {
+    return { flushed: 0, persisted: 0 };
+  }
+
+  const rows = rawItems
+    .map((item) => {
+      try {
+        const parsed = typeof item === 'string' ? JSON.parse(item) : item;
+        if (!parsed || typeof parsed !== 'object') return null;
+        if (!parsed.event_name || !parsed.ts) return null;
+        return parsed;
+      } catch (error) {
+        console.warn('[events] failed to parse redis payload', error);
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  if (!rows.length) {
+    return { flushed: rawItems.length, persisted: 0 };
+  }
+
+  let persisted = 0;
+  try {
+    persisted = await persistRawEvents(rows);
+  } catch (error) {
+    // 실패 시 롤백을 위해 다시 큐에 넣지는 않음. 로그만 남김.
+    console.error('[events] failed to persist events after flushing redis', error);
+  }
+
+  const aggregates = aggregateForMetrics(rows);
+  const uniqueDeltas = await updateUniqueSessionSets(aggregates);
+  await upsertMetricAggregates(aggregates, uniqueDeltas);
+
+  return { flushed: rows.length, persisted };
+}
+
+function memoryIngest(rows) {
+  const store = ensureMemoryStore();
+  rows.forEach((row) => {
+    store.events.push(row);
+  });
+  // 메모리 저장소 크기 제한 (최근 10만개 유지)
+  if (store.events.length > 100_000) {
+    store.events.splice(0, store.events.length - 100_000);
+  }
+}
+
+function summarizeFromMemory(options = {}) {
+  const store = ensureMemoryStore();
+  const { startDate, endDate, slug } = options;
+  const start = startDate ? new Date(startDate) : null;
+  const end = endDate ? new Date(endDate) : null;
+  const filtered = store.events.filter((event) => {
+    if (!event) return false;
+    if (slug && event.slug !== slug) return false;
+    const ts = new Date(event.ts).getTime();
+    if (start && ts < start.getTime()) return false;
+    if (end && ts > end.getTime()) return false;
+    return true;
+  });
+
+  const aggregates = aggregateForMetrics(filtered);
+  const totals = { visitCount: 0, uniqueSessions: 0, lastVisitAt: null };
+  const slugMap = new Map();
+  aggregates.forEach((entry) => {
+    totals.visitCount += entry.count;
+    totals.uniqueSessions += entry.sessions.size;
+    totals.lastVisitAt = Math.max(totals.lastVisitAt || 0, entry.lastTimestamp || 0);
+    const slugKey = entry.slug || '';
+    const slugEntry = slugMap.get(slugKey) || { count: 0, uniqueSessions: 0, lastTimestamp: 0 };
+    slugEntry.count += entry.count;
+    slugEntry.uniqueSessions += entry.sessions.size;
+    slugEntry.lastTimestamp = Math.max(slugEntry.lastTimestamp, entry.lastTimestamp || 0);
+    slugMap.set(slugKey, slugEntry);
+  });
+
+  let items = Array.from(slugMap.entries()).map(([slugKey, data]) => ({
+    eventName: 'l_visit',
+    slug: slugKey,
+    count: data.count,
+    uniqueSessions: data.uniqueSessions,
+    lastTimestamp: data.lastTimestamp,
+  }));
+
+  if (options.limit && Number.isFinite(Number(options.limit))) {
+    const limit = Math.max(1, Math.round(Number(options.limit)));
+    items = items.slice(0, limit);
+  }
+
+  const timeseries = Array.from(aggregates.values())
+    .map((entry) => ({ date: entry.bucket, count: entry.count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    items,
+    totals: {
+      visitCount: totals.visitCount,
+      uniqueSessions: totals.uniqueSessions,
+      lastVisitAt: totals.lastVisitAt ? new Date(totals.lastVisitAt).toISOString() : null,
+    },
+    timeseriesByGranularity: {
+      tenMinute: timeseries,
+      daily: timeseries,
+      weekly: timeseries,
+      monthly: timeseries,
+    },
+    catalog: {
+      events: ['l_visit'],
+      slugsByEvent: { l_visit: Array.from(slugMap.keys()).filter(Boolean) },
+    },
+  };
+}
+
+function parseDateBoundary(value, fallback) {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date;
+}
+
+function toKstISOString(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstDate = new Date(date.getTime() + kstOffset);
+  return kstDate.toISOString().replace('T', ' ').slice(0, 16);
+}
+
+function aggregateSeries(rows, granularity) {
+  const map = new Map();
+  rows.forEach((row) => {
+    const date = new Date(row.ts_bucket_10m || row.bucket || row.date);
+    if (Number.isNaN(date.getTime())) return;
+    const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    let key;
+    if (granularity === 'daily') {
+      key = kstDate.toISOString().slice(0, 10);
+    } else if (granularity === 'weekly') {
+      const temp = new Date(Date.UTC(kstDate.getUTCFullYear(), kstDate.getUTCMonth(), kstDate.getUTCDate()));
+      const day = temp.getUTCDay() || 7;
+      temp.setUTCDate(temp.getUTCDate() + 4 - day);
+      const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil(((temp - yearStart) / (24 * 60 * 60 * 1000) + 1) / 7);
+      key = `${temp.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    } else if (granularity === 'monthly') {
+      key = kstDate.toISOString().slice(0, 7);
+    } else {
+      key = kstDate.toISOString().slice(0, 16).replace('T', ' ');
+    }
+
+    if (!map.has(key)) {
+      map.set(key, { date: key, count: 0 });
+    }
+    const entry = map.get(key);
+    entry.count += Number(row.visit_count || row.count || 0);
+  });
+
+  return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function summarizeFromSupabase(options = {}) {
+  if (!hasSupabaseConfig()) {
+    return summarizeFromMemory(options);
+  }
+
+  const now = new Date();
+  const defaultEnd = now;
+  const defaultStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+  const startDate = parseDateBoundary(options.startDate, defaultStart);
+  const endDate = parseDateBoundary(options.endDate, defaultEnd);
+  const slugFilter = typeof options.slug === 'string' ? options.slug.trim() : '';
 
   const params = new URLSearchParams();
-  params.set('select', 'date_key,event_name,slug,count,value_sum,uniq_sessions,last_ts');
-  params.append('date_key', `gte.${startDateKey}`);
-  params.append('date_key', `lte.${endDateKey}`);
-  params.set('order', 'date_key.asc,event_name.asc,slug.asc');
-
-  if (eventName && typeof eventName === 'string') {
-    params.set('event_name', `eq.${eventName.trim()}`);
+  params.set('select', 'ts_bucket_10m,event_name,slug,visit_count,unique_sessions,last_ts');
+  params.set('event_name', 'eq.l_visit');
+  params.set('order', 'ts_bucket_10m.asc');
+  params.append('ts_bucket_10m', `gte.${startDate.toISOString()}`);
+  params.append('ts_bucket_10m', `lte.${endDate.toISOString()}`);
+  if (slugFilter) {
+    params.set('slug', `eq.${slugFilter}`);
   }
 
-  if (typeof slug === 'string') {
-    const trimmed = slug.trim();
-    if (trimmed) {
-      params.set('slug', `eq.${trimmed}`);
-    } else {
-      params.set('slug', 'is.null');
-    }
-  }
-
+  let rows = [];
   try {
-    const rows = await supabaseRest(`${SUPABASE_EVENTS_ROLLUP_TABLE}?${params.toString()}`);
-    if (!Array.isArray(rows)) return [];
-    return rows.map((row) => ({
-      dateKey: typeof row.date_key === 'string' ? row.date_key : toDateKey(row.date_key),
-      name: row.event_name,
-      slugKey: row.slug === null || row.slug === undefined || row.slug === '' ? GLOBAL_SLUG : row.slug,
-      count: Number(row.count) || 0,
-      valueSum: Number(row.value_sum) || 0,
-      uniqueSessions: Number(row.uniq_sessions) || 0,
-      lastTimestamp: Number(row.last_ts) || 0,
-    }));
+    const result = await supabaseRest(`event_metrics_10m?${params.toString()}`);
+    if (Array.isArray(result)) {
+      rows = result;
+    }
   } catch (error) {
-    console.warn('[events] supabase summary fetch failed', error);
-    return [];
-  }
-}
-
-async function ingestWithRedis(events, context = {}) {
-  const limitedEvents = Array.isArray(events) ? events.slice(0, MAX_EVENTS_PER_BATCH) : [];
-  const { combos, aggregates } = aggregateEventsForRedis(limitedEvents, context);
-  if (!aggregates.length) {
-    return { ingested: 0 };
+    console.error('[events] failed to fetch metrics from Supabase', error);
+    return summarizeFromMemory(options);
   }
 
-  const tasks = [];
-
-  if (combos.length) {
-    tasks.push(redisCommand(['SADD', CATALOG_KEY, ...combos]));
-  }
-
-  for (const entry of aggregates) {
-    const aggKey = `events:agg:${entry.dateKey}:${entry.name}:${entry.slugKey}`;
-    const sessionKey = `events:sessions:${entry.dateKey}:${entry.name}:${entry.slugKey}`;
-
-    tasks.push(redisCommand(['HINCRBY', aggKey, 'count', String(entry.count)]));
-
-    if (entry.valueSum !== 0) {
-      tasks.push(redisCommand(['HINCRBYFLOAT', aggKey, 'sum_value', String(entry.valueSum)]));
-    }
-
-    if (entry.lastTimestamp) {
-      tasks.push(redisCommand(['HSET', aggKey, 'last_ts', String(entry.lastTimestamp)]));
-    }
-
-    if (entry.sessions.size) {
-      const sessionArgs = ['PFADD', sessionKey, ...entry.sessions];
-      tasks.push(redisCommand(sessionArgs));
-    }
-  }
-
-  let redisSucceeded = false;
-  try {
-    await Promise.all(tasks);
-    redisSucceeded = true;
-  } catch (error) {
-    console.warn('[events] redis ingest failed, falling back to memory', error);
-  }
-
-  await persistEventAggregatesToSupabase(aggregates);
-
-  if (!redisSucceeded) {
-    return ingestWithMemory(limitedEvents, context);
-  }
-
-  return { ingested: limitedEvents.length };
-}
-
-function ingestWithMemory(events, context = {}) {
-  const store = ensureMemoryStore();
-  let ingested = 0;
-  events.forEach((rawEvent) => {
-    const normalized = normalizeEventPayload({ ...rawEvent, sessionId: rawEvent.sessionId || context.sessionId });
-    if (!normalized) return;
-    if (!isVisitorEvent(normalized.name)) return;
-    const comboKey = serializeCombo(normalized.name, normalized.slug || GLOBAL_SLUG);
-    store.catalog.add(comboKey);
-    const dateKey = toDateKey(normalized.timestamp);
-    const dailyKey = memoryKey(dateKey, comboKey);
-    const dailyEntry = store.daily.get(dailyKey) || { count: 0, sessions: new Set(), lastTs: 0, sumValue: 0 };
-    dailyEntry.count += 1;
-    dailyEntry.lastTs = Math.max(dailyEntry.lastTs, normalized.timestamp);
-    if (normalized.value) dailyEntry.sumValue += normalized.value;
-    if (normalized.sessionId) dailyEntry.sessions.add(normalized.sessionId);
-    store.daily.set(dailyKey, dailyEntry);
-
-    const totalEntry = store.totals.get(comboKey) || { count: 0, sessions: new Set(), lastTs: 0, sumValue: 0 };
-    totalEntry.count += 1;
-    totalEntry.lastTs = Math.max(totalEntry.lastTs, normalized.timestamp);
-    if (normalized.value) totalEntry.sumValue += normalized.value;
-    if (normalized.sessionId) totalEntry.sessions.add(normalized.sessionId);
-    store.totals.set(comboKey, totalEntry);
-    ingested += 1;
-  });
-  return { ingested };
-}
-
-async function fetchCatalogFromRedis() {
-  try {
-    const result = await redisCommand(['SMEMBERS', CATALOG_KEY], { allowReadOnly: true });
-    if (!Array.isArray(result)) return [];
-    return result;
-  } catch (error) {
-    console.warn('[events] failed to read catalog from redis', error);
-    return [];
-  }
-}
-
-function buildCatalogFromCombos(combos) {
-  const events = new Set();
-  const slugsByEvent = new Map();
-  combos.forEach((comboKey) => {
-    const combo = deserializeCombo(comboKey);
-    if (!combo) return;
-    if (!isVisitorEvent(combo.name)) return;
-    events.add(combo.name);
-    if (!slugsByEvent.has(combo.name)) slugsByEvent.set(combo.name, new Set());
-    if (combo.slug && combo.slug !== GLOBAL_SLUG) {
-      slugsByEvent.get(combo.name).add(combo.slug);
-    }
-  });
-  const catalog = {
-    events: Array.from(events).sort((a, b) => a.localeCompare(b)),
-    slugsByEvent: {},
+  const totals = {
+    visitCount: 0,
+    uniqueSessions: 0,
+    lastVisitAt: null,
   };
-  slugsByEvent.forEach((slugSet, eventName) => {
-    catalog.slugsByEvent[eventName] = Array.from(slugSet).sort((a, b) => a.localeCompare(b));
-  });
-  return catalog;
-}
 
-function filterCombos(combos, filters = {}) {
-  const { eventName, slug } = filters;
-  const normalizedEvent = typeof eventName === 'string' ? eventName.trim() : '';
-  const normalizedSlug = normalizeSlug(slug);
-  return combos
-    .map((comboKey) => deserializeCombo(comboKey))
-    .filter(Boolean)
-    .filter((combo) => {
-      if (normalizedEvent && combo.name !== normalizedEvent) return false;
-      if (normalizedSlug) {
-        const slugKey = combo.slug === GLOBAL_SLUG ? '' : combo.slug;
-        if (slugKey !== normalizedSlug) return false;
-      }
-      return true;
-    })
-    .filter((combo) => isVisitorEvent(combo.name));
-}
-
-function entriesToObject(entries) {
-  if (!Array.isArray(entries)) return {};
-  const obj = {};
-  for (let i = 0; i < entries.length; i += 2) {
-    const key = entries[i];
-    const value = entries[i + 1];
-    obj[key] = value;
-  }
-  return obj;
-}
-
-async function getSummaryFromRedis(options = {}) {
-  const range = normalizeRange(options.startDate, options.endDate);
-  const dateKeys = rangeToDateKeys(range);
-  const limit = clampLimit(options.limit, 50);
-  const combosRaw = await fetchCatalogFromRedis();
-  const catalog = buildCatalogFromCombos(combosRaw);
-  const combos = filterCombos(combosRaw, {
-    eventName: options.eventName,
-    slug: options.slug,
+  const slugMap = new Map();
+  rows.forEach((row) => {
+    const visitCount = Number(row.visit_count) || 0;
+    const unique = Number(row.unique_sessions) || 0;
+    totals.visitCount += visitCount;
+    totals.uniqueSessions += unique;
+    const lastTimestamp = row.last_ts ? new Date(row.last_ts).getTime() : 0;
+    totals.lastVisitAt = Math.max(totals.lastVisitAt || 0, lastTimestamp);
+    const slugKey = row.slug || '';
+    const slugEntry = slugMap.get(slugKey) || { count: 0, uniqueSessions: 0, lastTimestamp: 0 };
+    slugEntry.count += visitCount;
+    slugEntry.uniqueSessions += unique;
+    slugEntry.lastTimestamp = Math.max(slugEntry.lastTimestamp, lastTimestamp);
+    slugMap.set(slugKey, slugEntry);
   });
 
-  if (!dateKeys.length || combos.length === 0) {
-    return {
-      items: [],
-      totals: {
-        count: 0,
-        uniqueSessions: 0,
-        visitors: 0,
-        pageViews: 0,
-        bounceEvents: 0,
-        bounceRate: 0,
-        pageViewEventNames: [],
-        visitorEventNames: [],
-        bounceEventNames: [],
-      },
-      timeseries: [],
-      catalog,
-    };
+  let items = Array.from(slugMap.entries())
+    .map(([slugKey, data]) => ({
+      eventName: 'l_visit',
+      slug: slugKey,
+      count: data.count,
+      uniqueSessions: data.uniqueSessions,
+      lastTimestamp: data.lastTimestamp ? new Date(data.lastTimestamp).toISOString() : null,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  if (options.limit && Number.isFinite(Number(options.limit))) {
+    const limit = Math.max(1, Math.round(Number(options.limit)));
+    items = items.slice(0, limit);
   }
 
-  const items = [];
-  const timeseriesMap = new Map();
-  let totalCount = 0;
-  let totalUnique = 0;
-  let totalPageViews = 0;
-  let totalBounceEvents = 0;
-  const pageViewEvents = new Set();
-  const visitorEvents = new Set();
-  const bounceEvents = new Set();
+  const seriesTenMinute = rows.map((row) => ({
+    date: toKstISOString(row.ts_bucket_10m),
+    count: Number(row.visit_count) || 0,
+  }));
 
-  const todayKey = toDateKey(Date.now());
-  const supabaseRollups = await fetchEventRollupsFromSupabase({
-    startDateKey: dateKeys[0],
-    endDateKey: dateKeys[dateKeys.length - 1],
-    eventName: options.eventName,
-    slug: options.slug,
-  });
+  const timeseriesByGranularity = {
+    tenMinute: seriesTenMinute,
+    daily: aggregateSeries(rows, 'daily'),
+    weekly: aggregateSeries(rows, 'weekly'),
+    monthly: aggregateSeries(rows, 'monthly'),
+  };
 
-  const supabaseMap = new Map();
-  for (const row of supabaseRollups) {
-    if (!row || !row.dateKey || !row.name) continue;
-    if (!isVisitorEvent(row.name)) continue;
-    const key = `${row.dateKey}::${row.name}::${row.slugKey}`;
-    const existing = supabaseMap.get(key);
-    if (existing) {
-      existing.count += row.count;
-      existing.valueSum += row.valueSum;
-      existing.uniqueSessions += row.uniqueSessions;
-      existing.lastTimestamp = Math.max(existing.lastTimestamp, row.lastTimestamp || 0);
-    } else {
-      supabaseMap.set(key, { ...row });
-    }
-  }
+  const totalsResult = {
+    visitCount: totals.visitCount,
+    uniqueSessions: totals.uniqueSessions,
+    lastVisitAt: totals.lastVisitAt ? new Date(totals.lastVisitAt).toISOString() : null,
+  };
 
-  for (const combo of combos) {
-    const slugKey = combo.slug || GLOBAL_SLUG;
-    let comboCount = 0;
-    let comboValue = 0;
-    let lastTs = 0;
-    let supabaseUnique = 0;
-    const redisSessionKeys = [];
-    const redisDateKeys = [];
-
-    for (const dateKey of dateKeys) {
-      const supaKey = `${dateKey}::${combo.name}::${slugKey}`;
-      const supaRow = supabaseMap.get(supaKey);
-      if (supaRow && dateKey !== todayKey) {
-        comboCount += supaRow.count;
-        comboValue += supaRow.valueSum;
-        supabaseUnique += supaRow.uniqueSessions;
-        lastTs = Math.max(lastTs, supaRow.lastTimestamp || 0);
-        const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
-        dateEntry.count += supaRow.count;
-        dateEntry.value += supaRow.valueSum;
-        timeseriesMap.set(dateKey, dateEntry);
-      } else {
-        redisDateKeys.push(dateKey);
-      }
-    }
-
-    if (redisDateKeys.length) {
-      const redisResults = await Promise.all(
-        redisDateKeys.map((dateKey) =>
-          redisCommand(['HGETALL', `events:agg:${dateKey}:${combo.name}:${slugKey}`], {
-            allowReadOnly: true,
-          })
-        )
-      );
-
-      redisResults.forEach((raw, index) => {
-        if (!Array.isArray(raw) || raw.length === 0) return;
-        const data = entriesToObject(raw);
-        const count = Number(data.count) || 0;
-        const valueSum = Number(data.sum_value) || 0;
-        const last = Number(data.last_ts) || 0;
-        if (count <= 0) return;
-        const dateKey = redisDateKeys[index];
-        comboCount += count;
-        comboValue += Number.isFinite(valueSum) ? valueSum : 0;
-        lastTs = Math.max(lastTs, last);
-        const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
-        dateEntry.count += count;
-        dateEntry.value += Number.isFinite(valueSum) ? valueSum : 0;
-        timeseriesMap.set(dateKey, dateEntry);
-        redisSessionKeys.push(`events:sessions:${dateKey}:${combo.name}:${slugKey}`);
-      });
-    }
-
-    if (!comboCount) continue;
-
-    let redisUnique = 0;
-    if (redisSessionKeys.length) {
-      try {
-        const result = await redisCommand(['PFCOUNT', ...redisSessionKeys], { allowReadOnly: true });
-        redisUnique = Number(result) || 0;
-      } catch (error) {
-        console.warn('[events] PFCOUNT failed', error);
-      }
-    }
-
-    const uniqueSessions = supabaseUnique + redisUnique;
-
-    totalCount += comboCount;
-    totalUnique += uniqueSessions;
-
-    const { isPageView, isVisitor, isBounce } = classifyEventName(combo.name);
-    if (isPageView) {
-      totalPageViews += comboCount;
-      pageViewEvents.add(combo.name);
-    }
-    if (isVisitor) {
-      visitorEvents.add(combo.name);
-    }
-    if (isBounce) {
-      totalBounceEvents += comboCount;
-      bounceEvents.add(combo.name);
-    }
-
-    items.push({
-      eventName: combo.name,
-      slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
-      count: comboCount,
-      uniqueSessions,
-      valueSum: comboValue,
-      lastTimestamp: lastTs || null,
-      lastDate: lastTs ? new Date(lastTs).toISOString() : null,
-    });
-  }
-
-  items.sort((a, b) => b.count - a.count);
-  const limitedItems = limit ? items.slice(0, limit) : items;
-  const timeseries = Array.from(timeseriesMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, value]) => ({ date, count: value.count, valueSum: value.value }));
-
-  const visitors = totalUnique;
-  const effectivePageViews = pageViewEvents.size ? totalPageViews : totalCount;
-  const bounceRate = visitors > 0 ? totalBounceEvents / visitors : 0;
+  const catalogSlugs = Array.from(slugMap.keys()).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
   return {
-    items: limitedItems,
-    totals: {
-      count: totalCount,
-      uniqueSessions: totalUnique,
-      visitors,
-      pageViews: effectivePageViews,
-      bounceEvents: totalBounceEvents,
-      bounceRate,
-      pageViewEventNames: Array.from(pageViewEvents),
-      visitorEventNames: Array.from(visitorEvents),
-      bounceEventNames: Array.from(bounceEvents),
+    items,
+    totals: totalsResult,
+    timeseriesByGranularity,
+    catalog: {
+      events: ['l_visit'],
+      slugsByEvent: { l_visit: catalogSlugs },
     },
-    timeseries,
-    catalog,
-  };
-}
-
-function getSummaryFromMemory(options = {}) {
-  const store = ensureMemoryStore();
-  const range = normalizeRange(options.startDate, options.endDate);
-  const dateKeys = rangeToDateKeys(range);
-  const limit = clampLimit(options.limit, 50);
-  const combosRaw = Array.from(store.catalog);
-  const catalog = aggregateCatalogFromMemory();
-  const combos = filterCombos(combosRaw, {
-    eventName: options.eventName,
-    slug: options.slug,
-  });
-
-  const items = [];
-  const timeseriesMap = new Map();
-  let totalCount = 0;
-  let totalUnique = 0;
-  let totalPageViews = 0;
-  let totalBounceEvents = 0;
-  const pageViewEvents = new Set();
-  const visitorEvents = new Set();
-  const bounceEvents = new Set();
-
-  combos.forEach((combo) => {
-    const slugKey = combo.slug || GLOBAL_SLUG;
-    const comboKey = serializeCombo(combo.name, slugKey);
-    let comboCount = 0;
-    let comboValue = 0;
-    let lastTs = 0;
-    const sessionSet = new Set();
-
-    dateKeys.forEach((dateKey) => {
-      const dailyKey = memoryKey(dateKey, comboKey);
-      const daily = store.daily.get(dailyKey);
-      if (!daily || daily.count <= 0) return;
-      comboCount += daily.count;
-      comboValue += daily.sumValue || 0;
-      lastTs = Math.max(lastTs, daily.lastTs || 0);
-      daily.sessions.forEach((sessionId) => sessionSet.add(sessionId));
-      const dateEntry = timeseriesMap.get(dateKey) || { count: 0, value: 0 };
-      dateEntry.count += daily.count;
-      dateEntry.value += daily.sumValue || 0;
-      timeseriesMap.set(dateKey, dateEntry);
-    });
-
-    if (!comboCount) return;
-    totalCount += comboCount;
-    totalUnique += sessionSet.size;
-
-    const { isPageView, isVisitor, isBounce } = classifyEventName(combo.name);
-    if (isPageView) {
-      totalPageViews += comboCount;
-      pageViewEvents.add(combo.name);
-    }
-    if (isVisitor) {
-      visitorEvents.add(combo.name);
-    }
-    if (isBounce) {
-      totalBounceEvents += comboCount;
-      bounceEvents.add(combo.name);
-    }
-    items.push({
-      eventName: combo.name,
-      slug: slugKey === GLOBAL_SLUG ? '' : combo.slug,
-      count: comboCount,
-      uniqueSessions: sessionSet.size,
-      valueSum: comboValue,
-      lastTimestamp: lastTs || null,
-      lastDate: lastTs ? new Date(lastTs).toISOString() : null,
-    });
-  });
-
-  items.sort((a, b) => b.count - a.count);
-  const limitedItems = limit ? items.slice(0, limit) : items;
-  const timeseries = Array.from(timeseriesMap.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, value]) => ({ date, count: value.count, valueSum: value.value }));
-
-  const visitors = totalUnique;
-  const effectivePageViews = pageViewEvents.size ? totalPageViews : totalCount;
-  const bounceRate = visitors > 0 ? totalBounceEvents / visitors : 0;
-
-  return {
-    items: limitedItems,
-    totals: {
-      count: totalCount,
-      uniqueSessions: totalUnique,
-      visitors,
-      pageViews: effectivePageViews,
-      bounceEvents: totalBounceEvents,
-      bounceRate,
-      pageViewEventNames: Array.from(pageViewEvents),
-      visitorEventNames: Array.from(visitorEvents),
-      bounceEventNames: Array.from(bounceEvents),
-    },
-    timeseries,
-    catalog,
   };
 }
 
 export async function ingestEvents(events, context = {}) {
-  if (!Array.isArray(events) || !events.length) {
+  const rows = buildRawEventRows(events, context);
+  if (!rows.length) {
     return { ingested: 0 };
   }
 
-  const limitedEvents = events.slice(0, MAX_EVENTS_PER_BATCH);
-
-  try {
-    await persistRawEventsToSupabase(limitedEvents, context);
-  } catch (error) {
-    console.warn('[events] failed to persist raw events', error);
-  }
-
   if (await hasRedis()) {
-    return ingestWithRedis(limitedEvents, context);
+    const enqueued = await enqueueEventsToRedis(rows);
+    if (enqueued) {
+      return { ingested: rows.length };
+    }
   }
 
-  const { aggregates } = aggregateEventsForRedis(limitedEvents, context);
-  await persistEventAggregatesToSupabase(aggregates);
+  if (hasSupabaseConfig()) {
+    try {
+      await persistRawEvents(rows);
+      const aggregates = aggregateForMetrics(rows);
+      const uniqueDeltas = new Map();
+      aggregates.forEach((entry, key) => {
+        uniqueDeltas.set(key, entry.sessions.size);
+      });
+      await upsertMetricAggregates(aggregates, uniqueDeltas);
+    } catch (error) {
+      console.error('[events] direct ingest failed', error);
+    }
+  } else {
+    memoryIngest(rows);
+  }
 
-  return ingestWithMemory(limitedEvents, context);
+  return { ingested: rows.length };
+}
+
+export async function flushVisitEvents(options = {}) {
+  return flushRedisQueue(options);
 }
 
 export async function getEventSummary(options = {}) {
-  if (await hasRedis()) {
-    return getSummaryFromRedis(options);
-  }
-  return getSummaryFromMemory(options);
+  return summarizeFromSupabase(options);
 }
 
 export async function getEventCatalog() {
-  if (await hasRedis()) {
-    const combos = await fetchCatalogFromRedis();
-    return buildCatalogFromCombos(combos);
-  }
-  return aggregateCatalogFromMemory();
+  const summary = await summarizeFromSupabase({});
+  return summary.catalog;
 }

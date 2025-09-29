@@ -37,8 +37,11 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       items: Array.isArray(summary.items) ? summary.items : [],
-      totals: summary.totals || { count: 0, uniqueSessions: 0 },
-      timeseries: Array.isArray(summary.timeseries) ? summary.timeseries : [],
+      totals: summary.totals || { visitCount: 0, uniqueSessions: 0 },
+      timeseries: Array.isArray(summary.timeseriesByGranularity?.daily)
+        ? summary.timeseriesByGranularity.daily
+        : [],
+      timeseriesByGranularity: summary.timeseriesByGranularity || {},
       catalog: summary.catalog || { events: [], slugsByEvent: {} },
     });
   } catch (error) {

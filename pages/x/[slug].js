@@ -59,7 +59,7 @@ export default function ImageDetail(props) {
     const origin = window.location.origin || undefined;
     const eventUrl = event?.url ? new URL(event.url, origin) : null;
     const path = eventUrl?.pathname || window.location.pathname || '';
-    const storageKey = path ? `x_visit_sent:${path}` : '';
+    const storageKey = path ? `l_visit_sent:${path}` : '';
     const already = storageKey && window.sessionStorage?.getItem(storageKey) === '1';
     if (already) return null;
 
@@ -88,7 +88,7 @@ export default function ImageDetail(props) {
   }, [slug, title]);
 
   usePageviewTracker({
-    eventName: 'x_visit',
+    eventName: 'l_visit',
     match: visitMatch,
     getPayload: visitPayloadBuilder,
     enabled: Boolean(slug || title),
@@ -98,7 +98,7 @@ export default function ImageDetail(props) {
     if (typeof window === 'undefined') return undefined;
     const payload = visitPayloadBuilder({ url: window.location.href });
     if (payload) {
-      vaTrack('x_visit', payload);
+      vaTrack('l_visit', payload);
     }
     return undefined;
   }, [visitPayloadBuilder]);
