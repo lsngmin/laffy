@@ -12,6 +12,9 @@ export default function KExternalRedirectPage({ meme, redirectUrl }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
+    try {
+      if (window.top && window.top !== window.self) return undefined;
+    } catch {}
     if (!redirectUrl) return undefined;
 
     let preconnectEl;
@@ -181,7 +184,7 @@ export async function getStaticProps({ params, locale }) {
     jsonLd,
     metaImage: thumb,
     player: {
-      playerUrl: absoluteRedirect || undefined,
+      playerUrl: canonicalUrl || undefined,
       streamUrl: absoluteRedirect || undefined,
       thumbnailUrl: thumb || undefined,
       width: playerDimensions.width,
