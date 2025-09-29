@@ -159,7 +159,7 @@ export async function getStaticProps({ params, locale }) {
 
   const canonicalUrl = origin ? `${origin}/k/${params.slug}` : '';
   const embedUrl = origin ? `${origin}/k/embed/${params.slug}` : '';
-  const thumb = toAbs(meme.poster || meme.thumbnail || '');
+  const thumb = toAbs(meme.poster || meme.thumbnail || meme.preview || '');
   const absoluteAsset = toAbs(assetUrl);
   const absoluteRedirect = toAbs(redirectSource);
   const uploadDate = meme.publishedAt || new Date().toISOString();

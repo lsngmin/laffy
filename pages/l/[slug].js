@@ -208,7 +208,7 @@ export async function getServerSideProps({ params, locale, query, res }) {
   const origin = siteUrl || '';
   const toAbs = (u) => { if (!u) return ''; try { return u.startsWith('http') ? u : (origin ? origin + u : u); } catch { return u; } };
   const canonicalUrl = origin ? `${origin}/l/${params.slug}` : '';
-  const thumb = toAbs(meme.poster || meme.thumbnail || '');
+  const thumb = toAbs(meme.poster || meme.thumbnail || meme.preview || meme.src || '');
   const uploadDate = meme.publishedAt || new Date().toISOString();
   const localesForHref = ['ko', 'en'];
   const hreflangs = localesForHref.map((lng) => ({ hrefLang: lng, href: `${origin}/l/${params.slug}?locale=${lng}` }));
