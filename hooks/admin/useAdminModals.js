@@ -46,7 +46,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
 
     const normalizedChannel = (() => {
       const value = typeof item.channel === 'string' ? item.channel.toLowerCase() : '';
-      return ['x', 'l', 'k'].includes(value) ? value : 'x';
+      return ['x', 'l', 'k', 'g'].includes(value) ? value : 'x';
     })();
 
     setEditForm({
@@ -190,7 +190,7 @@ export default function useAdminModals({ hasToken, queryString, setItems, refres
     const basePreview = editInitialPreview || editingItem.preview || '';
     const rawChannelInput =
       typeof editForm.channel === 'string' ? editForm.channel.trim().toLowerCase() : '';
-    const resolvedChannel = ['x', 'l', 'k'].includes(rawChannelInput) ? rawChannelInput : 'x';
+    const resolvedChannel = ['x', 'l', 'k', 'g'].includes(rawChannelInput) ? rawChannelInput : 'x';
 
     const assetUrl = isImageType
       ? newImageUrl || editingItem.src || editingItem.poster || editingItem.thumbnail || basePreview || ''

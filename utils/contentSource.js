@@ -103,7 +103,7 @@ function normalize(meta) {
     timestamps: Array.isArray(normalized.timestamps) ? normalized.timestamps : [],
     channel: (() => {
       const value = typeof normalized.channel === 'string' ? normalized.channel.toLowerCase() : '';
-      return ['x', 'l', 'k'].includes(value) ? value : 'x';
+      return ['x', 'l', 'k', 'g'].includes(value) ? value : 'x';
     })(),
   };
 }

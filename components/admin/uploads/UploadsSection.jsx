@@ -268,7 +268,16 @@ export default function UploadsSection({
     [bulkTagForm, handleRefresh, hasToken, queryString, selectedItems]
   );
 
-  const activeChannelLabel = useMemo(() => 'L 채널 콘텐츠', []);
+  const activeChannelLabel = useMemo(() => {
+    const map = {
+      '': '전체 채널 콘텐츠',
+      l: 'L 채널 콘텐츠',
+      x: 'X 채널 콘텐츠',
+      k: 'K 채널 콘텐츠',
+      g: 'Gofile 채널 콘텐츠',
+    };
+    return map[channelFilter] || '전체 채널 콘텐츠';
+  }, [channelFilter]);
 
   const handleUploadComplete = useCallback(
     async (blob) => {

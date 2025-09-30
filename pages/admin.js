@@ -452,7 +452,7 @@ export default function AdminPage() {
           return false;
         }
         setTitle('');
-        setChannel('k');
+        setChannel(sanitizedChannel);
         setExternalSource('');
         setCardStyle('summary_large_image');
         refreshAll();
@@ -470,76 +470,175 @@ export default function AdminPage() {
       alert('관리자 토큰이 필요합니다.');
       return false;
     }
-    if (channel !== 'k') {
-      alert('외부 CDN 등록은 K 채널에서만 가능합니다.');
-      return false;
-    }
+
+    const channelValue = (channel || '').trim().toLowerCase();
     const trimmedSource = (externalSource || '').trim();
-    if (!trimmedSource) {
-      alert('외부 CDN 동영상 URL을 입력해 주세요.');
-      return false;
-    }
-    if (!/^https?:\/\//i.test(trimmedSource)) {
-      alert('유효한 URL을 입력해 주세요.');
-      return false;
-    }
 
-    setIsRegisteringExternal(true);
-    try {
-      const slug = await generateSlug({ pathname: trimmedSource, url: trimmedSource });
-      const trimmedTitle = (title || '').trim();
-      const fallbackTitle = trimmedTitle || slug;
-
-      const payload = {
-        schemaVersion: '2024-05',
-        slug,
-        type: 'video',
-        channel: 'k',
-        display: {
-          socialTitle: fallbackTitle,
-          cardTitle: fallbackTitle,
-          summary: fallbackTitle,
-          runtimeSec: 0,
-        },
-        media: {
-          assetUrl: trimmedSource,
-          orientation: 'landscape',
-        },
-        timestamps: {
-          publishedAt: new Date().toISOString(),
-        },
-        metrics: {
-          likes: 0,
-          views: 0,
-        },
-        source: { origin: 'External CDN' },
-      };
-
-      const res = await fetch(`/api/admin/register${qs}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`메타 저장 실패: ${err.error || res.status}`);
+    if (channelValue === 'k') {
+      if (!trimmedSource) {
+        alert('외부 CDN 동영상 URL을 입력해 주세요.');
+        return false;
+      }
+      if (!/^https?:\/\//i.test(trimmedSource)) {
+        alert('유효한 URL을 입력해 주세요.');
         return false;
       }
 
-      setTitle('');
-      setChannel('k');
-      setExternalSource('');
-      setCardStyle('summary_large_image');
-      refreshAll();
-      return true;
-    } catch (error) {
-      console.error('External meta register failed', error);
-      alert('등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-      return false;
-    } finally {
-      setIsRegisteringExternal(false);
+      setIsRegisteringExternal(true);
+      try {
+        const slug = await generateSlug({ pathname: trimmedSource, url: trimmedSource });
+        const trimmedTitle = (title || '').trim();
+        const fallbackTitle = trimmedTitle || slug;
+
+        const payload = {
+          schemaVersion: '2024-05',
+          slug,
+          type: 'video',
+          channel: 'k',
+          display: {
+            socialTitle: fallbackTitle,
+            cardTitle: fallbackTitle,
+            summary: fallbackTitle,
+            runtimeSec: 0,
+          },
+          media: {
+            assetUrl: trimmedSource,
+            orientation: 'landscape',
+          },
+          timestamps: {
+            publishedAt: new Date().toISOString(),
+          },
+          metrics: {
+            likes: 0,
+            views: 0,
+          },
+          source: { origin: 'External CDN' },
+        };
+
+        const res = await fetch(`/api/admin/register${qs}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`메타 저장 실패: ${err.error || res.status}`);
+          return false;
+        }
+
+        setTitle('');
+        setChannel('k');
+        setExternalSource('');
+        setCardStyle('summary_large_image');
+        refreshAll();
+        return true;
+      } catch (error) {
+        console.error('External meta register failed', error);
+        alert('등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return false;
+      } finally {
+        setIsRegisteringExternal(false);
+      }
     }
+
+    if (channelValue === 'g') {
+      if (!trimmedSource) {
+        alert('Gofile 슬러그 또는 URL을 입력해 주세요.');
+        return false;
+      }
+
+      setIsRegisteringExternal(true);
+      try {
+        let destinationUrl = trimmedSource;
+        let slugCandidate = trimmedSource;
+
+        if (/^https?:\/\//i.test(trimmedSource)) {
+          try {
+            const parsed = new URL(trimmedSource);
+            destinationUrl = parsed.toString();
+            const segments = parsed.pathname.split('/').filter(Boolean);
+            slugCandidate = segments.pop() || parsed.hostname || trimmedSource;
+          } catch (error) {
+            console.error('Failed to parse gofile URL', error);
+            alert('유효한 Gofile URL이 아닙니다. 다시 확인해 주세요.');
+            return false;
+          }
+        } else {
+          slugCandidate = trimmedSource;
+          destinationUrl = `https://gofile.io/d/${slugCandidate}`;
+        }
+
+        slugCandidate = slugCandidate
+          .replace(/^\/+|\/+$/g, '')
+          .replace(/\s+/g, '')
+          .replace(/[^A-Za-z0-9_-]/g, '');
+
+        if (!slugCandidate) {
+          alert('사용할 수 있는 슬러그를 확인해 주세요. 영문, 숫자, -, _만 사용할 수 있습니다.');
+          return false;
+        }
+
+        const trimmedTitle = (title || '').trim();
+        const fallbackTitle = trimmedTitle || slugCandidate;
+
+        const payload = {
+          schemaVersion: '2024-05',
+          slug: slugCandidate,
+          type: 'video',
+          channel: 'g',
+          display: {
+            socialTitle: fallbackTitle,
+            cardTitle: fallbackTitle,
+            summary: fallbackTitle,
+            runtimeSec: 0,
+          },
+          media: {
+            assetUrl: destinationUrl,
+            orientation: 'landscape',
+          },
+          links: {
+            smartLinkUrl: destinationUrl,
+          },
+          timestamps: {
+            publishedAt: new Date().toISOString(),
+          },
+          metrics: {
+            likes: 0,
+            views: 0,
+          },
+          source: { origin: 'Gofile' },
+        };
+
+        const res = await fetch(`/api/admin/register${qs}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`메타 저장 실패: ${err.error || res.status}`);
+          return false;
+        }
+
+        setTitle('');
+        setChannel('g');
+        setExternalSource('');
+        setCardStyle('summary_large_image');
+        refreshAll();
+        return true;
+      } catch (error) {
+        console.error('Gofile register failed', error);
+        alert('등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return false;
+      } finally {
+        setIsRegisteringExternal(false);
+      }
+    }
+
+    alert('지원하지 않는 채널입니다. 채널을 다시 선택해 주세요.');
+    return false;
   }, [channel, externalSource, hasToken, qs, refreshAll, title]);
 
   const uploadFormState = useMemo(

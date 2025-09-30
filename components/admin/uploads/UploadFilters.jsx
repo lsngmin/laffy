@@ -9,6 +9,7 @@ const CHANNEL_TABS = [
   { value: 'l', label: 'L 채널' },
   { value: 'x', label: 'X 채널' },
   { value: 'k', label: 'K 채널' },
+  { value: 'g', label: 'Gofile 채널' },
 ];
 
 export default function UploadFilters({

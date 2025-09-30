@@ -4,7 +4,7 @@ import { del } from '@vercel/blob';
 function parseChannel(value) {
   if (typeof value !== 'string') return '';
   const normalized = value.trim().toLowerCase();
-  return ['x', 'l', 'k'].includes(normalized) ? normalized : '';
+  return ['x', 'l', 'k', 'g'].includes(normalized) ? normalized : '';
 }
 
 export default async function handler(req, res) {
