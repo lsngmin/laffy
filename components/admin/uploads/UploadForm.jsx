@@ -25,12 +25,12 @@ export default function UploadForm({
   const uploadHint = isKChannel
     ? '플레이어 카드와 공유 썸네일로 사용할 이미지를 업로드하세요. 동영상은 외부 CDN 주소를 통해 재생됩니다.'
     : '이미지 또는 영상을 업로드하면 즉시 메타 정보가 저장됩니다.';
-  const externalLabel = isGChannel ? 'Gofile 슬러그 또는 URL' : '외부 CDN 동영상 URL';
+  const externalLabel = isGChannel ? '자동 생성됨' : '외부 CDN 동영상 URL';
   const externalPlaceholder = isGChannel
-    ? '예) Y902fw 또는 https://gofile.io/d/Y902fw'
+    ? '자동으로 스마트링크가 연결됩니다'
     : 'https://cdn.example.com/path/to/video.mp4';
   const externalHint = isGChannel
-    ? '고파일에서 발급받은 슬러그(또는 전체 URL)를 입력하면 자동으로 리다이렉트 경로가 만들어집니다.'
+    ? '고파일 채널은 제목만 입력하면 기존 스마트링크로 자동 연결됩니다.'
     : '실제 재생에 사용될 스트리밍 주소를 입력하세요. 비워두면 업로드된 파일 URL이 사용됩니다.';
   const showUploader = !isGChannel;
   const showCardStyleSelector = channel === 'l';
@@ -70,18 +70,20 @@ export default function UploadForm({
             <option value="g">Gofile 채널</option>
           </select>
         </label>
-        <label className="group flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4 transition hover:border-sky-500/40">
-          <span className="text-xs font-medium text-slate-300">{externalLabel}</span>
-          <input
-            disabled={!hasToken}
-            type={isGChannel ? 'text' : 'url'}
-            placeholder={externalPlaceholder}
-            value={externalSource}
-            onChange={(event) => onExternalSourceChange(event.target.value)}
-            className="w-full rounded-lg border border-slate-800/40 bg-black/40 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-500/60 group-hover:border-sky-400/40 disabled:opacity-40"
-          />
-          <span className="text-xs text-slate-500">{externalHint}</span>
-        </label>
+        {!isGChannel && (
+          <label className="group flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4 transition hover:border-sky-500/40">
+            <span className="text-xs font-medium text-slate-300">{externalLabel}</span>
+            <input
+              disabled={!hasToken}
+              type="url"
+              placeholder={externalPlaceholder}
+              value={externalSource}
+              onChange={(event) => onExternalSourceChange(event.target.value)}
+              className="w-full rounded-lg border border-slate-800/40 bg-black/40 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-500/60 group-hover:border-sky-400/40 disabled:opacity-40"
+            />
+            <span className="text-xs text-slate-500">{externalHint}</span>
+          </label>
+        )}
         {showCardStyleSelector && (
           <div className="grid gap-3 rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
             <span className="text-xs font-medium text-slate-300">트위터 카드 썸네일 형태</span>
@@ -152,7 +154,7 @@ export default function UploadForm({
         <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-900/50 p-5 text-sm text-slate-300">
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Gofile 링크 등록 안내</p>
           <p className="text-sm leading-relaxed text-slate-400">
-            Gofile 채널은 슬러그만 입력하면 자동으로 <span className="font-semibold text-slate-200">https://gofile.io/d/&lt;슬러그&gt;</span> 로 연결되는 짧은 링크가 생성됩니다.
+            Gofile 채널은 다운로드 URL만 등록하면 <span className="font-semibold text-slate-200">https://gofile.io/d/…</span> 경로로 연결되는 고유한 리다이렉트 주소가 자동으로 생성됩니다.
           </p>
         </div>
       )}
@@ -170,7 +172,11 @@ export default function UploadForm({
           <button
             type="button"
             onClick={onRegisterExternal}
-            disabled={!hasToken || !externalSource?.trim() || isRegisteringExternal}
+            disabled={
+              !hasToken
+              || isRegisteringExternal
+              || (isKChannel && !externalSource?.trim())
+            }
             className="rounded-xl border border-sky-500/60 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isRegisteringExternal

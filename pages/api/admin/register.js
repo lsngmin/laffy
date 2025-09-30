@@ -1,8 +1,10 @@
 import { assertAdmin } from './_auth';
-import { put } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
+import { randomBytes } from 'crypto';
 import normalizeMeta, { normalizeTimestamp } from '../../../lib/admin/normalizeMeta';
 
 const VALID_ORIENTATIONS = new Set(['landscape', 'portrait', 'square']);
+const SLUG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 function parseString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -40,8 +42,53 @@ function sanitizeOrientation(value) {
 
 function parseChannel(value) {
   const normalized = parseString(value).toLowerCase();
-  if (normalized === 'l' || normalized === 'k') return normalized;
+  if (normalized === 'l' || normalized === 'k' || normalized === 'g') return normalized;
   return 'x';
+}
+
+function generateRandomSlug(length = 6) {
+  try {
+    const bytes = randomBytes(length);
+    let result = '';
+    for (let i = 0; i < length; i += 1) {
+      result += SLUG_ALPHABET[bytes[i] % SLUG_ALPHABET.length];
+    }
+    return result;
+  } catch (error) {
+    console.error('Failed to generate random slug via crypto.randomBytes, fallback to Math.random', error);
+    let result = '';
+    for (let i = 0; i < length; i += 1) {
+      result += SLUG_ALPHABET[Math.floor(Math.random() * SLUG_ALPHABET.length)];
+    }
+    return result;
+  }
+}
+
+async function isSlugTaken(folder, slug) {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return false;
+  try {
+    const { blobs } = await list({
+      prefix: `content/${folder}/${slug}.json`,
+      token,
+      limit: 1,
+    });
+    return Array.isArray(blobs) && blobs.length > 0;
+  } catch (error) {
+    console.error('Failed to verify slug availability', error);
+    return false;
+  }
+}
+
+async function generateUniqueSlug(folder, attempt = 0) {
+  if (attempt >= 20) {
+    throw new Error('Unable to allocate unique slug');
+  }
+  const candidate = generateRandomSlug();
+  if (await isSlugTaken(folder, candidate)) {
+    return generateUniqueSlug(folder, attempt + 1);
+  }
+  return candidate;
 }
 
 export default async function handler(req, res) {
@@ -70,8 +117,7 @@ export default async function handler(req, res) {
     const existingMetrics = isObject(existingMeta?.metrics) ? existingMeta.metrics : {};
     const existingTimestamps = isObject(existingMeta?.timestamps) ? existingMeta.timestamps : {};
 
-    const slug = pickFirstString([body.slug, normalizedExisting?.slug, existingMeta?.slug]);
-    if (!slug) return res.status(400).json({ error: 'Missing slug' });
+    let slug = pickFirstString([body.slug, normalizedExisting?.slug, existingMeta?.slug]);
 
     const displayPayload = isObject(body.display) ? body.display : {};
     const mediaPayload = isObject(body.media) ? body.media : {};
@@ -246,6 +292,12 @@ export default async function handler(req, res) {
       return { origin: 'Blob' };
     })();
 
+    const folder = effectiveType === 'image' ? 'images' : 'videos';
+
+    if (!slug) {
+      slug = await generateUniqueSlug(folder);
+    }
+
     const meta = {
       schemaVersion: '2024-05',
       slug,
@@ -284,7 +336,13 @@ export default async function handler(req, res) {
       meta.timeline = timeline;
     }
 
-    const folder = effectiveType === 'image' ? 'images' : 'videos';
+    if (isObject(body.links)) {
+      meta.links = { ...body.links };
+    }
+
+    if (isObject(body.share)) {
+      meta.share = { ...body.share };
+    }
 
     let keyFromMetaUrl = null;
     if (metaUrl) {
@@ -316,6 +374,9 @@ export default async function handler(req, res) {
     } else if (channel === 'k') {
       revalidateTargets.add('/k');
       revalidateTargets.add(`/k/${slug}`);
+    } else if (channel === 'g') {
+      revalidateTargets.add('/gofile.io');
+      revalidateTargets.add(`/gofile.io/${slug}`);
     } else if (effectiveType === 'image') {
       revalidateTargets.add('/x');
       revalidateTargets.add(`/x/${slug}`);

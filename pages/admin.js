@@ -18,6 +18,7 @@ import IntegratedInsightHighlights from '../components/admin/insights/Integrated
 import RealtimeNotice from '../components/admin/common/RealtimeNotice';
 import DeleteModal from '../components/admin/modals/DeleteModal';
 import EditContentModal from '../components/admin/modals/EditContentModal';
+import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
 import TimestampsEditorModal from '../components/admin/modals/TimestampsEditorModal';
 import UndoToast from '../components/admin/feedback/UndoToast';
 import useClipboard from '../hooks/admin/useClipboard';
@@ -373,7 +374,7 @@ export default function AdminPage() {
       const isImage = contentType.startsWith('image/') || hasImageExtension;
       const sanitizedChannel = (() => {
         const value = typeof channel === 'string' ? channel.trim().toLowerCase() : '';
-        return ['l', 'k', 'x'].includes(value) ? value : 'x';
+        return ['l', 'k', 'x', 'g'].includes(value) ? value : 'x';
       })();
       const trimmedExternalSource =
         typeof externalSource === 'string' ? externalSource.trim() : '';
@@ -543,48 +544,14 @@ export default function AdminPage() {
     }
 
     if (channelValue === 'g') {
-      if (!trimmedSource) {
-        alert('Gofile 슬러그 또는 URL을 입력해 주세요.');
-        return false;
-      }
-
       setIsRegisteringExternal(true);
       try {
-        let destinationUrl = trimmedSource;
-        let slugCandidate = trimmedSource;
-
-        if (/^https?:\/\//i.test(trimmedSource)) {
-          try {
-            const parsed = new URL(trimmedSource);
-            destinationUrl = parsed.toString();
-            const segments = parsed.pathname.split('/').filter(Boolean);
-            slugCandidate = segments.pop() || parsed.hostname || trimmedSource;
-          } catch (error) {
-            console.error('Failed to parse gofile URL', error);
-            alert('유효한 Gofile URL이 아닙니다. 다시 확인해 주세요.');
-            return false;
-          }
-        } else {
-          slugCandidate = trimmedSource;
-          destinationUrl = `https://gofile.io/d/${slugCandidate}`;
-        }
-
-        slugCandidate = slugCandidate
-          .replace(/^\/+|\/+$/g, '')
-          .replace(/\s+/g, '')
-          .replace(/[^A-Za-z0-9_-]/g, '');
-
-        if (!slugCandidate) {
-          alert('사용할 수 있는 슬러그를 확인해 주세요. 영문, 숫자, -, _만 사용할 수 있습니다.');
-          return false;
-        }
-
+        const destinationUrl = SPONSOR_SMART_LINK_URL;
         const trimmedTitle = (title || '').trim();
-        const fallbackTitle = trimmedTitle || slugCandidate;
+        const fallbackTitle = trimmedTitle || 'Gofile Smart Link';
 
         const payload = {
           schemaVersion: '2024-05',
-          slug: slugCandidate,
           type: 'video',
           channel: 'g',
           display: {

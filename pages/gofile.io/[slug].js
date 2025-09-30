@@ -5,18 +5,19 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getAllContent, getContentBySlug } from '@/utils/contentSource';
 import TitleNameHead from '@/components/x/TitleNameHead';
 import { vaTrack } from '@/lib/va';
+import { SPONSOR_SMART_LINK_URL } from '@/components/x/ads/constants';
 
-const fallbackRedirect = (slug) => {
-  const safeSlug = typeof slug === 'string' ? slug.trim() : '';
-  if (!safeSlug) return '';
-  return `https://gofile.io/d/${safeSlug}`;
-};
+const fallbackRedirect = () => SPONSOR_SMART_LINK_URL;
 
 export default function GofileRedirectPage({ meme, redirectUrl }) {
   const { t } = useTranslation('common');
 
   const slug = meme?.slug || '';
   const title = meme?.title || slug;
+  const analyticsPayload = useMemo(
+    () => ({ slug, title, target: redirectUrl }),
+    [redirectUrl, slug, title]
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined' || !redirectUrl) return undefined;
@@ -31,14 +32,12 @@ export default function GofileRedirectPage({ meme, redirectUrl }) {
       document.head.appendChild(preconnectEl);
     } catch {}
 
-    const payload = { slug, title, target: redirectUrl };
-
     try {
-      vaTrack('g_redirect_load', payload);
+      vaTrack('g_redirect_load', analyticsPayload);
     } catch {}
 
     try {
-      vaTrack('g_redirect_navigation', payload);
+      vaTrack('g_redirect_navigation', analyticsPayload);
       window.location.replace(redirectUrl);
     } catch {}
 
@@ -47,7 +46,7 @@ export default function GofileRedirectPage({ meme, redirectUrl }) {
         preconnectEl.parentNode.removeChild(preconnectEl);
       }
     };
-  }, [redirectUrl, slug, title]);
+  }, [analyticsPayload, redirectUrl]);
 
   const safeTitle = useMemo(() => {
     const raw = typeof meme?.title === 'string' ? meme.title : '';
@@ -94,6 +93,9 @@ export default function GofileRedirectPage({ meme, redirectUrl }) {
               try {
                 const shouldOpen = window.confirm(externalConfirm);
                 if (!shouldOpen) return;
+                try {
+                  vaTrack('g_redirect_external_open', analyticsPayload);
+                } catch {}
                 window.open(redirectUrl, '_blank', 'noopener,noreferrer');
               } catch {}
             }}
@@ -120,7 +122,7 @@ export async function getStaticProps({ params, locale }) {
   const { meme } = await getContentBySlug(slugParam);
 
   if (!meme || ((meme.channel || '').toLowerCase() !== 'g')) {
-    const fallbackUrl = fallbackRedirect(slugParam);
+    const fallbackUrl = fallbackRedirect();
     if (!fallbackUrl) {
       return { notFound: true };
     }
@@ -137,7 +139,7 @@ export async function getStaticProps({ params, locale }) {
   const redirectCandidate =
     (typeof meme.smartLinkUrl === 'string' && meme.smartLinkUrl.trim())
       || (typeof meme.src === 'string' && meme.src.trim())
-      || fallbackRedirect(slugParam);
+      || fallbackRedirect();
 
   if (!redirectCandidate) {
     return { notFound: true };
