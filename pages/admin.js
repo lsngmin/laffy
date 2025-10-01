@@ -136,7 +136,12 @@ export default function AdminPage() {
     if (uploadFilters.search.trim()) params.set('search', uploadFilters.search.trim());
     if (uploadFilters.type) params.set('type', uploadFilters.type);
     if (uploadFilters.sort && uploadFilters.sort !== 'recent') params.set('sort', uploadFilters.sort);
-    if (uploadFilters.channel) params.set('channel', uploadFilters.channel);
+    if (uploadFilters.channel) {
+      params.set('channel', uploadFilters.channel);
+      if (uploadFilters.channel === 'l') {
+        params.set('disablePagination', 'true');
+      }
+    }
     const serialized = params.toString();
     return serialized ? `?${serialized}` : '';
   }, [hasToken, token, uploadFilters]);

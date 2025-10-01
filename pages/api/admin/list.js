@@ -8,6 +8,8 @@ const MAX_LIMIT = 60;
 const BASE_MAX_ITERATIONS = 40;
 
 const VALID_SORTS = new Set(['recent', 'title', 'duration']);
+const UNPAGINATED_PAGE_LIMIT = 200;
+const UNPAGINATED_ITERATION_MULTIPLIER = 10;
 
 function parseDateToMs(value) {
   if (!value) return 0;
@@ -75,6 +77,12 @@ function parseChannel(value) {
   if (typeof value !== 'string') return '';
   const normalized = value.trim().toLowerCase();
   return ['x', 'l', 'k', 'g'].includes(normalized) ? normalized : '';
+}
+
+function parseDisablePagination(value) {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 
 function matchesFilters(item, filters) {
@@ -199,16 +207,25 @@ export default async function handler(req, res) {
   const orientation = parseOrientation(req.query.orientation);
   const sort = parseSort(req.query.sort);
   const channel = parseChannel(req.query.channel);
+  const disablePagination = channel === 'l' || parseDisablePagination(req.query.disablePagination);
 
   const filters = { search, type, orientation, channel };
   const isFiltered = Boolean(search || type || orientation || channel);
-  const pageFetchLimit = isFiltered
-    ? Math.min(MAX_LIMIT, Math.max(limit * 5, 30))
-    : Math.min(MAX_LIMIT, Math.max(limit, 12));
-  const targetCount = isFiltered
-    ? Math.min(MAX_LIMIT, Math.max(limit * 5, limit))
-    : Math.min(MAX_LIMIT, Math.max(limit * 3, limit));
-  const maxIterations = isFiltered ? BASE_MAX_ITERATIONS * 3 : BASE_MAX_ITERATIONS;
+  const pageFetchLimit = disablePagination
+    ? UNPAGINATED_PAGE_LIMIT
+    : isFiltered
+      ? Math.min(MAX_LIMIT, Math.max(limit * 5, 30))
+      : Math.min(MAX_LIMIT, Math.max(limit, 12));
+  const targetCount = disablePagination
+    ? Number.MAX_SAFE_INTEGER
+    : isFiltered
+      ? Math.min(MAX_LIMIT, Math.max(limit * 5, limit))
+      : Math.min(MAX_LIMIT, Math.max(limit * 3, limit));
+  const maxIterations = disablePagination
+    ? BASE_MAX_ITERATIONS * UNPAGINATED_ITERATION_MULTIPLIER
+    : isFiltered
+      ? BASE_MAX_ITERATIONS * 3
+      : BASE_MAX_ITERATIONS;
 
   try {
     const token = getBlobReadToken();
@@ -271,14 +288,16 @@ export default async function handler(req, res) {
       iterations += 1;
     }
 
-    const finalItems = sortItems(collected, sort).slice(0, limit);
-    const finalHasMore = hasMore || collected.length > limit;
+    const sortedItems = sortItems(collected, sort);
+    const finalItems = disablePagination ? sortedItems : sortedItems.slice(0, limit);
+    let finalNextCursor = disablePagination ? null : nextCursor;
+    const finalHasMore = disablePagination ? false : hasMore || collected.length > limit;
 
-    if (!nextCursor && finalHasMore && lastValidCursor) {
-      nextCursor = lastValidCursor;
+    if (!disablePagination && !finalNextCursor && finalHasMore && lastValidCursor) {
+      finalNextCursor = lastValidCursor;
     }
 
-    res.status(200).json({ items: finalItems, nextCursor, hasMore: finalHasMore });
+    res.status(200).json({ items: finalItems, nextCursor: finalNextCursor, hasMore: finalHasMore });
   } catch (e) {
     res.status(500).json({ error: 'Failed to list content' });
   }
