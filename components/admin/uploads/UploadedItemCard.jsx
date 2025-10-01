@@ -8,6 +8,8 @@ export default function UploadedItemCard({
   onCopy,
   onEdit,
   onDelete,
+  onMoveToPending,
+  moveToPendingStatus = 'idle',
   selectable = false,
   selected = false,
   onToggleSelect = () => {},
@@ -79,6 +81,8 @@ export default function UploadedItemCard({
           onCopy={onCopy}
           onEdit={onEdit}
           onDelete={onDelete}
+          onMoveToPending={onMoveToPending}
+          moveToPendingStatus={moveToPendingStatus}
         />
       </div>
     </div>

@@ -182,6 +182,7 @@ export default function AdminPage() {
   const [eventFilters, setEventFilters] = useState({ eventName: '', slug: '' });
   const [publishingSlug, setPublishingSlug] = useState('');
   const [pendingFeedback, setPendingFeedback] = useState({ status: 'idle', message: '' });
+  const [requeueState, setRequeueState] = useState({ status: 'idle', message: '', slug: '' });
 
   const clearPendingFeedback = useCallback(() => {
     setPendingFeedback({ status: 'idle', message: '' });
@@ -191,6 +192,23 @@ export default function AdminPage() {
     () => ({ ...pendingFeedback, onClear: clearPendingFeedback }),
     [pendingFeedback, clearPendingFeedback]
   );
+
+  const clearRequeueState = useCallback(() => {
+    setRequeueState((prev) => (prev.status === 'pending' ? prev : { status: 'idle', message: '', slug: '' }));
+  }, []);
+
+  const requeueFeedback = useMemo(
+    () => ({ ...requeueState, onClear: clearRequeueState }),
+    [requeueState, clearRequeueState]
+  );
+
+  useEffect(() => {
+    if (requeueState.status !== 'success') return undefined;
+    const timer = setTimeout(() => {
+      setRequeueState((prev) => (prev.status === 'success' ? { status: 'idle', message: '', slug: '' } : prev));
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [requeueState.status]);
 
   useEffect(() => {
     if (!pendingError) return;
@@ -694,6 +712,60 @@ export default function AdminPage() {
     [hasToken, qs, refreshPending, refreshUploads, setPendingItems]
   );
 
+  const handleMoveToPending = useCallback(
+    async (item) => {
+      if (!hasToken || !item) return;
+      const targetSlug = typeof item.slug === 'string' ? item.slug : '';
+      const targetPath = typeof item.pathname === 'string' ? item.pathname : '';
+      const targetUrl = typeof item.url === 'string' ? item.url : '';
+
+      if (!targetSlug || (!targetPath && !targetUrl)) {
+        setRequeueState({ status: 'error', message: '게시 대기 전환에 필요한 정보를 찾지 못했습니다.', slug: targetSlug });
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        const confirmed = window.confirm(
+          `${item.title || targetSlug}을(를) 게시 대기 상태로 이동할까요? 기존 게시 목록에서 제거됩니다.`
+        );
+        if (!confirmed) return;
+      }
+
+      setRequeueState({ status: 'pending', message: `${item.title || targetSlug}을(를) 게시 대기로 이동 중…`, slug: targetSlug });
+
+      try {
+        const res = await fetch(`/api/admin/pending/requeue${qs}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: targetSlug, pathname: targetPath, url: targetUrl }),
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          const message = payload?.error || `게시 대기 전환 실패: ${res.status}`;
+          setRequeueState({ status: 'error', message, slug: targetSlug });
+          return;
+        }
+
+        await Promise.all([refreshUploads(), refreshPending()]);
+
+        setRequeueState({
+          status: 'success',
+          message: `${item.title || targetSlug}을(를) 게시 대기 상태로 이동했어요.`,
+          slug: targetSlug,
+        });
+      } catch (error) {
+        console.error('Failed to move item to pending', error);
+        setRequeueState({
+          status: 'error',
+          message: '게시 대기 전환에 실패했어요. 잠시 후 다시 시도해 주세요.',
+          slug: targetSlug,
+        });
+      }
+    },
+    [hasToken, qs, refreshPending, refreshUploads]
+  );
+
   const uploadFormState = useMemo(
     () => ({
       title,
@@ -812,6 +884,8 @@ export default function AdminPage() {
           isLoadingPending={isLoadingPending}
           publishingSlug={publishingSlug}
           pendingFeedback={pendingFeedbackWithHandler}
+          onMoveToPending={handleMoveToPending}
+          requeueFeedback={requeueFeedback}
         />
       );
     }

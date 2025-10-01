@@ -2,30 +2,10 @@ import { assertAdmin } from '../_auth';
 import { del, list, put } from '@vercel/blob';
 import normalizeMeta from '@/lib/admin/normalizeMeta';
 import { generateUniqueSlug, isSlugTaken } from '@/lib/admin/slug';
+import buildRevalidateTargets from '@/lib/admin/revalidateTargets';
 
 function parseString(value) {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function buildRevalidateTargets(channel, type, slug) {
-  const targets = new Set();
-  if (channel === 'l') {
-    targets.add('/l');
-    if (slug) targets.add(`/l/${slug}`);
-  } else if (channel === 'k') {
-    targets.add('/k');
-    if (slug) targets.add(`/k/${slug}`);
-  } else if (channel === 'g') {
-    targets.add('/gofile.io/d');
-    if (slug) targets.add(`/gofile.io/d/${slug}`);
-  } else if (type === 'image') {
-    targets.add('/x');
-    if (slug) targets.add(`/x/${slug}`);
-  } else {
-    targets.add('/m');
-    if (slug) targets.add(`/m/${slug}`);
-  }
-  return Array.from(targets);
 }
 
 export default async function handler(req, res) {
