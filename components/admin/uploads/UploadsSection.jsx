@@ -3,6 +3,7 @@ import UploadFilters from './UploadFilters';
 import UploadForm from './UploadForm';
 import UploadedItemCard from './UploadedItemCard';
 import buildRegisterPayload from '@/lib/admin/buildRegisterPayload';
+import PendingUploadsPanel from './PendingUploadsPanel';
 
 export default function UploadsSection({
   hasToken,
@@ -23,6 +24,12 @@ export default function UploadsSection({
   filters,
   onFiltersChange,
   tokenQueryString,
+  pendingItems = [],
+  onRefreshPending,
+  onPublishPending,
+  isLoadingPending = false,
+  publishingSlug = '',
+  pendingFeedback = null,
 }) {
   const queryString = typeof tokenQueryString === 'string' ? tokenQueryString : '';
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -32,6 +39,7 @@ export default function UploadsSection({
   const [bulkTagForm, setBulkTagForm] = useState({ type: '' });
   const [isTagSubmitting, setIsTagSubmitting] = useState(false);
   const handleRefresh = onRefresh || (() => {});
+  const handleRefreshPending = onRefreshPending || (() => {});
   const handleLoadMore = onLoadMore || (() => {});
 
   const {
@@ -295,13 +303,25 @@ export default function UploadsSection({
 
   return (
     <section className="space-y-6 animate-fade-slide">
+      {hasToken && (
+        <PendingUploadsPanel
+          items={pendingItems}
+          isLoading={isLoadingPending}
+          onRefresh={handleRefreshPending}
+          onPublish={onPublishPending}
+          onDelete={onDelete}
+          hasToken={hasToken}
+          publishingSlug={publishingSlug}
+          publishFeedback={pendingFeedback}
+        />
+      )}
       <div className="space-y-6 rounded-3xl border border-slate-800/60 bg-gradient-to-r from-[#050916]/90 via-[#060b1c]/80 to-[#0a1124]/90 p-6 shadow-lg shadow-cyan-900/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.48em] text-slate-400">콘텐츠 관리</p>
             <h2 className="text-2xl font-semibold text-slate-50">업로드한 자료를 한눈에 살펴보세요</h2>
             <p className="text-sm text-slate-300">
-              {activeChannelLabel} {items.length}개를 손쉽게 정리하고 공유할 수 있어요.
+              {activeChannelLabel} {items.length}개를 손쉽게 정리하고 공유할 수 있어요. 게시된 목록만 집계합니다.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

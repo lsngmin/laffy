@@ -1,10 +1,9 @@
 import { assertAdmin } from './_auth';
-import { put, list } from '@vercel/blob';
-import { randomBytes } from 'crypto';
+import { put } from '@vercel/blob';
 import normalizeMeta, { normalizeTimestamp } from '../../../lib/admin/normalizeMeta';
+import { generateUniqueSlug } from '@/lib/admin/slug';
 
 const VALID_ORIENTATIONS = new Set(['landscape', 'portrait', 'square']);
-const SLUG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 function parseString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -44,51 +43,6 @@ function parseChannel(value) {
   const normalized = parseString(value).toLowerCase();
   if (normalized === 'l' || normalized === 'k' || normalized === 'g') return normalized;
   return 'x';
-}
-
-function generateRandomSlug(length = 6) {
-  try {
-    const bytes = randomBytes(length);
-    let result = '';
-    for (let i = 0; i < length; i += 1) {
-      result += SLUG_ALPHABET[bytes[i] % SLUG_ALPHABET.length];
-    }
-    return result;
-  } catch (error) {
-    console.error('Failed to generate random slug via crypto.randomBytes, fallback to Math.random', error);
-    let result = '';
-    for (let i = 0; i < length; i += 1) {
-      result += SLUG_ALPHABET[Math.floor(Math.random() * SLUG_ALPHABET.length)];
-    }
-    return result;
-  }
-}
-
-async function isSlugTaken(folder, slug) {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) return false;
-  try {
-    const { blobs } = await list({
-      prefix: `content/${folder}/${slug}.json`,
-      token,
-      limit: 1,
-    });
-    return Array.isArray(blobs) && blobs.length > 0;
-  } catch (error) {
-    console.error('Failed to verify slug availability', error);
-    return false;
-  }
-}
-
-async function generateUniqueSlug(folder, attempt = 0) {
-  if (attempt >= 20) {
-    throw new Error('Unable to allocate unique slug');
-  }
-  const candidate = generateRandomSlug();
-  if (await isSlugTaken(folder, candidate)) {
-    return generateUniqueSlug(folder, attempt + 1);
-  }
-  return candidate;
 }
 
 export default async function handler(req, res) {
@@ -295,8 +249,11 @@ export default async function handler(req, res) {
     const folder = effectiveType === 'image' ? 'images' : 'videos';
 
     if (!slug) {
-      slug = await generateUniqueSlug(folder);
+      slug = await generateUniqueSlug(folder, { includePending: true });
     }
+
+    const statusValue = typeof body.status === 'string' ? body.status.trim().toLowerCase() : '';
+    const isPending = statusValue === 'pending' || body.pending === true;
 
     const meta = {
       schemaVersion: '2024-05',
@@ -344,6 +301,25 @@ export default async function handler(req, res) {
       meta.share = { ...body.share };
     }
 
+    if (isPending) {
+      meta.status = 'pending';
+      const nowIso = new Date().toISOString();
+      const timestampsBlock =
+        meta && typeof meta.timestamps === 'object' && !Array.isArray(meta.timestamps)
+          ? meta.timestamps
+          : {};
+      if (!timestampsBlock.pendingAt) {
+        timestampsBlock.pendingAt = nowIso;
+      }
+      if (!timestampsBlock.updatedAt) {
+        timestampsBlock.updatedAt = nowIso;
+      }
+      if (timestampsBlock.publishedAt) {
+        delete timestampsBlock.publishedAt;
+      }
+      meta.timestamps = { ...timestampsBlock };
+    }
+
     let keyFromMetaUrl = null;
     if (metaUrl) {
       try {
@@ -357,7 +333,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const key = keyFromMetaUrl || `content/${folder}/${slug}.json`;
+    const key = keyFromMetaUrl || (isPending ? `content/pending/${slug}.json` : `content/${folder}/${slug}.json`);
 
     await put(key, JSON.stringify(meta, null, 2), {
       token: process.env.BLOB_READ_WRITE_TOKEN,
@@ -366,6 +342,10 @@ export default async function handler(req, res) {
       addRandomSuffix: false,
       allowOverwrite: true,
     });
+
+    if (isPending) {
+      return res.status(200).json({ ok: true, key, status: 'pending', slug });
+    }
 
     const revalidateTargets = new Set();
     if (channel === 'l') {
@@ -397,7 +377,7 @@ export default async function handler(req, res) {
       );
     }
 
-    res.status(200).json({ ok: true, key, revalidated: Array.from(revalidateTargets) });
+    res.status(200).json({ ok: true, key, revalidated: Array.from(revalidateTargets), slug });
   } catch (error) {
     console.error('Failed to register meta', error);
     res.status(500).json({ error: error?.message || 'Failed to register meta' });

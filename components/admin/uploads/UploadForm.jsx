@@ -23,8 +23,8 @@ export default function UploadForm({
     : 'image/jpeg,image/png,image/webp,video/mp4';
   const uploadHeading = isKChannel ? '썸네일 이미지 업로드' : '파일 업로드';
   const uploadHint = isKChannel
-    ? '플레이어 카드와 공유 썸네일로 사용할 이미지를 업로드하세요. 동영상은 외부 CDN 주소를 통해 재생됩니다.'
-    : '이미지 또는 영상을 업로드하면 즉시 메타 정보가 저장됩니다.';
+    ? '플레이어 카드와 공유 썸네일로 사용할 이미지를 업로드하세요. 검토 후 게시하기를 눌러 채널에 반영됩니다.'
+    : '이미지 또는 영상을 업로드하면 게시 대기 목록에 먼저 저장된 뒤 게시하기 버튼으로 채널에 반영됩니다.';
   const externalLabel = isGChannel ? '자동 생성됨' : '외부 CDN 동영상 URL';
   const externalPlaceholder = isGChannel
     ? '자동으로 스마트링크가 연결됩니다'
@@ -41,7 +41,7 @@ export default function UploadForm({
         <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-slate-300">콘텐츠 업로드</p>
         <h3 className="text-xl font-semibold text-slate-50">간편하게 새 콘텐츠를 등록하세요</h3>
         <p className="text-sm leading-relaxed text-slate-300">
-          제목과 채널만 지정하면 파일을 올리는 즉시 메타 정보가 자동으로 저장됩니다.
+          제목과 채널만 지정하면 새 업로드가 게시 대기 영역에 저장됩니다. 검토 후 게시하기 버튼을 눌러 주세요.
         </p>
       </div>
       <div className="space-y-4">

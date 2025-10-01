@@ -224,7 +224,10 @@ export default async function handler(req, res) {
       });
 
       const blobs = Array.isArray(response?.blobs)
-        ? response.blobs.filter((blob) => blob?.pathname?.endsWith('.json'))
+        ? response.blobs.filter(
+            (blob) =>
+              blob?.pathname?.endsWith('.json') && !blob.pathname.startsWith('content/pending/')
+          )
         : [];
 
       if (!blobs.length) {
