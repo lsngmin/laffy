@@ -21,7 +21,7 @@ export default function UploadedItemCard({
 
   return (
     <div
-      className={`group relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur transition-all duration-500 ease-out hover:-translate-y-1.5 hover:shadow-[0_25px_60px_rgba(15,23,42,0.55)] ${ringClass} animate-fade-slide`}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur transition-all duration-500 ease-out hover:-translate-y-1.5 hover:shadow-[0_25px_60px_rgba(15,23,42,0.55)] ${ringClass} animate-fade-slide`}
     >
       {selectable && (
         <div className="absolute left-4 top-4 z-20">
@@ -36,52 +36,50 @@ export default function UploadedItemCard({
           </label>
         </div>
       )}
-      <div className="grid gap-5 p-5 sm:grid-cols-[200px,1fr] lg:grid-cols-[260px,1fr]">
-        <div className="relative overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/80 shadow-inner shadow-slate-900/40 transition-all duration-500 group-hover:border-indigo-400/50">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/80 shadow-inner shadow-slate-900/40 transition-all duration-500 group-hover:border-indigo-400/50">
+        <div className="relative aspect-video w-full">
           {item.preview ? (
             <img
               src={item.preview}
               alt={item.title || item.slug}
-              className="h-48 w-full object-cover transition-transform duration-700 group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
           ) : (
-            <div className="grid h-48 place-items-center text-xs uppercase tracking-[0.3em] text-slate-500">No Preview</div>
+            <div className="grid h-full place-items-center text-xs uppercase tracking-[0.3em] text-slate-500">No Preview</div>
+          )}
+        </div>
+        {item._error && (
+          <span className="absolute right-3 top-3 rounded-full bg-rose-600/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-lg">
+            메타 오류
+          </span>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col justify-between gap-4 p-5">
+        <div className="space-y-3">
+          <div className="font-mono text-sm font-semibold tracking-tight text-cyan-200 sm:text-base">
+            {item.slug}
+          </div>
+          {item.title && <div className="text-sm font-medium text-slate-100">{item.title}</div>}
+          <UploadTagChips item={item} />
+          {item.routePath && (
+            <p className="truncate text-[11px] text-slate-400">
+              연결 경로: <span className="text-slate-300">{item.routePath}</span>
+            </p>
           )}
           {item._error && (
-            <span className="absolute right-3 top-3 rounded-full bg-rose-600/80 px-2 py-0.5 text-[11px] font-semibold text-white shadow-lg">
-              메타 오류
-            </span>
+            <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-[12px] text-rose-200">
+              메타 데이터를 불러오지 못했어요. JSON 파일을 확인해 주세요.
+            </p>
           )}
         </div>
-        <div className="flex flex-col justify-between gap-3">
-          <div className="space-y-3">
-            <div className="font-mono text-base font-semibold tracking-tight text-cyan-200">
-              {item.slug}
-            </div>
-            {item.title && (
-              <div className="text-sm font-medium text-slate-100">{item.title}</div>
-            )}
-            <UploadTagChips item={item} />
-            {item.routePath && (
-              <p className="truncate text-[11px] text-slate-400">
-                연결 경로: <span className="text-slate-300">{item.routePath}</span>
-              </p>
-            )}
-            {item._error && (
-              <p className="rounded-xl bg-rose-500/10 px-3 py-2 text-[12px] text-rose-200">
-                메타 데이터를 불러오지 못했어요. JSON 파일을 확인해 주세요.
-              </p>
-            )}
-          </div>
-          <UploadedItemActions
-            item={item}
-            hasToken={hasToken}
-            copied={copied}
-            onCopy={onCopy}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        </div>
+        <UploadedItemActions
+          item={item}
+          hasToken={hasToken}
+          copied={copied}
+          onCopy={onCopy}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       </div>
     </div>
   );
