@@ -23,6 +23,7 @@ import TimestampsEditorModal from '../components/admin/modals/TimestampsEditorMo
 import UndoToast from '../components/admin/feedback/UndoToast';
 import useClipboard from '../hooks/admin/useClipboard';
 import useAdminItems from '../hooks/admin/useAdminItems';
+import usePendingUploads from '../hooks/admin/usePendingUploads';
 import useAdsterraStats, { ADSTERRA_ALL_PLACEMENTS_VALUE } from '../hooks/admin/useAdsterraStats';
 import useEventAnalytics from '../hooks/admin/useEventAnalytics';
 import useAdminModals from '../hooks/admin/useAdminModals';
@@ -163,14 +164,41 @@ export default function AdminPage() {
     isLoadingMore,
     error: itemsError,
   } = useAdminItems({ enabled: hasToken, queryString: uploadsQueryString, pageSize: 6 });
+  const {
+    items: pendingItems,
+    setItems: setPendingItems,
+    refresh: refreshPending,
+    isLoading: isLoadingPending,
+    error: pendingError,
+  } = usePendingUploads({ enabled: hasToken, queryString: qs });
   const refreshAll = useCallback(() => {
     refreshUploads();
-  }, [refreshUploads]);
+    refreshPending();
+  }, [refreshUploads, refreshPending]);
   const { copiedSlug, copy } = useClipboard();
 
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
   const [eventFilters, setEventFilters] = useState({ eventName: '', slug: '' });
+  const [publishingSlug, setPublishingSlug] = useState('');
+  const [pendingFeedback, setPendingFeedback] = useState({ status: 'idle', message: '' });
+
+  const clearPendingFeedback = useCallback(() => {
+    setPendingFeedback({ status: 'idle', message: '' });
+  }, []);
+
+  const pendingFeedbackWithHandler = useMemo(
+    () => ({ ...pendingFeedback, onClear: clearPendingFeedback }),
+    [pendingFeedback, clearPendingFeedback]
+  );
+
+  useEffect(() => {
+    if (!pendingError) return;
+    setPendingFeedback({
+      status: 'error',
+      message: '게시 대기 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
+    });
+  }, [pendingError]);
 
   const eventAnalytics = useEventAnalytics({
     enabled: hasToken && view === 'events',
@@ -398,6 +426,7 @@ export default function AdminPage() {
         const trimmedTitle = (title || '').trim();
         const fallbackTitle = trimmedTitle || slug;
 
+        const nowIso = new Date().toISOString();
         const payload = {
           schemaVersion: '2024-05',
           slug,
@@ -413,7 +442,8 @@ export default function AdminPage() {
             assetUrl,
           },
           timestamps: {
-            publishedAt: new Date().toISOString(),
+            pendingAt: nowIso,
+            updatedAt: nowIso,
           },
           metrics: {
             likes: 0,
@@ -421,6 +451,8 @@ export default function AdminPage() {
           },
           source: { origin: externalAssetUrl ? 'External CDN' : 'Blob' },
         };
+
+        payload.status = 'pending';
 
         payload.share = { ...(payload.share || {}), cardType: safeCardStyle };
 
@@ -490,6 +522,7 @@ export default function AdminPage() {
         const slug = await generateSlug({ pathname: trimmedSource, url: trimmedSource });
         const trimmedTitle = (title || '').trim();
         const fallbackTitle = trimmedTitle || slug;
+        const nowIso = new Date().toISOString();
 
         const payload = {
           schemaVersion: '2024-05',
@@ -507,7 +540,8 @@ export default function AdminPage() {
             orientation: 'landscape',
           },
           timestamps: {
-            publishedAt: new Date().toISOString(),
+            pendingAt: nowIso,
+            updatedAt: nowIso,
           },
           metrics: {
             likes: 0,
@@ -515,6 +549,8 @@ export default function AdminPage() {
           },
           source: { origin: 'External CDN' },
         };
+
+        payload.status = 'pending';
 
         const res = await fetch(`/api/admin/register${qs}`, {
           method: 'POST',
@@ -549,6 +585,7 @@ export default function AdminPage() {
         const destinationUrl = SPONSOR_SMART_LINK_URL;
         const trimmedTitle = (title || '').trim();
         const fallbackTitle = trimmedTitle || 'Gofile Smart Link';
+        const nowIso = new Date().toISOString();
 
         const payload = {
           schemaVersion: '2024-05',
@@ -568,7 +605,8 @@ export default function AdminPage() {
             smartLinkUrl: destinationUrl,
           },
           timestamps: {
-            publishedAt: new Date().toISOString(),
+            pendingAt: nowIso,
+            updatedAt: nowIso,
           },
           metrics: {
             likes: 0,
@@ -576,6 +614,8 @@ export default function AdminPage() {
           },
           source: { origin: 'Gofile' },
         };
+
+        payload.status = 'pending';
 
         const res = await fetch(`/api/admin/register${qs}`, {
           method: 'POST',
@@ -607,6 +647,52 @@ export default function AdminPage() {
     alert('지원하지 않는 채널입니다. 채널을 다시 선택해 주세요.');
     return false;
   }, [channel, externalSource, hasToken, qs, refreshAll, title]);
+
+  const handlePublishPending = useCallback(
+    async (item) => {
+      if (!hasToken || !item) return;
+      const targetSlug = typeof item.slug === 'string' ? item.slug : '';
+      if (!targetSlug) {
+        setPendingFeedback({ status: 'error', message: '게시할 항목의 슬러그를 찾지 못했습니다.' });
+        return;
+      }
+
+      setPublishingSlug(targetSlug);
+      setPendingFeedback({ status: 'pending', message: '' });
+
+      try {
+        const res = await fetch(`/api/admin/pending/publish${qs}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: targetSlug }),
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          const message = payload?.error || `게시 실패: ${res.status}`;
+          setPendingFeedback({ status: 'error', message });
+          return;
+        }
+
+        setPendingItems((prev) => prev.filter((pending) => pending.slug !== targetSlug));
+        await Promise.all([refreshPending(), refreshUploads()]);
+
+        setPendingFeedback({
+          status: 'success',
+          message: `${item.title || targetSlug} 게시를 완료했습니다.`,
+        });
+      } catch (error) {
+        console.error('Failed to publish pending item', error);
+        setPendingFeedback({
+          status: 'error',
+          message: '게시에 실패했어요. 잠시 후 다시 시도해 주세요.',
+        });
+      } finally {
+        setPublishingSlug('');
+      }
+    },
+    [hasToken, qs, refreshPending, refreshUploads, setPendingItems]
+  );
 
   const uploadFormState = useMemo(
     () => ({
@@ -720,6 +806,12 @@ export default function AdminPage() {
           filters={uploadFilters}
           onFiltersChange={handleUploadFiltersChange}
           tokenQueryString={qs}
+          pendingItems={pendingItems}
+          onRefreshPending={refreshPending}
+          onPublishPending={handlePublishPending}
+          isLoadingPending={isLoadingPending}
+          publishingSlug={publishingSlug}
+          pendingFeedback={pendingFeedbackWithHandler}
         />
       );
     }
