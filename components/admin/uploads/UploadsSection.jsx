@@ -294,7 +294,7 @@ export default function UploadsSection({
   }, []);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 animate-fade-slide">
       <div className="space-y-6 rounded-3xl border border-slate-800/60 bg-gradient-to-r from-[#050916]/90 via-[#060b1c]/80 to-[#0a1124]/90 p-6 shadow-lg shadow-cyan-900/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">

@@ -23,7 +23,7 @@ export default function UploadFilters({
   onSortOptionChange,
 }) {
   return (
-    <div className="space-y-4 rounded-3xl border border-slate-800/60 bg-[#050916]/80 p-5 shadow-inner shadow-slate-900/40">
+    <div className="animate-fade-slide space-y-4 rounded-3xl border border-slate-800/60 bg-[#050916]/80 p-5 shadow-lg shadow-slate-950/30 transition-all duration-500">
       <div className="flex flex-wrap items-center gap-2 rounded-full bg-slate-950/40 p-1">
         {CHANNEL_TABS.map((tab) => {
           const isActive = channelFilter === tab.value;

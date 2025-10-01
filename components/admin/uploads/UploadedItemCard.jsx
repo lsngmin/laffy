@@ -20,7 +20,9 @@ export default function UploadedItemCard({
       : 'border border-slate-800/60';
 
   return (
-    <div className={`relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur ${ringClass}`}>
+    <div
+      className={`group relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl bg-[#050a19]/85 backdrop-blur transition-all duration-500 ease-out hover:-translate-y-1.5 hover:shadow-[0_25px_60px_rgba(15,23,42,0.55)] ${ringClass} animate-fade-slide`}
+    >
       {selectable && (
         <div className="absolute left-4 top-4 z-20">
           <label className="flex items-center gap-2 rounded-md border border-slate-800/70 bg-slate-950/80 px-2 py-1 text-[11px] font-medium text-slate-200 shadow-sm">
@@ -35,9 +37,13 @@ export default function UploadedItemCard({
         </div>
       )}
       <div className="grid gap-5 p-5 sm:grid-cols-[200px,1fr] lg:grid-cols-[260px,1fr]">
-        <div className="relative overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/80 shadow-inner shadow-slate-900/40">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/80 shadow-inner shadow-slate-900/40 transition-all duration-500 group-hover:border-indigo-400/50">
           {item.preview ? (
-            <img src={item.preview} alt={item.title || item.slug} className="h-48 w-full object-cover" />
+            <img
+              src={item.preview}
+              alt={item.title || item.slug}
+              className="h-48 w-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
           ) : (
             <div className="grid h-48 place-items-center text-xs uppercase tracking-[0.3em] text-slate-500">No Preview</div>
           )}

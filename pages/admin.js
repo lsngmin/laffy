@@ -698,9 +698,241 @@ export default function AdminPage() {
     }
   }, []);
 
+  const renderActivePanel = () => {
+    if (view === 'uploads') {
+      return (
+        <UploadsSection
+          hasToken={hasToken}
+          items={uploadItems}
+          copiedSlug={copiedSlug}
+          onCopy={handleCopyRoute}
+          onEdit={openEditModal}
+          onDelete={openDeleteModal}
+          registerMeta={registerMeta}
+          uploadFormState={uploadFormState}
+          onRegisterExternal={handleRegisterExternal}
+          onRefresh={refreshUploads}
+          onLoadMore={loadMore}
+          hasMore={hasMore}
+          isLoading={isLoading}
+          isLoadingMore={isLoadingMore}
+          error={itemsError}
+          filters={uploadFilters}
+          onFiltersChange={handleUploadFiltersChange}
+          tokenQueryString={qs}
+        />
+      );
+    }
+
+    if (view === 'events') {
+      return (
+        <div className="space-y-6 animate-fade-slide">
+          <div className="animate-fade-slide flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">분석</h2>
+              <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
+            </div>
+            <button
+              type="button"
+              onClick={eventAnalytics.refresh}
+              disabled={eventAnalytics.loading}
+              className="pressable self-start rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition-all duration-300 hover:border-indigo-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {eventAnalytics.loading ? '불러오는 중…' : '새로고침'}
+            </button>
+          </div>
+          <RealtimeNotice
+            title="Redis 큐 기반 집계"
+            description="l_visit 이벤트는 먼저 Redis 큐에 적재된 뒤 주기적으로 Postgres에 반영돼요. 실시간 수치는 약간의 지연이 있을 수 있습니다."
+          />
+          <EventFilters
+            startDate={analyticsStartDate}
+            endDate={analyticsEndDate}
+            onDateChange={handleAnalyticsDateChange}
+            filters={eventFilters}
+            onFilterChange={handleEventFilterChange}
+            catalog={eventAnalytics.data.catalog}
+            loading={eventAnalytics.loading}
+            onRefresh={eventAnalytics.refresh}
+          />
+          <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
+          <EventKeyMetrics items={eventAnalytics.data.items} formatNumber={formatNumber} />
+          <EventTrendChart
+            seriesByGranularity={eventAnalytics.data.timeseriesByGranularity}
+            formatNumber={formatNumber}
+          />
+          <EventTable
+            rows={eventAnalytics.data.items}
+            loading={eventAnalytics.loading}
+            error={eventAnalytics.error}
+            formatNumber={formatNumber}
+          />
+        </div>
+      );
+    }
+
+    if (view === 'ads') {
+      return (
+        <div className="space-y-6 animate-fade-slide">
+          <AdsterraControls
+            domainName={adsterraDomainNameEnv}
+            domainId={adsterra.domainId}
+            loadingPlacements={adsterra.loadingPlacements}
+            loadingStats={adsterra.loadingStats}
+            status={adsterra.status}
+            error={adsterra.error}
+            placements={adsterra.placements}
+            placementId={adsterra.placementId}
+            onPlacementChange={adsterra.setPlacementId}
+            startDate={adsterra.startDate}
+            endDate={adsterra.endDate}
+            onStartDateChange={adsterra.setStartDate}
+            onEndDateChange={adsterra.setEndDate}
+            onRefreshPlacements={adsterra.fetchPlacements}
+            onFetchStats={adsterra.fetchStats}
+            onResetDates={adsterra.resetDates}
+            canFetchStats={adsterra.canFetchStats}
+            countryFilter={adsterra.countryFilter}
+            onCountryFilterChange={adsterra.setCountryFilter}
+            countryOptions={adsterra.countryOptions}
+            osFilter={adsterra.osFilter}
+            onOsFilterChange={adsterra.setOsFilter}
+            osOptions={adsterra.osOptions}
+            deviceFilter={adsterra.deviceFilter}
+            onDeviceFilterChange={adsterra.setDeviceFilter}
+            deviceOptions={adsterra.deviceOptions}
+            deviceFormatFilter={adsterra.deviceFormatFilter}
+            onDeviceFormatFilterChange={adsterra.setDeviceFormatFilter}
+            deviceFormatOptions={adsterra.deviceFormatOptions}
+            placementLabel={adsterra.placementLabel}
+            presets={adsterraPresets}
+            onSavePreset={handleSavePreset}
+            onApplyPreset={handleApplyPreset}
+          />
+          <AdsterraSummaryCards
+            totals={adsterra.totals}
+            rows={adsterra.filteredStats}
+            placementLabelMap={adsterra.placementLabelMap}
+            formatNumber={formatNumber}
+            formatCurrency={formatCurrency}
+            formatDecimal={formatDecimal}
+          />
+          <AdsterraChartPanel
+            rows={adsterra.filteredStats}
+            formatNumber={formatNumber}
+            formatCurrency={formatCurrency}
+          />
+          <AdsterraStatsTable
+            rows={adsterra.filteredStats}
+            loading={adsterra.loadingStats}
+            formatNumber={formatNumber}
+            formatCurrency={formatCurrency}
+            placementLabelMap={adsterra.placementLabelMap}
+            selectedPlacementId={adsterra.placementId}
+            activeFilters={adsterra.activeFilters}
+          />
+        </div>
+      );
+    }
+
+    if (view === 'insights') {
+      return (
+        <div className="space-y-6 animate-fade-slide">
+          <IntegratedInsightHighlights
+            eventTotals={insightsEvents.data.totals}
+            adTotals={adsterra.totals}
+            formatNumber={formatNumber}
+            formatDecimal={formatDecimal}
+            formatPercent={formatPercent}
+          />
+          <EventAdCorrelation
+            eventSeries={insightsEventSeriesGmt}
+            adSeries={adCorrelationSeries}
+            formatNumber={formatNumber}
+            formatDecimal={formatDecimal}
+          />
+        </div>
+      );
+    }
+
+    if (view === 'visits') {
+      return (
+        <div className="space-y-6 animate-fade-slide">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">방문 로그 (l_visit)</h2>
+              <p className="text-sm text-slate-400">콘텐츠별 방문 이벤트를 원시 데이터로 확인할 수 있어요.</p>
+            </div>
+            <button
+              type="button"
+              onClick={visitEvents.refresh}
+              disabled={visitEvents.loading}
+              className="pressable self-start rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition-all duration-300 hover:border-emerald-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {visitEvents.loading ? '불러오는 중…' : '새로고침'}
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:flex sm:items-end sm:gap-4">
+            <label className="flex w-full flex-col gap-2 sm:max-w-xs">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-400">Slug 필터</span>
+              <input
+                type="text"
+                value={visitSlug}
+                onChange={(event) => setVisitSlug(event.target.value)}
+                placeholder="예: funny-cat"
+                className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 focus:border-emerald-400 focus:outline-none"
+              />
+            </label>
+            <label className="flex w-full flex-col gap-2 sm:w-32">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-400">표시 개수</span>
+              <select
+                value={String(visitLimit)}
+                onChange={(event) => {
+                  const parsed = Number.parseInt(event.target.value, 10);
+                  if (Number.isFinite(parsed)) {
+                    setVisitLimit(Math.max(1, Math.min(200, parsed)));
+                  } else {
+                    setVisitLimit(DEFAULT_VISIT_LIMIT);
+                  }
+                }}
+                className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 focus:border-emerald-400 focus:outline-none"
+              >
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </label>
+          </div>
+
+          {visitEvents.error && (
+            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+              {visitEvents.error}
+            </div>
+          )}
+
+          {visitEvents.loading && visitEvents.items.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 text-center text-sm text-slate-400">
+              방문 로그를 불러오는 중이에요…
+            </div>
+          ) : (
+            <VisitLogTable items={visitEvents.items} />
+          )}
+
+          {visitEvents.loading && visitEvents.items.length > 0 && (
+            <p className="text-xs text-slate-500">새로운 데이터로 업데이트 중…</p>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <AdminPageShell>
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <header className="animate-fade-slide flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="bg-gradient-to-r from-indigo-200 via-white to-pink-200 bg-clip-text text-3xl font-extrabold text-transparent">
           LAFFY Admin
         </h1>
@@ -715,225 +947,14 @@ export default function AdminPage() {
         onChange={setView}
       />
 
-      {!hasToken && <TokenNotice />}
+      {!hasToken && (
+        <div className="animate-fade-slide">
+          <TokenNotice />
+        </div>
+      )}
 
       <div className="relative min-h-[24rem]">
-        {view === 'uploads' && (
-          <UploadsSection
-            hasToken={hasToken}
-            items={uploadItems}
-            copiedSlug={copiedSlug}
-            onCopy={handleCopyRoute}
-            onEdit={openEditModal}
-            onDelete={openDeleteModal}
-            registerMeta={registerMeta}
-            uploadFormState={uploadFormState}
-            onRegisterExternal={handleRegisterExternal}
-            onRefresh={refreshUploads}
-            onLoadMore={loadMore}
-            hasMore={hasMore}
-            isLoading={isLoading}
-            isLoadingMore={isLoadingMore}
-            error={itemsError}
-            filters={uploadFilters}
-            onFiltersChange={handleUploadFiltersChange}
-            tokenQueryString={qs}
-          />
-        )}
-        {view === 'events' && (
-          <div className="space-y-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">분석</h2>
-                <p className="text-sm text-slate-400">Vercel Analytics와 함께 수집한 내부 이벤트를 필터링해 확인할 수 있어요.</p>
-              </div>
-              <button
-                type="button"
-                onClick={eventAnalytics.refresh}
-                disabled={eventAnalytics.loading}
-                className="self-start rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-indigo-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {eventAnalytics.loading ? '불러오는 중…' : '새로고침'}
-              </button>
-            </div>
-            <RealtimeNotice
-              title="Redis 큐 기반 집계"
-              description="l_visit 이벤트는 먼저 Redis 큐에 적재된 뒤 주기적으로 Postgres에 반영돼요. 실시간 수치는 약간의 지연이 있을 수 있습니다."
-            />
-            <EventFilters
-              startDate={analyticsStartDate}
-              endDate={analyticsEndDate}
-              onDateChange={handleAnalyticsDateChange}
-              filters={eventFilters}
-              onFilterChange={handleEventFilterChange}
-              catalog={eventAnalytics.data.catalog}
-              loading={eventAnalytics.loading}
-              onRefresh={eventAnalytics.refresh}
-            />
-            <EventSummaryCards totals={eventAnalytics.data.totals} formatNumber={formatNumber} />
-            <EventKeyMetrics items={eventAnalytics.data.items} formatNumber={formatNumber} />
-            <EventTrendChart
-              seriesByGranularity={eventAnalytics.data.timeseriesByGranularity}
-              formatNumber={formatNumber}
-            />
-            <EventTable
-              rows={eventAnalytics.data.items}
-              loading={eventAnalytics.loading}
-              error={eventAnalytics.error}
-              formatNumber={formatNumber}
-            />
-          </div>
-        )}
-
-        {view === 'ads' && (
-          <div className="space-y-6">
-            <AdsterraControls
-              domainName={adsterraDomainNameEnv}
-              domainId={adsterra.domainId}
-              loadingPlacements={adsterra.loadingPlacements}
-              loadingStats={adsterra.loadingStats}
-              status={adsterra.status}
-              error={adsterra.error}
-              placements={adsterra.placements}
-              placementId={adsterra.placementId}
-              onPlacementChange={adsterra.setPlacementId}
-              startDate={adsterra.startDate}
-              endDate={adsterra.endDate}
-              onStartDateChange={adsterra.setStartDate}
-              onEndDateChange={adsterra.setEndDate}
-              onRefreshPlacements={adsterra.fetchPlacements}
-              onFetchStats={adsterra.fetchStats}
-              onResetDates={adsterra.resetDates}
-              canFetchStats={adsterra.canFetchStats}
-              countryFilter={adsterra.countryFilter}
-              onCountryFilterChange={adsterra.setCountryFilter}
-              countryOptions={adsterra.countryOptions}
-              osFilter={adsterra.osFilter}
-              onOsFilterChange={adsterra.setOsFilter}
-              osOptions={adsterra.osOptions}
-              deviceFilter={adsterra.deviceFilter}
-              onDeviceFilterChange={adsterra.setDeviceFilter}
-              deviceOptions={adsterra.deviceOptions}
-              deviceFormatFilter={adsterra.deviceFormatFilter}
-              onDeviceFormatFilterChange={adsterra.setDeviceFormatFilter}
-              deviceFormatOptions={adsterra.deviceFormatOptions}
-              placementLabel={adsterra.placementLabel}
-              presets={adsterraPresets}
-              onSavePreset={handleSavePreset}
-              onApplyPreset={handleApplyPreset}
-            />
-            <AdsterraSummaryCards
-              totals={adsterra.totals}
-              rows={adsterra.filteredStats}
-              placementLabelMap={adsterra.placementLabelMap}
-              formatNumber={formatNumber}
-              formatCurrency={formatCurrency}
-              formatDecimal={formatDecimal}
-            />
-            <AdsterraChartPanel
-              rows={adsterra.filteredStats}
-              formatNumber={formatNumber}
-              formatCurrency={formatCurrency}
-            />
-            <AdsterraStatsTable
-              rows={adsterra.filteredStats}
-              loading={adsterra.loadingStats}
-              formatNumber={formatNumber}
-              formatCurrency={formatCurrency}
-              placementLabelMap={adsterra.placementLabelMap}
-              selectedPlacementId={adsterra.placementId}
-              activeFilters={adsterra.activeFilters}
-            />
-          </div>
-        )}
-
-        {view === 'insights' && (
-          <div className="space-y-6">
-            <IntegratedInsightHighlights
-              eventTotals={insightsEvents.data.totals}
-              adTotals={adsterra.totals}
-              formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
-              formatPercent={formatPercent}
-            />
-            <EventAdCorrelation
-              eventSeries={insightsEventSeriesGmt}
-              adSeries={adCorrelationSeries}
-              formatNumber={formatNumber}
-              formatDecimal={formatDecimal}
-            />
-          </div>
-        )}
-
-        {view === 'visits' && (
-          <div className="space-y-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">방문 로그 (l_visit)</h2>
-                <p className="text-sm text-slate-400">콘텐츠별 방문 이벤트를 원시 데이터로 확인할 수 있어요.</p>
-              </div>
-              <button
-                type="button"
-                onClick={visitEvents.refresh}
-                disabled={visitEvents.loading}
-                className="self-start rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-emerald-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {visitEvents.loading ? '불러오는 중…' : '새로고침'}
-              </button>
-            </div>
-
-            <div className="grid gap-3 sm:flex sm:items-end sm:gap-4">
-              <label className="flex w-full flex-col gap-2 sm:max-w-xs">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-400">Slug 필터</span>
-                <input
-                  type="text"
-                  value={visitSlug}
-                  onChange={(event) => setVisitSlug(event.target.value)}
-                  placeholder="예: funny-cat"
-                  className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 focus:border-emerald-400 focus:outline-none"
-                />
-              </label>
-              <label className="flex w-full flex-col gap-2 sm:w-32">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-400">표시 개수</span>
-                <select
-                  value={String(visitLimit)}
-                  onChange={(event) => {
-                    const parsed = Number.parseInt(event.target.value, 10);
-                    if (Number.isFinite(parsed)) {
-                      setVisitLimit(Math.max(1, Math.min(200, parsed)));
-                    } else {
-                      setVisitLimit(DEFAULT_VISIT_LIMIT);
-                    }
-                  }}
-                  className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 focus:border-emerald-400 focus:outline-none"
-                >
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                  <option value="200">200</option>
-                </select>
-              </label>
-            </div>
-
-            {visitEvents.error && (
-              <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
-                {visitEvents.error}
-              </div>
-            )}
-
-            {visitEvents.loading && visitEvents.items.length === 0 ? (
-              <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 text-center text-sm text-slate-400">
-                방문 로그를 불러오는 중이에요…
-              </div>
-            ) : (
-              <VisitLogTable items={visitEvents.items} />
-            )}
-
-            {visitEvents.loading && visitEvents.items.length > 0 && (
-              <p className="text-xs text-slate-500">새로운 데이터로 업데이트 중…</p>
-            )}
-          </div>
-        )}
+        {renderActivePanel()}
       </div>
 
       <DeleteModal
