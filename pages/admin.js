@@ -126,7 +126,7 @@ export default function AdminPage() {
     search: '',
     type: '',
     sort: 'recent',
-    channel: 'k',
+    channel: '',
   });
 
   const uploadsQueryString = useMemo(() => {
