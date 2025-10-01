@@ -154,7 +154,7 @@ export default function UploadForm({
         <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-900/50 p-5 text-sm text-slate-300">
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Gofile 링크 등록 안내</p>
           <p className="text-sm leading-relaxed text-slate-400">
-            Gofile 채널은 다운로드 URL만 등록하면 <span className="font-semibold text-slate-200">https://gofile.io/d/…</span> 경로로 연결되는 고유한 리다이렉트 주소가 자동으로 생성됩니다.
+            Gofile 채널은 제목만 입력해도 <span className="font-semibold text-slate-200">https://gofile.io/d/…</span> 형태로 자동 연결됩니다.
           </p>
         </div>
       )}

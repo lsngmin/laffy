@@ -116,7 +116,7 @@ function buildItem(blob, metaInfo) {
     } else if (channel === 'k') {
       routePath = `/k/${slug}`;
     } else if (channel === 'g') {
-      routePath = `/gofile.io/${slug}`;
+      routePath = `/gofile.io/d/${slug}`;
     } else if ((type || '').toLowerCase() === 'image') {
       routePath = `/x/${slug}`;
     } else {

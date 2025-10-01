@@ -375,8 +375,8 @@ export default async function handler(req, res) {
       revalidateTargets.add('/k');
       revalidateTargets.add(`/k/${slug}`);
     } else if (channel === 'g') {
-      revalidateTargets.add('/gofile.io');
-      revalidateTargets.add(`/gofile.io/${slug}`);
+      revalidateTargets.add('/gofile.io/d');
+      revalidateTargets.add(`/gofile.io/d/${slug}`);
     } else if (effectiveType === 'image') {
       revalidateTargets.add('/x');
       revalidateTargets.add(`/x/${slug}`);
