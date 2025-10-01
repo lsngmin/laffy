@@ -30,6 +30,8 @@ export default function UploadsSection({
   isLoadingPending = false,
   publishingSlug = '',
   pendingFeedback = null,
+  onMoveToPending,
+  requeueFeedback = null,
 }) {
   const queryString = typeof tokenQueryString === 'string' ? tokenQueryString : '';
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -40,6 +42,7 @@ export default function UploadsSection({
   const [isTagSubmitting, setIsTagSubmitting] = useState(false);
   const handleRefresh = onRefresh || (() => {});
   const handleRefreshPending = onRefreshPending || (() => {});
+  const handleMoveToPending = onMoveToPending || (() => {});
   const handleLoadMore = onLoadMore || (() => {});
 
   const {
@@ -138,6 +141,19 @@ export default function UploadsSection({
   const showEmptyState = !isLoading && !items.length;
   const canShowLoadMore = hasMore;
   const selectedCount = selectedIds.size;
+  const requeueInfo =
+    requeueFeedback && typeof requeueFeedback === 'object'
+      ? requeueFeedback
+      : { status: 'idle', message: '', slug: '', onClear: null };
+  const requeueStatus = typeof requeueInfo.status === 'string' ? requeueInfo.status : 'idle';
+  const requeueMessage = typeof requeueInfo.message === 'string' ? requeueInfo.message : '';
+  const requeueVisible = requeueStatus !== 'idle' && requeueMessage;
+  const requeueTone =
+    requeueStatus === 'success'
+      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100'
+      : requeueStatus === 'error'
+        ? 'border-rose-500/60 bg-rose-500/10 text-rose-100'
+        : 'border-sky-500/50 bg-sky-500/10 text-sky-100';
 
   const handleBulkDelete = useCallback(async () => {
     if (!hasToken || !selectedItems.length) return;
@@ -315,6 +331,20 @@ export default function UploadsSection({
           publishFeedback={pendingFeedback}
         />
       )}
+      {requeueVisible && (
+        <div className={`flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${requeueTone}`}>
+          <span className="flex-1">{requeueMessage}</span>
+          {typeof requeueInfo.onClear === 'function' && requeueStatus !== 'pending' && (
+            <button
+              type="button"
+              onClick={requeueInfo.onClear}
+              className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 transition hover:border-white/40 hover:text-white"
+            >
+              닫기
+            </button>
+          )}
+        </div>
+      )}
       <div className="space-y-6 rounded-3xl border border-slate-800/60 bg-gradient-to-r from-[#050916]/90 via-[#060b1c]/80 to-[#0a1124]/90 p-6 shadow-lg shadow-cyan-900/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
@@ -468,6 +498,8 @@ export default function UploadsSection({
               onCopy={onCopy}
               onEdit={onEdit}
               onDelete={onDelete}
+              onMoveToPending={handleMoveToPending}
+              moveToPendingStatus={requeueInfo.slug === item.slug ? requeueStatus : 'idle'}
               selectable={hasToken}
               selected={selectedIds.has(itemKey(item))}
               onToggleSelect={() => toggleSelectItem(item)}
