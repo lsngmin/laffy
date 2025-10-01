@@ -9,6 +9,34 @@ const MAX_ITERATIONS = 40;
 
 const VALID_SORTS = new Set(['recent', 'title', 'duration']);
 
+function parseDateToMs(value) {
+  if (!value) return 0;
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : 0;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const parsed = Date.parse(trimmed);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function getRecencyTimestamp(item) {
+  if (!item || typeof item !== 'object') return 0;
+  const candidates = [item.updatedAt, item.publishedAt, item.uploadedAt];
+  for (const candidate of candidates) {
+    const time = parseDateToMs(candidate);
+    if (time) return time;
+  }
+  return 0;
+}
+
 function parseLimit(value) {
   if (typeof value === 'string' && value.trim().length > 0) {
     const parsed = Number(value);
@@ -80,7 +108,16 @@ function sortItems(items, sort) {
   if (sort === 'duration') {
     return [...items].sort((a, b) => (Number(b.durationSeconds) || 0) - (Number(a.durationSeconds) || 0));
   }
-  return items;
+  if (sort === 'recent') {
+    return [...items].sort((a, b) => {
+      const diff = getRecencyTimestamp(b) - getRecencyTimestamp(a);
+      if (diff !== 0) return diff;
+      const aSlug = (a.slug || a.pathname || '').toLowerCase();
+      const bSlug = (b.slug || b.pathname || '').toLowerCase();
+      return aSlug.localeCompare(bSlug);
+    });
+  }
+  return [...items];
 }
 
 async function fetchMetaForBlob(blob) {
@@ -175,7 +212,7 @@ export default async function handler(req, res) {
     let iterations = 0;
     let nextCursor = null;
     let hasMore = false;
-    const targetCount = sort === 'recent' ? limit : MAX_LIMIT;
+    const targetCount = sort === 'recent' ? Math.min(MAX_LIMIT, Math.max(limit * 3, limit)) : MAX_LIMIT;
     const collected = [];
 
     while (collected.length < targetCount && iterations < MAX_ITERATIONS) {
@@ -202,9 +239,7 @@ export default async function handler(req, res) {
       const filteredItems = pageItems.filter((item) => matchesFilters(item, filters));
 
       for (const item of filteredItems) {
-        if (collected.length < limit) {
-          collected.push(item);
-        } else if (sort !== 'recent' && collected.length < targetCount) {
+        if (collected.length < targetCount) {
           collected.push(item);
         }
       }
@@ -221,7 +256,7 @@ export default async function handler(req, res) {
     }
 
     const finalItems = sortItems(collected, sort).slice(0, limit);
-    const finalHasMore = sort === 'recent' ? hasMore : hasMore || collected.length > limit;
+    const finalHasMore = hasMore || collected.length > limit;
 
     res.status(200).json({ items: finalItems, nextCursor, hasMore: finalHasMore });
   } catch (e) {
