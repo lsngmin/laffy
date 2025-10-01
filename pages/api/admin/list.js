@@ -5,7 +5,7 @@ import normalizeMeta from '@/lib/admin/normalizeMeta';
 
 const DEFAULT_LIMIT = 6;
 const MAX_LIMIT = 60;
-const MAX_ITERATIONS = 40;
+const BASE_MAX_ITERATIONS = 40;
 
 const VALID_SORTS = new Set(['recent', 'title', 'duration']);
 
@@ -201,6 +201,14 @@ export default async function handler(req, res) {
   const channel = parseChannel(req.query.channel);
 
   const filters = { search, type, orientation, channel };
+  const isFiltered = Boolean(search || type || orientation || channel);
+  const pageFetchLimit = isFiltered
+    ? Math.min(MAX_LIMIT, Math.max(limit * 5, 30))
+    : Math.min(MAX_LIMIT, Math.max(limit, 12));
+  const targetCount = isFiltered
+    ? Math.min(MAX_LIMIT, Math.max(limit * 5, limit))
+    : Math.min(MAX_LIMIT, Math.max(limit * 3, limit));
+  const maxIterations = isFiltered ? BASE_MAX_ITERATIONS * 3 : BASE_MAX_ITERATIONS;
 
   try {
     const token = getBlobReadToken();
@@ -213,14 +221,13 @@ export default async function handler(req, res) {
     let nextCursor = null;
     let hasMore = false;
     let lastValidCursor = null;
-    const targetCount = sort === 'recent' ? Math.min(MAX_LIMIT, Math.max(limit * 3, limit)) : MAX_LIMIT;
     const collected = [];
 
-    while (collected.length < targetCount && iterations < MAX_ITERATIONS) {
+    while (collected.length < targetCount && iterations < maxIterations) {
       const response = await list({
         prefix: 'content/',
         token,
-        limit,
+        limit: pageFetchLimit,
         cursor: currentCursor,
       });
 

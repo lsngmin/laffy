@@ -523,20 +523,20 @@ export default function UploadsSection({
               {isFiltering ? '조건에 맞는 콘텐츠가 없습니다.' : '표시할 콘텐츠가 없습니다.'}
             </div>
           )}
-
-          {canShowLoadMore && (
-            <div className="col-span-full flex justify-center">
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-                className="rounded-full bg-slate-800 px-6 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-500"
-              >
-                {isLoadingMore ? '불러오는 중…' : '더 보기'}
-              </button>
-            </div>
-          )}
         </div>
+
+        {canShowLoadMore && (
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-full border border-slate-800/70 bg-slate-900/80 px-5 text-sm font-semibold text-slate-100 shadow-lg shadow-slate-950/40 transition-all duration-300 hover:-translate-y-0.5 hover:border-sky-500/50 hover:bg-slate-800/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 disabled:opacity-70"
+            >
+              {isLoadingMore ? '불러오는 중…' : '더 보기'}
+            </button>
+          </div>
+        )}
       </div>
 
       {isUploadModalOpen && (
