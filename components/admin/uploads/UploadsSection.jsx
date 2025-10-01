@@ -458,7 +458,7 @@ export default function UploadsSection({
           </form>
         )}
 
-        <div className="grid gap-6">
+        <div className="grid auto-rows-fr gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => (
             <UploadedItemCard
               key={item.pathname || item.slug || item.routePath || item.url}

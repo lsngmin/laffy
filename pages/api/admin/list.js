@@ -212,6 +212,7 @@ export default async function handler(req, res) {
     let iterations = 0;
     let nextCursor = null;
     let hasMore = false;
+    let lastValidCursor = null;
     const targetCount = sort === 'recent' ? Math.min(MAX_LIMIT, Math.max(limit * 3, limit)) : MAX_LIMIT;
     const collected = [];
 
@@ -247,8 +248,13 @@ export default async function handler(req, res) {
         }
       }
 
-      nextCursor = response?.cursor || null;
-      hasMore = Boolean(nextCursor);
+      const responseCursor = response?.cursor || null;
+      if (responseCursor) {
+        lastValidCursor = responseCursor;
+      }
+
+      nextCursor = responseCursor;
+      hasMore = Boolean(responseCursor);
 
       if (!hasMore || collected.length >= targetCount) {
         break;
@@ -260,6 +266,10 @@ export default async function handler(req, res) {
 
     const finalItems = sortItems(collected, sort).slice(0, limit);
     const finalHasMore = hasMore || collected.length > limit;
+
+    if (!nextCursor && finalHasMore && lastValidCursor) {
+      nextCursor = lastValidCursor;
+    }
 
     res.status(200).json({ items: finalItems, nextCursor, hasMore: finalHasMore });
   } catch (e) {
