@@ -531,7 +531,8 @@ export default function UploadsSection({
               type="button"
               onClick={handleLoadMore}
               disabled={isLoadingMore}
-              className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-full border border-slate-800/70 bg-slate-900/80 px-5 text-sm font-semibold text-slate-100 shadow-lg shadow-slate-950/40 transition-all duration-300 hover:-translate-y-0.5 hover:border-sky-500/50 hover:bg-slate-800/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 disabled:opacity-70"
+
+              className="inline-flex items-center justify-center rounded-full border border-slate-800/70 bg-slate-900/80 px-6 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-slate-950/40 transition-transform duration-300 hover:-translate-y-0.5 hover:border-sky-500/50 hover:bg-slate-800/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 disabled:opacity-70"
             >
               {isLoadingMore ? '불러오는 중…' : '더 보기'}
             </button>
